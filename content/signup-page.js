@@ -174,20 +174,26 @@ const VERIFICATION_CODE_INPUT_SELECTOR = [
   'input[type="text"][maxlength="6"]',
   'input[type="tel"][maxlength="6"]',
   'input[aria-label*="code" i]',
+  'input[aria-label*="コード"]',
+  'input[aria-label*="認証"]',
+  'input[aria-label*="確認"]',
   'input[placeholder*="code" i]',
+  'input[placeholder*="コード"]',
+  'input[placeholder*="認証"]',
+  'input[placeholder*="確認"]',
   'input[inputmode="numeric"]',
 ].join(', ');
 
-const ONE_TIME_CODE_LOGIN_PATTERN = /使用一次性验证码登录|改用(?:一次性)?验证码(?:登录)?|使用验证码登录|一次性验证码|验证码登录|one[-\s]*time\s*(?:passcode|password|code)|use\s+(?:a\s+)?one[-\s]*time\s*(?:passcode|password|code)(?:\s+instead)?|use\s+(?:a\s+)?code(?:\s+instead)?|sign\s+in\s+with\s+(?:email|code)|email\s+(?:me\s+)?(?:a\s+)?code/i;
-const LOGIN_ENTRY_ACTION_PATTERN = /(?:^|\b)(?:log\s*in|sign\s*in|continue\s+(?:with|using)\s+(?:email|chatgpt)|use\s+(?:an?\s+)?email|email\s+address)(?:\b|$)|登录|登陆|邮箱|电子邮件/i;
-const LOGIN_SWITCH_TO_PHONE_PATTERN = /继续使用(?:手机|手机号|电话)(?:号码)?登录|改用(?:手机|手机号|电话)(?:号码)?登录|手机号登录|continue\s+(?:with|using)\s+(?:a\s+)?phone(?:\s+number)?|use\s+(?:a\s+)?phone(?:\s+number)?(?:\s+instead)?|sign\s*in\s+with\s+(?:a\s+)?phone/i;
-const LOGIN_PHONE_ACTION_PATTERN = /手机|电话|phone|telephone/i;
-const LOGIN_PHONE_ENTRY_PAGE_PATTERN = /(?:\+\s*\(?\d{1,4}\)?\s*)?(?:手机号码|手机号|电话号码)|(?:phone|mobile)\s+number|telephone/i;
-const LOGIN_MORE_OPTIONS_PATTERN = /更多(?:选项|登录方式|方式)|其他(?:登录方式|选项|方式)|显示更多|more\s+(?:login\s+|sign[-\s]*in\s+)?options|other\s+(?:login\s+|sign[-\s]*in\s+)?(?:options|ways)|show\s+more/i;
+const ONE_TIME_CODE_LOGIN_PATTERN = /使用一次性验证码登录|改用(?:一次性)?验证码(?:登录)?|使用验证码登录|一次性验证码|验证码登录|ワンタイム(?:コード|パスコード)|一回限りの?(?:コード|パスコード)|(?:認証|確認)?コード(?:で|を使用して)?(?:ログイン|サインイン)|one[-\s]*time\s*(?:passcode|password|code)|use\s+(?:a\s+)?one[-\s]*time\s*(?:passcode|password|code)(?:\s+instead)?|use\s+(?:a\s+)?code(?:\s+instead)?|sign\s+in\s+with\s+(?:email|code)|email\s+(?:me\s+)?(?:a\s+)?code/i;
+const LOGIN_ENTRY_ACTION_PATTERN = /(?:^|\b)(?:log\s*in|sign\s*in|continue\s+(?:with|using)\s+(?:email|chatgpt)|use\s+(?:an?\s+)?email|email\s+address)(?:\b|$)|登录|登陆|邮箱|电子邮件|ログイン|サインイン|メールアドレス|メール|電子メール/i;
+const LOGIN_SWITCH_TO_PHONE_PATTERN = /继续使用(?:手机|手机号|电话)(?:号码)?登录|改用(?:手机|手机号|电话)(?:号码)?登录|手机号登录|(?:電話番号|電話|携帯電話|携帯)(?:で|を使用して)?(?:続行|続ける|ログイン|サインイン)|(?:続行|続ける|使用|ログイン|サインイン).*(?:電話番号|電話|携帯電話|携帯)|continue\s+(?:with|using)\s+(?:a\s+)?phone(?:\s+number)?|use\s+(?:a\s+)?phone(?:\s+number)?(?:\s+instead)?|sign\s*in\s+with\s+(?:a\s+)?phone/i;
+const LOGIN_PHONE_ACTION_PATTERN = /手机|电话|phone|telephone|電話番号|電話|携帯電話|携帯/i;
+const LOGIN_PHONE_ENTRY_PAGE_PATTERN = /(?:\+\s*\(?\d{1,4}\)?\s*)?(?:手机号码|手机号|电话号码|電話番号|携帯電話番号|携帯番号)|(?:phone|mobile)\s+number|telephone/i;
+const LOGIN_MORE_OPTIONS_PATTERN = /更多(?:选项|登录方式|方式)|其他(?:登录方式|选项|方式)|显示更多|その他|他の(?:ログイン)?方法|別の(?:ログイン)?方法|もっと見る|オプション|more\s+(?:login\s+|sign[-\s]*in\s+)?options|other\s+(?:login\s+|sign[-\s]*in\s+)?(?:options|ways)|show\s+more/i;
 const LOGIN_EXTERNAL_IDP_PATTERN = /google|microsoft|apple|sso|single\s+sign[-\s]*on|企业|工作区|workspace/i;
-const LOGIN_CODE_ONLY_ACTION_PATTERN = /one[-\s]*time|passcode|use\s+(?:a\s+)?code|验证码|一次性/i;
+const LOGIN_CODE_ONLY_ACTION_PATTERN = /one[-\s]*time|passcode|use\s+(?:a\s+)?code|验证码|一次性|ワンタイム|パスコード|認証コード|確認コード/i;
 
-const RESEND_VERIFICATION_CODE_PATTERN = /重新发送(?:验证码)?|再次发送(?:验证码)?|重发(?:验证码)?|未收到(?:验证码|邮件)|resend(?:\s+code)?|send\s+(?:a\s+)?new\s+code|send\s+(?:it\s+)?again|request\s+(?:a\s+)?new\s+code|didn'?t\s+receive/i;
+const RESEND_VERIFICATION_CODE_PATTERN = /重新发送(?:验证码)?|再次发送(?:验证码)?|重发(?:验证码)?|未收到(?:验证码|邮件)|(?:コード|メール|確認コード|認証コード)(?:を)?再送信|再送信|新しい(?:コード|確認コード|認証コード)|届かない|受信していません|resend(?:\s+code)?|send\s+(?:a\s+)?new\s+code|send\s+(?:it\s+)?again|request\s+(?:a\s+)?new\s+code|didn'?t\s+receive/i;
 const PHONE_RESEND_SERVER_ERROR_PREFIX = 'PHONE_RESEND_SERVER_ERROR::';
 const CONTACT_VERIFICATION_SERVER_ERROR_PATTERN = /this\s+page\s+isn['’]?t\s+working|currently\s+unable\s+to\s+handle\s+this\s+request|http\s+error\s+500|500\s+internal\s+server\s+error/i;
 
@@ -489,7 +495,7 @@ async function handle405ResendError(step, remainingTimeout = 30000) {
 // Signup Entry Helpers
 // ============================================================
 
-const SIGNUP_ENTRY_TRIGGER_PATTERN = /免费注册|立即注册|注册|sign\s*up|register|create\s*account|create\s+account/i;
+const SIGNUP_ENTRY_TRIGGER_PATTERN = /免费注册|立即注册|注册|無料でサインアップ|サインアップ|新規登録|登録する|登録|アカウントを作成|アカウント作成|sign\s*up|register|create\s*account|create\s+account/i;
 const SIGNUP_EMAIL_INPUT_SELECTOR = [
   'input[type="email"]',
   'input[autocomplete="email"]',
@@ -500,9 +506,11 @@ const SIGNUP_EMAIL_INPUT_SELECTOR = [
   'input[placeholder*="email" i]',
   'input[placeholder*="电子邮件"]',
   'input[placeholder*="邮箱"]',
+  'input[placeholder*="メール"]',
   'input[aria-label*="email" i]',
   'input[aria-label*="电子邮件"]',
   'input[aria-label*="邮箱"]',
+  'input[aria-label*="メール"]',
 ].join(', ');
 const SIGNUP_PHONE_INPUT_SELECTOR = [
   'input[type="tel"]:not([maxlength="6"])',
@@ -510,30 +518,38 @@ const SIGNUP_PHONE_INPUT_SELECTOR = [
   'input[id*="phone" i]',
   'input[autocomplete="tel"]',
   'input[placeholder*="手机"]',
+  'input[placeholder*="電話"]',
+  'input[placeholder*="携帯"]',
   'input[aria-label*="手机"]',
+  'input[aria-label*="電話"]',
+  'input[aria-label*="携帯"]',
 ].join(', ');
 const SIGNUP_SWITCH_TO_EMAIL_PATTERN = new RegExp([
   String.raw`\u7ee7\u7eed\u4f7f\u7528(?:\u7535\u5b50\u90ae\u4ef6\u5730\u5740|\u90ae\u7bb1)\u767b\u5f55`,
   String.raw`\u6539\u7528(?:\u7535\u5b50\u90ae\u4ef6\u5730\u5740|\u90ae\u7bb1)\u767b\u5f55`,
+  String.raw`(?:メールアドレス|メール|電子メール)(?:で|を使用して)?(?:続行|続ける|ログイン|サインイン|サインアップ)`,
+  String.raw`(?:続行|続ける|使用|ログイン|サインイン|サインアップ).*(?:メールアドレス|メール|電子メール)`,
   String.raw`continue\s+using\s+(?:an?\s+)?email(?:\s+address)?(?:\s+(?:to\s+)?(?:log\s*in|sign\s*in|sign\s*up))?`,
   String.raw`continue\s+with\s+email(?:\s+address)?`,
   String.raw`use\s+(?:an?\s+)?email(?:\s+address)?(?:\s+instead)?`,
   String.raw`sign\s*(?:in|up)\s+with\s+email`,
 ].join('|'), 'i');
-const SIGNUP_SWITCH_ACTION_PATTERN = /\u7ee7\u7eed\u4f7f\u7528|\u6539\u7528|continue|use|sign\s*(?:in|up)/i;
-const SIGNUP_EMAIL_ACTION_PATTERN = /\u7535\u5b50\u90ae\u4ef6|\u90ae\u7bb1|email/i;
-const SIGNUP_PHONE_ACTION_PATTERN = /手机|手机号|电话号码|phone|telephone|mobile/i;
+const SIGNUP_SWITCH_ACTION_PATTERN = /\u7ee7\u7eed\u4f7f\u7528|\u6539\u7528|continue|use|sign\s*(?:in|up)|続行|続ける|使用|ログイン|サイン(?:イン|アップ)/i;
+const SIGNUP_EMAIL_ACTION_PATTERN = /\u7535\u5b50\u90ae\u4ef6|\u90ae\u7bb1|email|メールアドレス|メール|電子メール/i;
+const SIGNUP_PHONE_ACTION_PATTERN = /手机|手机号|电话号码|phone|telephone|mobile|電話番号|電話|携帯電話|携帯/i;
 const SIGNUP_SWITCH_TO_PHONE_PATTERN = new RegExp([
   String.raw`\u7ee7\u7eed\u4f7f\u7528(?:\u624b\u673a|\u624b\u673a\u53f7|\u7535\u8bdd\u53f7\u7801)(?:\u53f7\u7801)?\u767b\u5f55`,
   String.raw`\u6539\u7528(?:\u624b\u673a|\u624b\u673a\u53f7|\u7535\u8bdd\u53f7\u7801)(?:\u53f7\u7801)?\u767b\u5f55`,
   String.raw`\u7ee7\u7eed\u4f7f\u7528(?:\u624b\u673a|\u624b\u673a\u53f7|\u624b\u673a\u53f7\u7801|\u7535\u8bdd\u53f7\u7801)(?:\u53f7\u7801)?`,
   String.raw`\u6539\u7528(?:\u624b\u673a|\u624b\u673a\u53f7|\u624b\u673a\u53f7\u7801|\u7535\u8bdd\u53f7\u7801)(?:\u53f7\u7801)?`,
   String.raw`\u4f7f\u7528(?:\u624b\u673a|\u624b\u673a\u53f7|\u624b\u673a\u53f7\u7801|\u7535\u8bdd\u53f7\u7801)(?:\u53f7\u7801)?`,
+  String.raw`(?:電話番号|電話|携帯電話|携帯)(?:で|を使用して)?(?:続行|続ける|ログイン|サインイン|サインアップ)`,
+  String.raw`(?:続行|続ける|使用|ログイン|サインイン|サインアップ).*(?:電話番号|電話|携帯電話|携帯)`,
   String.raw`continue\s+(?:with|using)\s+(?:a\s+)?phone(?:\s+number)?`,
   String.raw`use\s+(?:a\s+)?phone(?:\s+number)?(?:\s+instead)?`,
   String.raw`sign\s*(?:in|up)\s+with\s+(?:a\s+)?phone`,
 ].join('|'), 'i');
-const SIGNUP_MORE_OPTIONS_PATTERN = /更多选项|其它方式|其他方式|more\s+options|show\s+more|other\s+(?:options|ways)/i;
+const SIGNUP_MORE_OPTIONS_PATTERN = /更多选项|其它方式|其他方式|その他|他の方法|別の方法|もっと見る|オプション|more\s+options|show\s+more|other\s+(?:options|ways)/i;
 const SIGNUP_WORK_EMAIL_PATTERN = /\u5de5\u4f5c|business|work\s+email/i;
 
 function getSignupEmailInput() {
@@ -554,8 +570,8 @@ function getSignupEmailInput() {
     return type === 'email'
       || autocomplete === 'email'
       || autocomplete === 'username'
-      || /email|username/i.test(`${name} ${id}`)
-      || /email|电子邮件|邮箱/i.test(combinedText);
+      || /email|username|mail/i.test(`${name} ${id}`)
+      || /email|电子邮件|邮箱|メール|電子メール/i.test(combinedText);
   });
 
   return fallback || null;
@@ -579,7 +595,7 @@ function getSignupPhoneInput() {
     return type === 'tel'
       || autocomplete === 'tel'
       || /phone|tel/i.test(`${name} ${id}`)
-      || /手机|电话|手机号/.test(combinedText);
+      || /手机|电话|手机号|電話|電話番号|携帯|携帯電話/.test(combinedText);
   });
 
   return fallback || null;
@@ -631,7 +647,7 @@ function getSignupEmailContinueButton({ allowDisabled = false } = {}) {
   );
   return Array.from(candidates).find((el) => {
     if (!isVisibleElement(el) || (!allowDisabled && !isActionEnabled(el))) return false;
-    return /continue|next|submit|继续|下一步/i.test(getActionText(el));
+    return /continue|next|submit|继续|下一步|続行|続ける|次へ|送信/i.test(getActionText(el));
   }) || null;
 }
 
@@ -665,7 +681,7 @@ function findSignupEntryTrigger(options = {}) {
   const pageText = typeof getPageTextSnapshot === 'function'
     ? getPageTextSnapshot()
     : '';
-  const looksLikeLoggedOutHome = /登录|登入|log\s*in|sign\s*in/i.test(pageText);
+  const looksLikeLoggedOutHome = /登录|登入|ログイン|サインイン|log\s*in|sign\s*in/i.test(pageText);
   return collapsedViewport || looksLikeLoggedOutHome ? hiddenSignupTrigger : null;
 }
 
@@ -2656,7 +2672,7 @@ async function step3_fillEmailPassword(payload) {
 
   const submitBtn = snapshot.submitButton
     || getSignupPasswordSubmitButton({ allowDisabled: true })
-    || await waitForElementByText('button', /continue|sign\s*up|submit|注册|创建|create/i, 5000).catch(() => null);
+    || await waitForElementByText('button', /continue|sign\s*up|submit|注册|创建|続行|続ける|次へ|サインアップ|登録|作成|create/i, 5000).catch(() => null);
 
   if (!submitBtn) {
     logSignupPasswordDiagnostics('步骤 3：未找到可提交的密码页按钮');
@@ -2701,16 +2717,16 @@ async function step3_fillEmailPassword(payload) {
 // Fill Verification Code (used by step 4 and step 7)
 // ============================================================
 
-const INVALID_VERIFICATION_CODE_PATTERN = /代码不正确|验证码不正确|验证码错误|code\s+(?:is\s+)?incorrect|invalid\s+code|incorrect\s+code|try\s+again/i;
-const VERIFICATION_PAGE_PATTERN = /检查您的收件箱|输入我们刚刚向|重新发送电子邮件|重新发送验证码|代码不正确|email\s+verification|check\s+your\s+inbox|enter\s+the\s+code|we\s+just\s+sent|we\s+emailed|resend/i;
-const OAUTH_CONSENT_PAGE_PATTERN = /使用\s*ChatGPT\s*登录到\s*Codex|sign\s+in\s+to\s+codex(?:\s+with\s+chatgpt)?|login\s+to\s+codex|log\s+in\s+to\s+codex|authorize|授权/i;
+const INVALID_VERIFICATION_CODE_PATTERN = /代码不正确|验证码不正确|验证码错误|コードが正しくありません|コードが間違っています|無効なコード|認証コードが正しくありません|確認コードが正しくありません|code\s+(?:is\s+)?incorrect|invalid\s+code|incorrect\s+code|try\s+again/i;
+const VERIFICATION_PAGE_PATTERN = /检查您的收件箱|输入我们刚刚向|重新发送电子邮件|重新发送验证码|代码不正确|受信(?:トレイ|箱)を確認|(?:認証|確認)?コードを入力|送信した(?:認証|確認)?コード|メールで送信|再送信|email\s+verification|check\s+your\s+inbox|enter\s+the\s+code|we\s+just\s+sent|we\s+emailed|resend/i;
+const OAUTH_CONSENT_PAGE_PATTERN = /使用\s*ChatGPT\s*登录到\s*Codex|ChatGPT\s*(?:を使用して|で)\s*Codex\s*(?:に)?(?:ログイン|サインイン)|Codex\s*(?:に)?(?:ログイン|サインイン)|認可|承認|sign\s+in\s+to\s+codex(?:\s+with\s+chatgpt)?|login\s+to\s+codex|log\s+in\s+to\s+codex|authorize|授权/i;
 const OAUTH_CONSENT_FORM_SELECTOR = 'form[action*="/sign-in-with-chatgpt/" i][action*="/consent" i]';
-const CONTINUE_ACTION_PATTERN = /继续|continue/i;
-const ADD_PHONE_PAGE_PATTERN = /add[\s-]*(?:a\s+)?phone|添加(?:手机|手机号|电话号码)|绑定(?:手机|手机号|电话号码)|验证(?:你的|您)?(?:手机|手机号|电话号码)|需要(?:手机|手机号|电话号码)|提供(?:手机|手机号|电话号码)|provide\s+(?:a\s+)?phone\s+number|phone\s+number\s+(?:required|verification)|verify\s+(?:your\s+)?phone|confirm\s+(?:your\s+)?phone/i;
-const ADD_EMAIL_PAGE_PATTERN = /add[\s-]*email|添加(?:电子邮件|邮箱)|要求提供(?:电子邮件|邮箱)地址|提供(?:电子邮件|邮箱)地址|provide\s+(?:an?\s+)?email\s+address|email\s+address\s+required/i;
-const STEP5_SUBMIT_ERROR_PATTERN = /无法根据该信息创建帐户|请重试|unable\s+to\s+create\s+(?:your\s+)?account|couldn'?t\s+create\s+(?:your\s+)?account|something\s+went\s+wrong|invalid\s+(?:birthday|birth|date)|生日|出生日期/i;
-const AUTH_TIMEOUT_ERROR_TITLE_PATTERN = /糟糕，出错了|something\s+went\s+wrong|oops/i;
-const AUTH_TIMEOUT_ERROR_DETAIL_PATTERN = /operation\s+timed\s+out|timed\s+out|请求超时|操作超时|failed\s+to\s+fetch|network\s+error|fetch\s+failed/i;
+const CONTINUE_ACTION_PATTERN = /继续|続行|続ける|次へ|continue/i;
+const ADD_PHONE_PAGE_PATTERN = /add[\s-]*(?:a\s+)?phone|添加(?:手机|手机号|电话号码)|绑定(?:手机|手机号|电话号码)|验证(?:你的|您)?(?:手机|手机号|电话号码)|需要(?:手机|手机号|电话号码)|提供(?:手机|手机号|电话号码)|電話番号(?:を)?(?:追加|登録|確認|認証)|電話番号が必要|携帯(?:電話)?番号(?:を)?(?:追加|登録|確認|認証)|provide\s+(?:a\s+)?phone\s+number|phone\s+number\s+(?:required|verification)|verify\s+(?:your\s+)?phone|confirm\s+(?:your\s+)?phone/i;
+const ADD_EMAIL_PAGE_PATTERN = /add[\s-]*email|添加(?:电子邮件|邮箱)|要求提供(?:电子邮件|邮箱)地址|提供(?:电子邮件|邮箱)地址|(?:メールアドレス|メール|電子メール)(?:を)?(?:追加|登録|提供)|メールアドレスが必要|provide\s+(?:an?\s+)?email\s+address|email\s+address\s+required/i;
+const STEP5_SUBMIT_ERROR_PATTERN = /无法根据该信息创建帐户|请重试|アカウントを作成できません|アカウント作成に失敗|もう一度お試し|問題が発生しました|無効な(?:生年月日|誕生日|日付)|生年月日|誕生日|unable\s+to\s+create\s+(?:your\s+)?account|couldn'?t\s+create\s+(?:your\s+)?account|something\s+went\s+wrong|invalid\s+(?:birthday|birth|date)|生日|出生日期/i;
+const AUTH_TIMEOUT_ERROR_TITLE_PATTERN = /糟糕，出错了|問題が発生しました|エラーが発生しました|something\s+went\s+wrong|oops/i;
+const AUTH_TIMEOUT_ERROR_DETAIL_PATTERN = /operation\s+timed\s+out|timed\s+out|请求超时|操作超时|タイムアウト|failed\s+to\s+fetch|network\s+error|fetch\s+failed|ネットワークエラー|取得に失敗/i;
 const AUTH_ROUTE_ERROR_PATTERN = /405\s+method\s+not\s+allowed|route\s+error.*405|did\s+not\s+provide\s+an?\s+[`'"]?action|post\s+request\s+to\s+["']?\/email-verification/i;
 const STEP4_405_RECOVERY_ERROR_PREFIX = 'STEP4_405_RECOVERY_LIMIT::';
 const STEP4_405_RECOVERY_LIMIT = 3;
@@ -2718,8 +2734,8 @@ const SIGNUP_USER_ALREADY_EXISTS_ERROR_PREFIX = 'SIGNUP_USER_ALREADY_EXISTS::';
 const SIGNUP_PHONE_PASSWORD_MISMATCH_ERROR_PREFIX = 'SIGNUP_PHONE_PASSWORD_MISMATCH::';
 const AUTH_MAX_CHECK_ATTEMPTS_ERROR_PREFIX = 'AUTH_MAX_CHECK_ATTEMPTS::';
 const STEP8_EMAIL_IN_USE_ERROR_PREFIX = 'STEP8_EMAIL_IN_USE::';
-const SIGNUP_EMAIL_EXISTS_PATTERN = /与此电子邮件地址相关联的帐户已存在|account\s+associated\s+with\s+this\s+email\s+address\s+already\s+exists|email\s+address.*already\s+exists/i;
-const SIGNUP_PHONE_PASSWORD_MISMATCH_PATTERN = /incorrect\s+phone\s+number\s+or\s+password|phone\s+number\s+or\s+password|与此(?:电话|手机)号码相关联的帐户已存在|account\s+associated\s+with\s+this\s+phone\s+number\s+already\s+exists/i;
+const SIGNUP_EMAIL_EXISTS_PATTERN = /与此电子邮件地址相关联的帐户已存在|この(?:メールアドレス|メール|電子メール)(?:に関連付けられた)?アカウントは(?:既に|すでに)存在|メールアドレス.*(?:既に|すでに)存在|account\s+associated\s+with\s+this\s+email\s+address\s+already\s+exists|email\s+address.*already\s+exists/i;
+const SIGNUP_PHONE_PASSWORD_MISMATCH_PATTERN = /incorrect\s+phone\s+number\s+or\s+password|phone\s+number\s+or\s+password|電話番号またはパスワード|電話番号.*アカウントは(?:既に|すでに)存在|与此(?:电话|手机)号码相关联的帐户已存在|account\s+associated\s+with\s+this\s+phone\s+number\s+already\s+exists/i;
 
 const authPageRecovery = self.MultiPageAuthPageRecovery?.createAuthPageRecovery?.({
   detailPattern: AUTH_TIMEOUT_ERROR_DETAIL_PATTERN,
@@ -2885,7 +2901,7 @@ function isLikelyLoggedInChatgptHomeUrl(rawUrl = location.href) {
     }
 
     if (typeof document !== 'undefined' && document && typeof document.querySelectorAll === 'function') {
-      const loginActionPattern = /登录|log\s*in|sign\s*in/i;
+      const loginActionPattern = /登录|ログイン|サインイン|log\s*in|sign\s*in/i;
       const candidates = document.querySelectorAll(
         'a, button, [role="button"], [role="link"], input[type="button"], input[type="submit"]'
       );
@@ -3078,7 +3094,7 @@ function isAddEmailPageReady() {
 
   const pageText = getPageTextSnapshot();
   return ADD_EMAIL_PAGE_PATTERN.test(pageText)
-    && !/继续使用(?:电子邮件地址|邮箱)登录|continue\s+using\s+(?:an?\s+)?email(?:\s+address)?\s+(?:to\s+)?(?:log\s*in|sign\s*in)|continue\s+with\s+email/i.test(pageText);
+    && !/继续使用(?:电子邮件地址|邮箱)登录|(?:メールアドレス|メール|電子メール)(?:で|を使用して)?(?:続行|続ける|ログイン|サインイン)|continue\s+using\s+(?:an?\s+)?email(?:\s+address)?\s+(?:to\s+)?(?:log\s*in|sign\s*in)|continue\s+with\s+email/i.test(pageText);
 }
 
 function isPhoneVerificationPageReady() {
@@ -3260,6 +3276,9 @@ function isStep5AllConsentText(text) {
   if (!normalizedText) return false;
 
   return /i\s+agree\s+to\s+all\s+of\s+the\s+following/i.test(normalizedText)
+    || normalizedText.includes('\u4ee5\u4e0b\u306e\u3059\u3079\u3066\u306b\u540c\u610f')
+    || normalizedText.includes('\u3059\u3079\u3066\u306b\u540c\u610f')
+    || normalizedText.includes('\u540c\u610f\u3057\u307e\u3059')
     || normalizedText.includes('\u6211\u540c\u610f\u4ee5\u4e0b\u6240\u6709\u5404\u9879')
     || normalizedText.includes('\u540c\u610f\u4ee5\u4e0b\u6240\u6709\u5404\u9879')
     || normalizedText.includes('\u6211\u540c\u610f\u6240\u6709')
@@ -3319,11 +3338,13 @@ function isStep5CheckboxChecked(checkbox) {
 }
 
 function findBirthdayReactAriaSelect(labelText) {
-  const normalizedLabel = normalizeInlineText(labelText);
+  const normalizedLabels = (Array.isArray(labelText) ? labelText : [labelText])
+    .map((text) => normalizeInlineText(text))
+    .filter(Boolean);
   const roots = document.querySelectorAll('.react-aria-Select');
 
   for (const root of roots) {
-    const labelEl = Array.from(root.querySelectorAll('span')).find((el) => normalizeInlineText(el.textContent) === normalizedLabel);
+    const labelEl = Array.from(root.querySelectorAll('span')).find((el) => normalizedLabels.includes(normalizeInlineText(el.textContent)));
     if (!labelEl) continue;
 
     const item = root.closest('[class*="selectItem"], ._selectItem_ppsls_113') || root.parentElement;
@@ -3413,7 +3434,7 @@ function getSignupPasswordSubmitButton({ allowDisabled = false } = {}) {
   return Array.from(candidates).find((el) => {
     if (!isVisibleElement(el) || (!allowDisabled && !isActionEnabled(el))) return false;
     const text = getActionText(el);
-    return /继续|continue|submit|创建|create/i.test(text);
+    return /继续|continue|submit|创建|続行|続ける|次へ|サインアップ|登録|作成|create/i.test(text);
   }) || null;
 }
 
@@ -3779,8 +3800,8 @@ function isLoginEmailLikeInput(input) {
   const labelText = `${summary.placeholder} ${summary.ariaLabel}`;
   return summary.type === 'email'
     || summary.autocomplete === 'email'
-    || /email/i.test(nameId)
-    || /email|电子邮件|邮箱/i.test(labelText);
+    || /email|mail/i.test(nameId)
+    || /email|电子邮件|邮箱|メールアドレス|メール|電子メール/i.test(labelText);
 }
 
 function getLoginEmailInput() {
@@ -3795,9 +3816,11 @@ function getLoginEmailInput() {
     'input[placeholder*="Email"]',
     'input[placeholder*="电子邮件"]',
     'input[placeholder*="邮箱"]',
+    'input[placeholder*="メール"]',
     'input[aria-label*="email" i]',
     'input[aria-label*="电子邮件"]',
     'input[aria-label*="邮箱"]',
+    'input[aria-label*="メール"]',
   ].join(', '))).find((candidate) => isVisibleElement(candidate)) || null;
   if (!input) {
     return null;
@@ -3824,6 +3847,10 @@ function getLoginPhoneInput() {
     'input[aria-label*="手机"]',
     'input[placeholder*="电话"]',
     'input[aria-label*="电话"]',
+    'input[placeholder*="電話"]',
+    'input[aria-label*="電話"]',
+    'input[placeholder*="携帯"]',
+    'input[aria-label*="携帯"]',
     phonePage ? 'input[name="username"]:not([maxlength="6"])' : '',
     phonePage ? 'input[id*="username" i]:not([maxlength="6"])' : '',
     phonePage ? 'input[autocomplete="username"]:not([maxlength="6"])' : '',
@@ -3893,7 +3920,7 @@ function getLoginSubmitButton({ allowDisabled = false } = {}) {
     if (!isVisibleElement(el) || (!allowDisabled && !isActionEnabled(el))) return false;
     const text = getActionText(el);
     if (!text || ONE_TIME_CODE_LOGIN_PATTERN.test(text)) return false;
-    return /continue|next|submit|sign\s*in|log\s*in|继续|下一步|登录/i.test(text);
+    return /continue|next|submit|sign\s*in|log\s*in|继续|下一步|登录|続行|続ける|次へ|ログイン|サインイン|送信/i.test(text);
   }) || null;
 }
 
@@ -4061,7 +4088,7 @@ function findLoginEntryTrigger() {
   const preferred = candidates.find((el) => {
     const text = getActionText(el);
     if (!text || LOGIN_CODE_ONLY_ACTION_PATTERN.test(text) || LOGIN_EXTERNAL_IDP_PATTERN.test(text)) return false;
-    return /continue\s+(?:with|using)\s+email|use\s+(?:an?\s+)?email|email\s+address|邮箱|电子邮件/i.test(text);
+    return /continue\s+(?:with|using)\s+email|use\s+(?:an?\s+)?email|email\s+address|邮箱|电子邮件|メールアドレス|メール|電子メール/i.test(text);
   });
   if (preferred) return preferred;
 
@@ -4083,7 +4110,7 @@ function findLoginPhoneEntryTrigger() {
     return LOGIN_SWITCH_TO_PHONE_PATTERN.test(text)
       || (
         LOGIN_PHONE_ACTION_PATTERN.test(text)
-        && !/email|邮箱|电子邮件/i.test(text)
+        && !/email|邮箱|电子邮件|メールアドレス|メール|電子メール/i.test(text)
       );
   }) || null;
 }
@@ -5014,7 +5041,7 @@ function getVerificationSubmitButtonForTarget(codeInput, options = {}) {
     return Array.from(textCandidates).find((element) => {
       if (!isUsableAction(element)) return false;
       const text = getActionText(element);
-      return /verify|confirm|submit|continue|确认|验证|继续/i.test(text);
+    return /verify|confirm|submit|continue|确认|验证|继续|確認|認証|検証|続行|続ける|次へ|送信/i.test(text);
     }) || null;
   };
 
@@ -6556,7 +6583,7 @@ function getStep5SubmitButton() {
         .join(' ')
         .replace(/\s+/g, ' ')
         .trim();
-    return /完成|创建|create|continue|finish|done|agree/i.test(text);
+    return /完成|创建|create|continue|finish|done|agree|完了|作成|アカウント作成|アカウントを作成|続行|続ける|次へ|同意/i.test(text);
   }) || null;
 }
 
@@ -6881,7 +6908,7 @@ async function step5_fillNameBirthday(payload) {
   let nameInput = null;
   try {
     nameInput = await waitForElement(
-      'input[name="name"], input[placeholder*="全名"], input[autocomplete="name"]',
+      'input[name="name"], input[placeholder*="全名"], input[placeholder*="氏名"], input[placeholder*="名前"], input[placeholder*="お名前"], input[autocomplete="name"]',
       10000
     );
   } catch {
@@ -6905,6 +6932,9 @@ async function step5_fillNameBirthday(payload) {
   let visibleAgeInput = false;
   let visibleBirthdaySpinners = false;
   let visibleBirthdaySelects = false;
+  const findBirthdaySelect = (...labels) => labels
+    .map((label) => findBirthdayReactAriaSelect(label))
+    .find(Boolean) || null;
 
   for (let i = 0; i < 100; i++) {
     yearSpinner = document.querySelector('[role="spinbutton"][data-type="year"]');
@@ -6912,9 +6942,9 @@ async function step5_fillNameBirthday(payload) {
     daySpinner = document.querySelector('[role="spinbutton"][data-type="day"]');
     hiddenBirthday = document.querySelector('input[name="birthday"]');
     ageInput = document.querySelector('input[name="age"]');
-    yearReactSelect = findBirthdayReactAriaSelect('年');
-    monthReactSelect = findBirthdayReactAriaSelect('月');
-    dayReactSelect = findBirthdayReactAriaSelect('天');
+    yearReactSelect = findBirthdaySelect('年', 'Year');
+    monthReactSelect = findBirthdaySelect('月', 'Month');
+    dayReactSelect = findBirthdaySelect('天', '日', 'Day');
 
     visibleAgeInput = Boolean(ageInput && isVisibleElement(ageInput));
     visibleBirthdaySpinners = Boolean(
@@ -6950,9 +6980,9 @@ async function step5_fillNameBirthday(payload) {
     const yearSpinner = document.querySelector('[role="spinbutton"][data-type="year"]');
     const monthSpinner = document.querySelector('[role="spinbutton"][data-type="month"]');
     const daySpinner = document.querySelector('[role="spinbutton"][data-type="day"]');
-    const yearReactSelect = findBirthdayReactAriaSelect('年');
-    const monthReactSelect = findBirthdayReactAriaSelect('月');
-    const dayReactSelect = findBirthdayReactAriaSelect('天');
+    const yearReactSelect = findBirthdaySelect('年', 'Year');
+    const monthReactSelect = findBirthdaySelect('月', 'Month');
+    const dayReactSelect = findBirthdaySelect('天', '日', 'Day');
 
     if (yearReactSelect?.nativeSelect && monthReactSelect?.nativeSelect && dayReactSelect?.nativeSelect) {
       const desiredDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -7089,7 +7119,7 @@ async function step5_fillNameBirthday(payload) {
   // Click "完成帐户创建" button
   await sleep(500);
   const completeBtn = await waitForStep5SubmitButton(5000)
-    || await waitForElementByText('button', /完成|create|continue|finish|done|agree/i, 5000).catch(() => null);
+    || await waitForElementByText('button', /完成|完了|作成|アカウント作成|アカウントを作成|続行|続ける|次へ|同意|create|continue|finish|done|agree/i, 5000).catch(() => null);
   if (!completeBtn) {
     throw new Error('未找到“完成帐户创建”按钮。URL: ' + location.href);
   }

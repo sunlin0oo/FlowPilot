@@ -27,8 +27,8 @@
     const PHONE_ROUTE_405_RECOVERY_COOLDOWN_MS = 6000;
     const PHONE_RESEND_ROUTE_405_MAX_RECOVERIES = 2;
     const PHONE_RESEND_ROUTE_405_MAX_RECOVERY_TOTAL_MS = 12000;
-    const PHONE_RESEND_THROTTLED_PATTERN = /tried\s+to\s+resend\s+too\s+many\s+times|please\s+try\s+again\s+later|too\s+many\s+resend|resend\s+too\s+many|发送.*过于频繁|稍后再试|重试次数过多/i;
-    const PHONE_RESEND_BANNED_NUMBER_PATTERN = /无法向此电话号码发送短信|无法向此手机号发送短信|无法发送短信到此电话号码|无法发送短信到此手机号|can(?:not|'t)\s+send\s+(?:an?\s+)?(?:sms|text(?:\s+message)?)\s+to\s+(?:this|that)\s+(?:phone\s+)?number|unable\s+to\s+send\s+(?:an?\s+)?(?:sms|text(?:\s+message)?)\s+to\s+(?:this|that)\s+(?:phone\s+)?number/i;
+    const PHONE_RESEND_THROTTLED_PATTERN = /tried\s+to\s+resend\s+too\s+many\s+times|please\s+try\s+again\s+later|too\s+many\s+resend|resend\s+too\s+many|发送.*过于频繁|稍后再试|重试次数过多|再送信.*多すぎ|しばらくしてから|後でもう一度/i;
+    const PHONE_RESEND_BANNED_NUMBER_PATTERN = /无法向此电话号码发送短信|无法向此手机号发送短信|无法发送短信到此电话号码|无法发送短信到此手机号|この電話番号に(?:SMS|テキスト|メッセージ)を送信できません|電話番号に送信できません|can(?:not|'t)\s+send\s+(?:an?\s+)?(?:sms|text(?:\s+message)?)\s+to\s+(?:this|that)\s+(?:phone\s+)?number|unable\s+to\s+send\s+(?:an?\s+)?(?:sms|text(?:\s+message)?)\s+to\s+(?:this|that)\s+(?:phone\s+)?number/i;
     const PHONE_RESEND_SERVER_ERROR_PATTERN = /this\s+page\s+isn['’]?t\s+working|currently\s+unable\s+to\s+handle\s+this\s+request|http\s+error\s+500|500\s+internal\s+server\s+error/i;
     const PHONE_ROUTE_405_PATTERN = /405\s+method\s+not\s+allowed|route\s+error.*405|did\s+not\s+provide\s+an?\s+[`'"]?action|post\s+request\s+to\s+["']?\/phone-verification/i;
     const PHONE_ROUTE_405_MAX_RECOVERY_CLICKS = 3;
@@ -424,7 +424,7 @@
       const text = getPhoneVerificationResendActionText(button);
       const channel = isWhatsAppResendText(text)
         ? 'whatsapp'
-        : (/(?:sms|text\s+message|短信)/i.test(text) ? 'sms' : '');
+        : (/(?:sms|text\s+message|短信|テキスト|メッセージ)/i.test(text) ? 'sms' : '');
       return {
         channel,
         channelText: text,
@@ -442,7 +442,7 @@
         if (!allowDisabled && !isActionEnabled(button)) return false;
         const intent = String(button.getAttribute('value') || '').trim().toLowerCase();
         if (intent === 'resend') return true;
-        return /resend|重新发送|再次发送|whats\s*app/i.test(getPhoneVerificationResendActionText(button));
+        return /resend|重新发送|再次发送|再送信|新しい(?:コード|確認コード|認証コード)|whats\s*app/i.test(getPhoneVerificationResendActionText(button));
       }) || null;
     }
 

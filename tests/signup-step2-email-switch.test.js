@@ -440,6 +440,128 @@ return {
   assert.equal(api.run()?.kind, 'localized-email');
 });
 
+test('findSignupEntryTrigger recognizes Japanese free signup button text', () => {
+  const api = new Function(`
+const signupButton = {
+  textContent: '無料でサインアップ',
+  value: '',
+  disabled: false,
+  getAttribute(name) {
+    if (name === 'type') return 'button';
+    return '';
+  },
+  getBoundingClientRect() {
+    return { width: 180, height: 48 };
+  },
+};
+
+const loginButton = {
+  textContent: 'ログイン',
+  value: '',
+  disabled: false,
+  getAttribute(name) {
+    if (name === 'type') return 'button';
+    return '';
+  },
+  getBoundingClientRect() {
+    return { width: 120, height: 48 };
+  },
+};
+
+const document = {
+  querySelectorAll(selector) {
+    if (selector === 'a, button, [role="button"], [role="link"]') {
+      return [loginButton, signupButton];
+    }
+    return [];
+  },
+};
+
+${extractConst('SIGNUP_ENTRY_TRIGGER_PATTERN')}
+
+function isVisibleElement(el) {
+  return Boolean(el);
+}
+
+function isActionEnabled(el) {
+  return Boolean(el) && !el.disabled && el.getAttribute('aria-disabled') !== 'true';
+}
+
+function getActionText(el) {
+  return [el?.textContent, el?.value, el?.getAttribute?.('aria-label'), el?.getAttribute?.('title')]
+    .filter(Boolean)
+    .join(' ')
+    .replace(/\\s+/g, ' ')
+    .trim();
+}
+
+${extractFunction('findSignupEntryTrigger')}
+
+return {
+  run() {
+    return getActionText(findSignupEntryTrigger());
+  },
+};
+`)();
+
+  assert.equal(api.run(), '無料でサインアップ');
+});
+
+test('getSignupEmailContinueButton recognizes Japanese continue text', () => {
+  const api = new Function(`
+const continueButton = {
+  textContent: '続ける',
+  value: '',
+  disabled: false,
+  getAttribute(name) {
+    if (name === 'type') return 'button';
+    return '';
+  },
+  getBoundingClientRect() {
+    return { width: 180, height: 48 };
+  },
+};
+
+const document = {
+  querySelector() {
+    return null;
+  },
+  querySelectorAll(selector) {
+    if (selector === 'button, a, [role="button"], [role="link"], input[type="button"], input[type="submit"]') {
+      return [continueButton];
+    }
+    return [];
+  },
+};
+
+function isVisibleElement(el) {
+  return Boolean(el);
+}
+
+function isActionEnabled(el) {
+  return Boolean(el) && !el.disabled && el.getAttribute('aria-disabled') !== 'true';
+}
+
+function getActionText(el) {
+  return [el?.textContent, el?.value, el?.getAttribute?.('aria-label'), el?.getAttribute?.('title')]
+    .filter(Boolean)
+    .join(' ')
+    .replace(/\\s+/g, ' ')
+    .trim();
+}
+
+${extractFunction('getSignupEmailContinueButton')}
+
+return {
+  run() {
+    return getActionText(getSignupEmailContinueButton());
+  },
+};
+`)();
+
+  assert.equal(api.run(), '続ける');
+});
+
 test('waitForSignupEntryState retries the signup entry click five times before giving up', async () => {
   const api = new Function(`
 const logs = [];
