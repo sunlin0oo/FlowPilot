@@ -84,7 +84,7 @@ test('openCloudflareTempEmailUsageGuidePage opens the contribution portal home p
 
   const api = new Function(`
 const openedUrls = [];
-function getContributionPortalUrl() { return 'https://apikey.qzz.io'; }
+function getContributionPortalUrl() { return 'https://flowpilot.qlhazycoder.top'; }
 function openExternalUrl(url) { openedUrls.push(url); }
 ${bundle}
 return {
@@ -94,7 +94,7 @@ return {
   `)();
 
   api.openCloudflareTempEmailUsageGuidePage();
-  assert.deepEqual(api.openedUrls, ['https://apikey.qzz.io']);
+  assert.deepEqual(api.openedUrls, ['https://flowpilot.qlhazycoder.top']);
 });
 
 test('openCloudflareTempEmailUsageGuidePage skips opening when the contribution portal URL is empty', () => {

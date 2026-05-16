@@ -15,8 +15,8 @@
       constants = {},
     } = context;
 
-    const contributionPortalUrl = constants.contributionPortalUrl || 'https://apikey.qzz.io';
-    const contributionUploadUrl = constants.contributionUploadUrl || 'https://apikey.qzz.io/upload';
+    const contributionPortalUrl = constants.contributionPortalUrl || 'https://flowpilot.qlhazycoder.top';
+    const contributionUploadUrl = constants.contributionUploadUrl || 'https://flowpilot.qlhazycoder.top/upload';
     const pollIntervalMs = Math.max(1500, Math.floor(Number(constants.pollIntervalMs) || 2500));
 
     const hiddenRows = [

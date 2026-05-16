@@ -976,7 +976,7 @@ const DEFAULT_LUCKMAIL_BASE_URL = 'https://mails.luckyous.com';
 const DEFAULT_LUCKMAIL_EMAIL_TYPE = 'ms_graph';
 const DISPLAY_TIMEZONE = 'Asia/Shanghai';
 const DEFAULT_ACCOUNT_RUN_HISTORY_HELPER_BASE_URL = 'http://127.0.0.1:17373';
-const CONTRIBUTION_UPLOAD_URL = 'https://apikey.qzz.io/';
+const CONTRIBUTION_UPLOAD_URL = 'https://flowpilot.qlhazycoder.top/';
 const DEFAULT_PHONE_VERIFICATION_ENABLED = false;
 const DEFAULT_HERO_SMS_COUNTRY_ID = 52;
 const DEFAULT_HERO_SMS_COUNTRY_LABEL = 'Thailand';
@@ -1971,7 +1971,7 @@ function shouldPromptNewUserGuide() {
 }
 
 function getContributionPortalUrl() {
-  return String(contributionContentService?.portalUrl || 'https://apikey.qzz.io').trim();
+  return String(contributionContentService?.portalUrl || 'https://flowpilot.qlhazycoder.top').trim();
 }
 
 function openNewUserGuidePrompt() {
@@ -12128,9 +12128,9 @@ const contributionModeManager = window.SidepanelContributionMode?.createContribu
     sendMessage: (message) => chrome.runtime.sendMessage(message),
   },
   constants: {
-    contributionOauthUrl: `${String(contributionContentService?.portalUrl || 'https://apikey.qzz.io').replace(/\/+$/, '')}/oauth/`,
-    contributionPortalUrl: String(contributionContentService?.portalUrl || 'https://apikey.qzz.io').replace(/\/+$/, ''),
-    contributionUploadUrl: `${String(contributionContentService?.portalUrl || 'https://apikey.qzz.io').replace(/\/+$/, '')}/upload`,
+    contributionOauthUrl: `${String(contributionContentService?.portalUrl || 'https://flowpilot.qlhazycoder.top').replace(/\/+$/, '')}/oauth/`,
+    contributionPortalUrl: String(contributionContentService?.portalUrl || 'https://flowpilot.qlhazycoder.top').replace(/\/+$/, ''),
+    contributionUploadUrl: `${String(contributionContentService?.portalUrl || 'https://flowpilot.qlhazycoder.top').replace(/\/+$/, '')}/upload`,
   },
 });
 const baseRenderContributionMode = contributionModeManager?.render

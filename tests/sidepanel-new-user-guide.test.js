@@ -130,7 +130,7 @@ const localStorage = {
 };
 const btnContributionMode = { disabled: false };
 const latestState = { contributionMode: false };
-const contributionContentService = { portalUrl: 'https://apikey.qzz.io' };
+const contributionContentService = { portalUrl: 'https://flowpilot.qlhazycoder.top' };
 const openedUrls = [];
 let modalOptions = null;
 let nextChoice = 'confirm';
@@ -164,7 +164,7 @@ return {
 
   assert.equal(confirmed, true);
   assert.equal(api.getDismissed(), '1');
-  assert.deepStrictEqual(api.getOpenedUrls(), ['https://apikey.qzz.io']);
+  assert.deepStrictEqual(api.getOpenedUrls(), ['https://flowpilot.qlhazycoder.top']);
   assert.equal(modalOptions.title, '新手引导');
   assert.equal(modalOptions.alert.text, '本提示仅出现一次。');
   assert.deepStrictEqual(
@@ -178,5 +178,5 @@ return {
   api.setNextChoice(null);
   const skipped = await api.maybeShowNewUserGuidePrompt();
   assert.equal(skipped, false);
-  assert.deepStrictEqual(api.getOpenedUrls(), ['https://apikey.qzz.io']);
+  assert.deepStrictEqual(api.getOpenedUrls(), ['https://flowpilot.qlhazycoder.top']);
 });

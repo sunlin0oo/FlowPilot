@@ -1,5 +1,5 @@
 (() => {
-  const PORTAL_BASE_URL = 'https://apikey.qzz.io';
+  const PORTAL_BASE_URL = 'https://flowpilot.qlhazycoder.top';
   const CONTENT_SUMMARY_API_URL = `${PORTAL_BASE_URL}/api/content-summary`;
   const CACHE_KEY = 'multipage-contribution-content-summary-v1';
   const FETCH_TIMEOUT_MS = 6000;

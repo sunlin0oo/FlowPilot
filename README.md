@@ -12,7 +12,7 @@
 
 # 交流群请进官网查看
 
-### <a href="https://apikey.qzz.io/" target="_blank" rel="noreferrer">点击进入官网查看最新地址与交流群入口</a>
+### <a href="https://flowpilot.qlhazycoder.top/" target="_blank" rel="noreferrer">点击进入官网查看最新地址与交流群入口</a>
 
 **最新地址、交流群入口、最新通知，统一以官网为准。**
 

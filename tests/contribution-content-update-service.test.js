@@ -131,8 +131,8 @@ test('getContentUpdateSnapshot falls back to cached snapshot when the live reque
         updatedAtDisplay: '2026-04-20 08:00',
       },
     ],
-    portalUrl: 'https://apikey.qzz.io',
-    apiUrl: 'https://apikey.qzz.io/api/content-summary',
+    portalUrl: 'https://flowpilot.qlhazycoder.top',
+    apiUrl: 'https://flowpilot.qlhazycoder.top/api/content-summary',
     checkedAt: Date.now() - 1000,
   };
 

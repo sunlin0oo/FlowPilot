@@ -1,7 +1,7 @@
 (function attachBackgroundContributionOAuth(root, factory) {
   root.MultiPageBackgroundContributionOAuth = factory();
 })(typeof self !== 'undefined' ? self : globalThis, function createBackgroundContributionOAuthModule() {
-  const API_BASE_URL = 'https://apikey.qzz.io/oauth/api';
+  const API_BASE_URL = 'https://flowpilot.qlhazycoder.top/oauth/api';
   const ACTIVE_STATUSES = new Set(['started', 'waiting', 'processing']);
   const FINAL_STATUSES = new Set(['auto_approved', 'auto_rejected', 'manual_review_required', 'expired', 'error']);
   const CALLBACK_FINAL_STATUSES = new Set(['submitted']);
