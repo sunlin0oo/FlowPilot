@@ -13318,6 +13318,7 @@ const kiroDeviceAuthExecutor = self.MultiPageBackgroundKiroDeviceAuth?.createKir
   YYDS_MAIL_PROVIDER,
   MAIL_2925_VERIFICATION_INTERVAL_MS,
   MAIL_2925_VERIFICATION_MAX_ATTEMPTS,
+  isRetryableContentScriptTransportError,
   pollCloudflareTempEmailVerificationCode,
   pollCloudMailVerificationCode,
   pollHotmailVerificationCode,

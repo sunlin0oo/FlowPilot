@@ -53,6 +53,7 @@
         'openai-plus',
         'openai-phone',
         'openai-oauth',
+        'openai-step6',
       ],
       sources: {
         cpa: {
@@ -318,6 +319,11 @@
       id: 'openai-oauth',
       label: 'OAuth',
       rowIds: ['row-oauth-flow-timeout', 'row-oauth-display'],
+    },
+    'openai-step6': {
+      id: 'openai-step6',
+      label: '第六步',
+      rowIds: ['row-step6-cookie-settings'],
     },
     'kiro-source-kiro-rs': {
       id: 'kiro-source-kiro-rs',

@@ -616,6 +616,16 @@
       return Math.max(1, Math.min(requestedTimeoutMs, Math.floor(Number(remainingTimeoutMs))));
     }
 
+    function buildRetryableTransportTimeoutError(source, error) {
+      const rawMessage = error?.message || String(error || '');
+      if (isRetryableContentScriptTransportError(error)) {
+        return new Error(
+          `${getSourceLabel(source)} 页面刚完成跳转或刷新，内容脚本还没有重新接回；扩展已自动重试，但仍未恢复。请重试当前步骤。`
+        );
+      }
+      return new Error(rawMessage || `${getSourceLabel(source)} 页面通信失败。`);
+    }
+
     function getMessageDebugLabel(source, message, tabId = null) {
       const parts = [source || 'unknown', message?.type || 'UNKNOWN'];
       if (Number.isInteger(message?.step)) parts.push(`step=${message.step}`);
@@ -878,6 +888,7 @@
         logMessage = '',
         logStep = null,
         logStepKey = '',
+        onRetryableError = null,
         responseTimeoutMs,
       } = options;
       const start = Date.now();
@@ -916,10 +927,23 @@
             logged = true;
           }
 
+          if (typeof onRetryableError === 'function') {
+            await onRetryableError(err, {
+              attempt,
+              elapsedMs: Date.now() - start,
+              remainingTimeoutMs: Math.max(0, timeoutMs - (Date.now() - start)),
+              source,
+              message,
+            });
+          }
+
           await sleepOrStop(retryDelayMs);
         }
       }
 
+      if (lastError && isRetryableContentScriptTransportError(lastError)) {
+        throw buildRetryableTransportTimeoutError(source, lastError);
+      }
       throw lastError || new Error(`等待 ${getSourceLabel(source)} 重新就绪超时。`);
     }
 

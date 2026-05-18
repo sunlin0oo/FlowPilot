@@ -22,6 +22,10 @@ test('flow registry exposes openai and kiro with canonical source metadata', () 
   assert.equal(flowRegistry.normalizeSourceId('openai', 'sub2api'), 'sub2api');
   assert.equal(flowRegistry.normalizeSourceId('kiro', 'anything-else'), 'kiro-rs');
   assert.deepEqual(
+    flowRegistry.getVisibleGroupIds('openai', 'cpa'),
+    ['openai-plus', 'openai-phone', 'openai-oauth', 'openai-step6', 'openai-source-cpa', 'service-account', 'service-email', 'service-proxy']
+  );
+  assert.deepEqual(
     flowRegistry.getVisibleGroupIds('kiro', 'kiro-rs'),
     ['kiro-runtime-status', 'kiro-source-kiro-rs', 'service-account', 'service-email', 'service-proxy']
   );
@@ -32,6 +36,10 @@ test('flow registry exposes openai and kiro with canonical source metadata', () 
   assert.deepEqual(
     flowRegistry.getSettingsGroupDefinition('openai-phone')?.rowIds || [],
     []
+  );
+  assert.deepEqual(
+    flowRegistry.getSettingsGroupDefinition('openai-step6')?.rowIds || [],
+    ['row-step6-cookie-settings']
   );
 });
 

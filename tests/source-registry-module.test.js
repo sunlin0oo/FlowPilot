@@ -22,6 +22,25 @@ test('manifest loads shared source registry before content utils in static bundl
   }
 });
 
+test('manifest ships a static Kiro auth bundle for cross-page recovery', () => {
+  const manifest = JSON.parse(fs.readFileSync('manifest.json', 'utf8'));
+  const kiroEntry = (manifest.content_scripts || []).find((entry) => {
+    const matches = Array.isArray(entry.matches) ? entry.matches : [];
+    return matches.includes('https://view.awsapps.com/*')
+      && matches.includes('https://signin.aws/*')
+      && matches.includes('https://signin.aws.amazon.com/*')
+      && matches.includes('https://profile.aws/*')
+      && matches.includes('https://profile.aws.amazon.com/*');
+  });
+
+  assert.ok(kiroEntry, 'missing static Kiro auth content script entry');
+  assert.deepEqual(kiroEntry.js, [
+    'shared/source-registry.js',
+    'content/utils.js',
+    'content/kiro-device-auth-page.js',
+  ]);
+});
+
 test('shared source registry exposes canonical source, alias, detection, and ready policies', () => {
   const flowRegistrySource = fs.readFileSync('shared/flow-registry.js', 'utf8');
   const source = fs.readFileSync('shared/source-registry.js', 'utf8');
@@ -57,6 +76,54 @@ test('shared source registry exposes canonical source, alias, detection, and rea
     url: 'https://view.awsapps.com/start',
     hostname: 'view.awsapps.com',
   }), 'kiro-device-auth');
+  assert.equal(registry.detectSourceFromLocation({
+    url: 'https://signin.aws/register',
+    hostname: 'signin.aws',
+  }), 'kiro-device-auth');
+  assert.equal(registry.detectSourceFromLocation({
+    url: 'https://profile.aws/complete',
+    hostname: 'profile.aws',
+  }), 'kiro-device-auth');
+  assert.equal(registry.detectSourceFromLocation({
+    url: 'https://signin.aws.amazon.com/register',
+    hostname: 'signin.aws.amazon.com',
+  }), 'kiro-device-auth');
+  assert.equal(registry.detectSourceFromLocation({
+    url: 'https://profile.aws.amazon.com/complete',
+    hostname: 'profile.aws.amazon.com',
+  }), 'kiro-device-auth');
+  assert.equal(
+    registry.matchesSourceUrlFamily(
+      'kiro-device-auth',
+      'https://signin.aws/register',
+      'https://view.awsapps.com/start'
+    ),
+    true
+  );
+  assert.equal(
+    registry.matchesSourceUrlFamily(
+      'kiro-device-auth',
+      'https://profile.aws/complete',
+      'https://signin.aws/register'
+    ),
+    true
+  );
+  assert.equal(
+    registry.matchesSourceUrlFamily(
+      'kiro-device-auth',
+      'https://profile.aws.amazon.com/complete',
+      'https://signin.aws.amazon.com/register'
+    ),
+    true
+  );
+  assert.equal(
+    registry.matchesSourceUrlFamily(
+      'kiro-device-auth',
+      'https://oidc.us-east-1.amazonaws.com/authorize',
+      'https://view.awsapps.com/start'
+    ),
+    true
+  );
   assert.equal(registry.shouldReportReadyForFrame('mail-163', true), false);
   assert.equal(registry.shouldReportReadyForFrame('unknown-source', false), false);
   assert.equal(registry.getCleanupOwnerSource('oauth-localhost-callback'), 'openai-auth');

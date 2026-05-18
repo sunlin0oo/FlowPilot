@@ -10,6 +10,25 @@
     'codewhisperer:transformations',
     'codewhisperer:taskassist',
   ]);
+  const KIRO_STEP1_COOKIE_CLEAR_DOMAINS = Object.freeze([
+    'awsapps.com',
+    'view.awsapps.com',
+    'login.awsapps.com',
+    'amazonaws.com',
+    'signin.aws',
+    'signin.aws.amazon.com',
+    'profile.aws',
+    'profile.aws.amazon.com',
+  ]);
+  const KIRO_STEP1_COOKIE_CLEAR_ORIGINS = Object.freeze([
+    'https://view.awsapps.com',
+    'https://login.awsapps.com',
+    'https://oidc.us-east-1.amazonaws.com',
+    'https://signin.aws',
+    'https://signin.aws.amazon.com',
+    'https://profile.aws',
+    'https://profile.aws.amazon.com',
+  ]);
 
   const MAIL_2925_FILTER_LOOKBACK_MS = 10 * 60 * 1000;
   const KIRO_AWS_VERIFICATION_CODE_PATTERNS = Object.freeze([
@@ -105,6 +124,102 @@
       return numeric;
     }
     return fallback;
+  }
+
+  function normalizeKiroCookieDomain(domain = '') {
+    return String(domain || '').trim().replace(/^\.+/, '').toLowerCase();
+  }
+
+  function matchesKiroNamedHostFamily(domain = '', family = '') {
+    const normalizedDomain = normalizeKiroCookieDomain(domain);
+    const normalizedFamily = normalizeKiroCookieDomain(family);
+    if (!normalizedDomain || !normalizedFamily) {
+      return false;
+    }
+    return normalizedDomain === normalizedFamily
+      || normalizedDomain.endsWith(`.${normalizedFamily}`)
+      || normalizedDomain.startsWith(`${normalizedFamily}.`)
+      || normalizedDomain.includes(`.${normalizedFamily}.`);
+  }
+
+  function shouldClearKiroStep1Cookie(cookie) {
+    const domain = normalizeKiroCookieDomain(cookie?.domain);
+    if (!domain) {
+      return false;
+    }
+    return KIRO_STEP1_COOKIE_CLEAR_DOMAINS.some((target) => (
+      domain === target
+      || domain.endsWith(`.${target}`)
+      || matchesKiroNamedHostFamily(domain, target)
+    ));
+  }
+
+  function buildKiroStep1CookieRemovalUrl(cookie) {
+    const host = normalizeKiroCookieDomain(cookie?.domain);
+    const rawPath = String(cookie?.path || '/');
+    const path = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
+    return `https://${host}${path}`;
+  }
+
+  async function collectKiroStep1Cookies(chromeApi) {
+    if (!chromeApi?.cookies?.getAll) {
+      return [];
+    }
+
+    const stores = chromeApi.cookies.getAllCookieStores
+      ? await chromeApi.cookies.getAllCookieStores()
+      : [{ id: undefined }];
+    const cookies = [];
+    const seen = new Set();
+
+    for (const store of stores) {
+      const storeId = store?.id;
+      const batch = await chromeApi.cookies.getAll(storeId ? { storeId } : {});
+      for (const cookie of batch || []) {
+        if (!shouldClearKiroStep1Cookie(cookie)) {
+          continue;
+        }
+        const key = [
+          cookie.storeId || storeId || '',
+          cookie.domain || '',
+          cookie.path || '',
+          cookie.name || '',
+          cookie.partitionKey ? JSON.stringify(cookie.partitionKey) : '',
+        ].join('|');
+        if (seen.has(key)) {
+          continue;
+        }
+        seen.add(key);
+        cookies.push(cookie);
+      }
+    }
+
+    return cookies;
+  }
+
+  async function removeKiroStep1Cookie(chromeApi, cookie) {
+    const details = {
+      url: buildKiroStep1CookieRemovalUrl(cookie),
+      name: cookie.name,
+    };
+    if (cookie.storeId) {
+      details.storeId = cookie.storeId;
+    }
+    if (cookie.partitionKey) {
+      details.partitionKey = cookie.partitionKey;
+    }
+
+    try {
+      const result = await chromeApi.cookies.remove(details);
+      return Boolean(result);
+    } catch (error) {
+      console.warn('[MultiPage:kiro-step1] remove cookie failed', {
+        domain: cookie?.domain,
+        name: cookie?.name,
+        message: getErrorMessage(error),
+      });
+      return false;
+    }
   }
 
   function buildCredentialUploadOptions(state = {}) {
@@ -354,6 +469,7 @@
       YYDS_MAIL_PROVIDER = 'yyds-mail',
       MAIL_2925_VERIFICATION_INTERVAL_MS = 15000,
       MAIL_2925_VERIFICATION_MAX_ATTEMPTS = 15,
+      isRetryableContentScriptTransportError = () => false,
       isTabAlive = async () => false,
       KIRO_DEVICE_AUTH_INJECT_FILES = null,
       pollCloudflareTempEmailVerificationCode = null,
@@ -406,6 +522,35 @@
       }
     }
 
+    async function clearKiroCookiesBeforeStep1() {
+      if (!chrome?.cookies?.getAll || !chrome.cookies?.remove) {
+        await log('步骤 1：当前浏览器不支持 cookies API，跳过打开 Kiro 授权页前 cookie 清理。', 'warn');
+        return;
+      }
+
+      await log('步骤 1：打开 Kiro 授权页前清理 AWS Builder ID 相关 cookies...', 'info');
+      const cookies = await collectKiroStep1Cookies(chrome);
+      let removedCount = 0;
+      for (const cookie of cookies) {
+        if (await removeKiroStep1Cookie(chrome, cookie)) {
+          removedCount += 1;
+        }
+      }
+
+      if (chrome.browsingData?.removeCookies) {
+        try {
+          await chrome.browsingData.removeCookies({
+            since: 0,
+            origins: KIRO_STEP1_COOKIE_CLEAR_ORIGINS,
+          });
+        } catch (error) {
+          await log(`步骤 1：browsingData 补扫 cookies 失败：${getErrorMessage(error)}`, 'warn');
+        }
+      }
+
+      await log(`步骤 1：已清理 ${removedCount} 个 AWS Builder ID 相关 cookies。`, 'ok');
+    }
+
     async function ensureKiroAuthTab(state = {}, options = {}) {
       let tabId = Number.isInteger(state?.kiroAuthTabId)
         ? state.kiroAuthTabId
@@ -433,6 +578,42 @@
       const tabId = await ensureKiroAuthTab(state, options);
       await activateTab(tabId);
       return tabId;
+    }
+
+    async function reattachKiroContentScript(tabId, options = {}) {
+      if (!Number.isInteger(tabId)) {
+        throw new Error('缺少 Kiro 授权页标签页，无法重新连接内容脚本。');
+      }
+      if (typeof waitForTabStableComplete === 'function') {
+        await waitForTabStableComplete(tabId, {
+          timeoutMs: 45000,
+          retryDelayMs: 300,
+          stableMs: Number(options.stableMs) || 1500,
+          initialDelayMs: Number(options.initialDelayMs) || 150,
+        });
+      }
+      if (typeof ensureContentScriptReadyOnTab === 'function') {
+        await ensureContentScriptReadyOnTab('kiro-device-auth', tabId, {
+          inject: Array.isArray(KIRO_DEVICE_AUTH_INJECT_FILES) ? KIRO_DEVICE_AUTH_INJECT_FILES : null,
+          injectSource: 'kiro-device-auth',
+          timeoutMs: 45000,
+          retryDelayMs: 800,
+          logMessage: options.injectLogMessage || 'Kiro 授权页内容脚本未就绪，正在等待页面恢复...',
+        });
+      }
+    }
+
+    function buildKiroRetryRecovery(tabId, options = {}) {
+      return async (error) => {
+        if (!isRetryableContentScriptTransportError(error)) {
+          return;
+        }
+        await reattachKiroContentScript(tabId, {
+          stableMs: Number(options.recoveryStableMs) || Number(options.stableMs) || 1200,
+          initialDelayMs: Number(options.recoveryInitialDelayMs) || 120,
+          injectLogMessage: options.recoveryInjectLogMessage || options.injectLogMessage || 'Kiro 授权页已跳转，正在重新连接内容脚本...',
+        });
+      };
     }
 
     async function ensureKiroPageState(tabId, options = {}) {
@@ -475,6 +656,7 @@
       }, {
         timeoutMs: Math.max(30000, Number(options.pageTimeoutMs) || 30000),
         retryDelayMs: 700,
+        onRetryableError: buildKiroRetryRecovery(tabId, options),
         logMessage: options.readyLogMessage || '正在等待 Kiro 页面进入下一状态...',
       });
       if (result?.error) {
@@ -520,6 +702,7 @@
       }, {
         timeoutMs: Math.max(30000, Number(options.pageTimeoutMs) || 30000),
         retryDelayMs: 700,
+        onRetryableError: buildKiroRetryRecovery(tabId, options),
         logMessage: options.readyLogMessage || '正在等待 Kiro 页面完成跳转...',
       });
       if (result?.error) {
@@ -739,6 +922,7 @@
     async function executeKiroStartDeviceLogin(state = {}) {
       const nodeId = String(state?.nodeId || 'kiro-start-device-login').trim();
       try {
+        await clearKiroCookiesBeforeStep1();
         const auth = await startBuilderIdDeviceLogin(DEFAULT_REGION, fetchImpl);
         const loginUrl = cleanString(auth.verificationUriComplete || auth.verificationUri);
         const tabId = loginUrl ? await reuseOrCreateTab('kiro-device-auth', loginUrl) : null;
@@ -834,6 +1018,7 @@
         }, {
           timeoutMs: 30000,
           retryDelayMs: 700,
+          onRetryableError: buildKiroRetryRecovery(tabId, {}),
           logMessage: '步骤 2：正在向 Kiro 授权页提交邮箱...',
         });
         if (submitResult?.error) {
@@ -913,6 +1098,7 @@
         }, {
           timeoutMs: 30000,
           retryDelayMs: 700,
+          onRetryableError: buildKiroRetryRecovery(tabId, {}),
           logMessage: '步骤 3：正在向 Kiro 姓名页提交姓名...',
         });
         if (submitResult?.error) {
@@ -990,6 +1176,7 @@
         }, {
           timeoutMs: 30000,
           retryDelayMs: 700,
+          onRetryableError: buildKiroRetryRecovery(tabId, {}),
           logMessage: '步骤 4：正在向 Kiro 验证码页提交验证码...',
         });
         if (submitResult?.error) {
@@ -1072,6 +1259,7 @@
         }, {
           timeoutMs: 30000,
           retryDelayMs: 700,
+          onRetryableError: buildKiroRetryRecovery(tabId, {}),
           logMessage: '步骤 5：正在向 Kiro 密码页提交密码...',
         });
         if (submitResult?.error) {
@@ -1155,6 +1343,7 @@
           }, {
             timeoutMs: 60000,
             retryDelayMs: 700,
+            onRetryableError: buildKiroRetryRecovery(tabId, {}),
             logMessage: '步骤 6：正在处理 Kiro 授权确认页...',
           });
           if (submitResult?.error) {

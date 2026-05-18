@@ -42,16 +42,19 @@ test('sidepanel no longer exposes operation delay switch and places step executi
   assert.doesNotMatch(html, /id="row-operation-delay-settings"/);
   assert.doesNotMatch(html, /id="input-operation-delay-enabled"/);
 
+  const step6CookieIndex = html.indexOf('id="row-step6-cookie-settings"');
   const autoDelayIndex = html.indexOf('id="row-auto-delay-settings"');
   const oauthTimeoutIndex = html.indexOf('id="row-oauth-flow-timeout"');
   const stepRangeIndex = html.indexOf('id="row-step-execution-range"');
   const oauthDisplayIndex = html.indexOf('id="row-oauth-display"');
 
+  assert.notEqual(step6CookieIndex, -1);
   assert.notEqual(autoDelayIndex, -1);
   assert.notEqual(oauthTimeoutIndex, -1);
   assert.notEqual(stepRangeIndex, -1);
   assert.notEqual(oauthDisplayIndex, -1);
-  assert.ok(stepRangeIndex > autoDelayIndex, 'step execution range should still remain below the step6 toggle row');
+  assert.ok(autoDelayIndex > step6CookieIndex, 'startup delay row should render below the openai step6 cookie row');
+  assert.ok(stepRangeIndex > autoDelayIndex, 'step execution range should still remain below the startup delay row');
   assert.ok(stepRangeIndex > oauthTimeoutIndex, 'step execution range should render below oauth timeout');
   assert.ok(stepRangeIndex < oauthDisplayIndex, 'step execution range should stay above oauth runtime display');
 });

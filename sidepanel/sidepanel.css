@@ -2068,18 +2068,17 @@ header {
   flex-wrap: nowrap;
 }
 
-#row-auto-delay-settings .setting-group-primary {
-  flex: 0 0 auto;
-  min-width: 116px;
-}
-
 #row-auto-delay-settings .setting-group-secondary {
-  margin-left: 0;
+  margin-left: auto;
   min-width: 0;
 }
 
 .step6-cookie-cleanup-setting {
   gap: 8px;
+}
+
+#row-step6-cookie-settings .step6-cookie-cleanup-setting {
+  margin-left: auto;
 }
 
 .step-execution-range-setting {

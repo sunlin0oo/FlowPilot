@@ -152,6 +152,60 @@ test('tab runtime gives step 5 profile submit enough response time for slow page
   );
 });
 
+test('tab runtime replays retryable transport recovery hook and surfaces a localized timeout error', async () => {
+  const source = fs.readFileSync('background/tab-runtime.js', 'utf8');
+  const globalScope = {};
+  const api = new Function('self', `${source}; return self.MultiPageBackgroundTabRuntime;`)(globalScope);
+
+  let recoveryCalls = 0;
+  const runtime = api.createTabRuntime({
+    LOG_PREFIX: '[test]',
+    addLog: async () => {},
+    chrome: {
+      tabs: {
+        get: async () => ({
+          id: 9,
+          windowId: 1,
+          url: 'https://profile.aws.amazon.com/complete',
+          status: 'complete',
+        }),
+        query: async () => [],
+        sendMessage: async () => {
+          throw new Error('Could not establish connection. Receiving end does not exist.');
+        },
+      },
+    },
+    getSourceLabel: () => 'Kiro 授权页',
+    getState: async () => ({
+      tabRegistry: {
+        'kiro-device-auth': { tabId: 9, ready: true },
+      },
+      sourceLastUrls: {},
+    }),
+    isRetryableContentScriptTransportError: (error) => /Receiving end does not exist/i.test(String(error?.message || error || '')),
+    matchesSourceUrlFamily: () => false,
+    setState: async () => {},
+    sleepWithStop: async () => {},
+    throwIfStopped: () => {},
+  });
+
+  await assert.rejects(
+    runtime.sendToContentScriptResilient('kiro-device-auth', {
+      type: 'ENSURE_KIRO_PAGE_STATE',
+      payload: {},
+    }, {
+      timeoutMs: 5,
+      retryDelayMs: 0,
+      onRetryableError: async () => {
+        recoveryCalls += 1;
+      },
+    }),
+    /页面刚完成跳转或刷新，内容脚本还没有重新接回/
+  );
+
+  assert.equal(recoveryCalls > 0, true);
+});
+
 test('tab runtime waitForTabComplete waits until tab status becomes complete', async () => {
   const source = fs.readFileSync('background/tab-runtime.js', 'utf8');
   const globalScope = {};

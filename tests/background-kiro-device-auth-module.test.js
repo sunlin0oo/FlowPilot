@@ -54,7 +54,28 @@ test('kiro start device login opens the auth tab and waits for the email entry p
   const contentReadyCalls = [];
   const contentMessages = [];
   const stableWaitCalls = [];
+  const removedCookies = [];
+  const browsingDataCalls = [];
   const { chrome, updates: tabUpdates } = createChromeRecorder();
+  chrome.cookies = {
+    getAllCookieStores: async () => [{ id: 'store-a' }],
+    getAll: async () => [
+      { domain: '.view.awsapps.com', path: '/start', name: 'awsapps', storeId: 'store-a' },
+      { domain: '.oidc.us-east-1.amazonaws.com', path: '/', name: 'oidc', storeId: 'store-a' },
+      { domain: '.signin.aws', path: '/', name: 'signin', storeId: 'store-a' },
+      { domain: '.profile.aws.amazon.com', path: '/', name: 'profile-amazon', storeId: 'store-a' },
+      { domain: '.example.com', path: '/', name: 'keep', storeId: 'store-a' },
+    ],
+    remove: async (details) => {
+      removedCookies.push(details);
+      return details;
+    },
+  };
+  chrome.browsingData = {
+    removeCookies: async (details) => {
+      browsingDataCalls.push(details);
+    },
+  };
 
   const executor = api.createKiroDeviceAuthExecutor({
     addLog: async () => {},
@@ -132,6 +153,40 @@ test('kiro start device login opens the auth tab and waits for the email entry p
     nodeId: 'kiro-start-device-login',
   });
 
+  assert.deepEqual(removedCookies, [
+    {
+      url: 'https://view.awsapps.com/start',
+      name: 'awsapps',
+      storeId: 'store-a',
+    },
+    {
+      url: 'https://oidc.us-east-1.amazonaws.com/',
+      name: 'oidc',
+      storeId: 'store-a',
+    },
+    {
+      url: 'https://signin.aws/',
+      name: 'signin',
+      storeId: 'store-a',
+    },
+    {
+      url: 'https://profile.aws.amazon.com/',
+      name: 'profile-amazon',
+      storeId: 'store-a',
+    },
+  ]);
+  assert.deepEqual(browsingDataCalls, [{
+    since: 0,
+    origins: [
+      'https://view.awsapps.com',
+      'https://login.awsapps.com',
+      'https://oidc.us-east-1.amazonaws.com',
+      'https://signin.aws',
+      'https://signin.aws.amazon.com',
+      'https://profile.aws',
+      'https://profile.aws.amazon.com',
+    ],
+  }]);
   assert.equal(fetchCalls.length, 2);
   assert.equal(fetchCalls[0].url, 'https://oidc.us-east-1.amazonaws.com/client/register');
   assert.equal(fetchCalls[1].url, 'https://oidc.us-east-1.amazonaws.com/device_authorization');

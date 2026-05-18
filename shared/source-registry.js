@@ -126,6 +126,32 @@
     'kiro-device-auth',
   ]);
 
+  function normalizeHostname(hostname = '') {
+    return String(hostname || '').trim().toLowerCase();
+  }
+
+  function matchesNamedHostFamily(hostname = '', family = '') {
+    const normalizedHost = normalizeHostname(hostname);
+    const normalizedFamily = normalizeHostname(family);
+    if (!normalizedHost || !normalizedFamily) {
+      return false;
+    }
+    return normalizedHost === normalizedFamily
+      || normalizedHost.endsWith(`.${normalizedFamily}`)
+      || normalizedHost.startsWith(`${normalizedFamily}.`)
+      || normalizedHost.includes(`.${normalizedFamily}.`);
+  }
+
+  function isKiroAuthHost(hostname = '') {
+    const normalized = normalizeHostname(hostname);
+    return normalized === 'view.awsapps.com'
+      || normalized === 'login.awsapps.com'
+      || matchesNamedHostFamily(normalized, 'signin.aws')
+      || matchesNamedHostFamily(normalized, 'profile.aws')
+      || normalized === 'amazonaws.com'
+      || normalized.endsWith('.amazonaws.com');
+  }
+
   function getRuntimeSourceDefinitions() {
     return {
       ...(typeof flowRegistryApi.getRuntimeSourceDefinitions === 'function'
@@ -227,15 +253,15 @@
     }
 
     function isSignupPageHost(hostname = '') {
-      return AUTH_PAGE_HOSTS.has(String(hostname || '').toLowerCase());
+      return AUTH_PAGE_HOSTS.has(normalizeHostname(hostname));
     }
 
     function isSignupEntryHost(hostname = '') {
-      return ENTRY_PAGE_HOSTS.has(String(hostname || '').toLowerCase());
+      return ENTRY_PAGE_HOSTS.has(normalizeHostname(hostname));
     }
 
     function is163MailHost(hostname = '') {
-      const normalized = String(hostname || '').toLowerCase();
+      const normalized = normalizeHostname(hostname);
       return normalized === 'mail.163.com'
         || normalized.endsWith('.mail.163.com')
         || normalized === 'mail.126.com'
@@ -300,8 +326,7 @@
         case 'gopay-flow':
           return /gopay|gojek/i.test(candidate.hostname);
         case 'kiro-device-auth':
-          return candidate.hostname === 'view.awsapps.com'
-            || candidate.hostname.endsWith('.amazonaws.com');
+          return isKiroAuthHost(candidate.hostname);
         default:
           return false;
       }
@@ -324,7 +349,7 @@
       if (normalizedHostname === 'www.icloud.com' || normalizedHostname === 'www.icloud.com.cn') return 'icloud-mail';
       if (normalizedUrl.includes('duckduckgo.com/email/settings/autofill')) return 'duck-mail';
       if (normalizedUrl.includes('2925.com')) return 'mail-2925';
-      if (normalizedHostname === 'view.awsapps.com' || normalizedHostname.endsWith('.amazonaws.com')) return 'kiro-device-auth';
+      if (isKiroAuthHost(normalizedHostname)) return 'kiro-device-auth';
       if (isSignupEntryHost(normalizedHostname)) return 'chatgpt';
       return 'unknown-source';
     }
