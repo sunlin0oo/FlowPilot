@@ -188,6 +188,20 @@
       await new Promise((resolve) => setTimeout(resolve, timeout));
     }
 
+    async function closeCpaPanelAfterSuccess(state = {}, platformVerifyStep = 10) {
+      if (typeof closeConflictingTabsForSource !== 'function') {
+        return;
+      }
+
+      const cpaPanelUrl = normalizeString(state.vpsUrl);
+      try {
+        await closeConflictingTabsForSource('vps-panel', cpaPanelUrl);
+      } catch (error) {
+        const reason = normalizeString(error?.message || error) || 'unknown error';
+        await addStepLog(platformVerifyStep, `CPA 页面关闭失败：${reason}`, 'warn');
+      }
+    }
+
     async function fetchCodex2ApiJson(origin, path, options = {}) {
       const controller = new AbortController();
       const timeoutMs = Math.max(1000, Math.floor(Number(options.timeoutMs) || 30000));
@@ -257,6 +271,7 @@
           localhostUrl: state.localhostUrl,
           verifiedStatus: 'local-auto',
         });
+        await closeCpaPanelAfterSuccess(state, platformVerifyStep);
         return;
       }
 

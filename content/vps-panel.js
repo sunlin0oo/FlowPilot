@@ -837,6 +837,21 @@ function findAuthUrlElement() {
   return Array.from(candidates).find((el) => isVisibleElement(el) && /^https?:\/\//i.test((el.textContent || '').trim())) || null;
 }
 
+async function waitForFreshAuthUrlElement(previousAuthUrl = '', timeout = 15000) {
+  const start = Date.now();
+  const previous = String(previousAuthUrl || '').trim();
+  while (Date.now() - start < timeout) {
+    throwIfStopped();
+    const authUrlEl = findAuthUrlElement();
+    const current = String(authUrlEl?.textContent || '').trim();
+    if (authUrlEl && current && current !== previous && /^https?:\/\//i.test(current)) {
+      return authUrlEl;
+    }
+    await sleep(200);
+  }
+  throw new Error('点击 OAuth 登录按钮后授权链接未刷新。URL: ' + location.href);
+}
+
 async function ensureOAuthManagementPage(vpsPassword, step = 1, timeout = 45000) {
   const start = Date.now();
   let lastLoginAttemptAt = 0;
@@ -952,6 +967,7 @@ async function step1_getOAuthLink(payload, options = {}) {
   const { report = true } = options;
   const { vpsPassword } = payload || {};
   const logStep = Number.isInteger(payload?.logStep) ? payload.logStep : 1;
+  const forceStartCodexLogin = Boolean(payload?.forceStartCodexLogin);
   console.log(LOG_PREFIX, '[Step 1] step1_getOAuthLink start', {
     url: location.href,
     hasVpsPassword: Boolean(vpsPassword),
@@ -969,7 +985,8 @@ async function step1_getOAuthLink(payload, options = {}) {
     snapshot: getVpsPanelSnapshot(),
   });
 
-  if (!authUrlEl) {
+  if (!authUrlEl || forceStartCodexLogin) {
+    const previousAuthUrl = String(authUrlEl?.textContent || '').trim();
     const loginBtn = findOAuthCardLoginButton(header);
     if (!loginBtn) {
       throw new Error('已找到 Codex OAuth 卡片，但卡片内没有登录按钮。URL: ' + location.href);
@@ -992,7 +1009,9 @@ async function step1_getOAuthLink(payload, options = {}) {
     }
 
     try {
-      authUrlEl = await waitForElement('[class*="authUrlValue"]', 15000);
+      authUrlEl = forceStartCodexLogin
+        ? await waitForFreshAuthUrlElement(previousAuthUrl, 15000)
+        : await waitForElement('[class*="authUrlValue"]', 15000);
     } catch {
       throw new Error(
         '点击 OAuth 登录按钮后未出现授权链接。' +

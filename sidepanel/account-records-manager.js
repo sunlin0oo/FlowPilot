@@ -55,6 +55,7 @@
     let selectionMode = false;
     let eventsBound = false;
     const selectedRecordIds = new Set();
+    const accountMailsExportFileName = 'mails.txt';
 
     function escapeHtml(value) {
       if (typeof helpers.escapeHtml === 'function') {
@@ -178,6 +179,30 @@
         || (identifierType === 'email' ? record.accountIdentifier : '')
         || ''
       ).trim();
+    }
+
+    function normalizeExportEmail(value = '') {
+      const email = String(value || '').trim();
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : '';
+    }
+
+    function getAccountRunRecordEmailsForExport(records = getAccountRunRecords()) {
+      const seenEmails = new Set();
+      const emails = [];
+      for (const record of Array.isArray(records) ? records : []) {
+        const email = normalizeExportEmail(getRecordEmail(record));
+        const emailKey = email.toLowerCase();
+        if (!email || seenEmails.has(emailKey)) {
+          continue;
+        }
+        seenEmails.add(emailKey);
+        emails.push(email);
+      }
+      return emails;
+    }
+
+    function buildAccountMailsExportText(records = getAccountRunRecords()) {
+      return getAccountRunRecordEmailsForExport(records).join(';');
     }
 
     function getRecordPhoneNumber(record = {}) {
@@ -475,6 +500,7 @@
     function updateToolbarState(allRecords) {
       const totalRecords = allRecords.length;
       setNodeDisabled(dom.btnClearAccountRecords, totalRecords === 0);
+      setNodeDisabled(dom.btnExportAccountRecordMails, getAccountRunRecordEmailsForExport(allRecords).length === 0);
       setNodeDisabled(dom.btnToggleAccountRecordsSelection, totalRecords === 0);
       setNodeHidden(dom.btnClearAccountRecords, selectionMode);
       toggleNodeClass(dom.btnToggleAccountRecordsSelection, 'is-active', selectionMode);
@@ -720,6 +746,26 @@
       helpers.showToast?.(`已删除 ${Math.max(0, Number(response?.deletedCount) || 0)} 条账号记录。`, 'success', 2200);
     }
 
+    async function exportAccountMails() {
+      const records = getAccountRunRecords();
+      const content = buildAccountMailsExportText(records);
+      const count = content ? content.split(';').length : 0;
+      if (!count) {
+        helpers.showToast?.('没有可导出的邮箱账号记录。', 'warn', 1800);
+        return { count: 0, content: '' };
+      }
+
+      if (typeof helpers.downloadTextFile !== 'function') {
+        throw new Error('当前环境不支持导出文件。');
+      }
+
+      await helpers.downloadTextFile(content, accountMailsExportFileName, 'text/plain;charset=utf-8', {
+        preferDesktop: true,
+      });
+      helpers.showToast?.(`已导出 ${count} 个邮箱到 ${accountMailsExportFileName}。`, 'success', 2200);
+      return { count, content };
+    }
+
     function handleStatsClick(event) {
       const filterNode = findClosest(event?.target, '[data-account-record-filter]');
       if (!filterNode) {
@@ -805,6 +851,13 @@
           helpers.showToast?.(`删除账号记录失败：${error.message}`, 'error');
         }
       });
+      dom.btnExportAccountRecordMails?.addEventListener('click', async () => {
+        try {
+          await exportAccountMails();
+        } catch (error) {
+          helpers.showToast?.(`导出账号邮箱失败：${error.message}`, 'error');
+        }
+      });
       dom.btnClearAccountRecords?.addEventListener('click', async () => {
         try {
           await clearRecords();
@@ -825,9 +878,12 @@
 
     return {
       bindEvents,
+      buildAccountMailsExportText,
       clearRecords,
       closePanel,
       deleteSelectedRecords,
+      exportAccountMails,
+      getAccountRunRecordEmailsForExport,
       openPanel,
       render,
       reset,

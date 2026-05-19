@@ -1069,6 +1069,7 @@ const DEFAULT_STATE = {
   accountIdentifierType: null,
   accountIdentifier: '',
   registrationEmailState: { ...DEFAULT_REGISTRATION_EMAIL_STATE },
+  registrationEmailPool: [],
   email: null, // 运行时邮箱，由程序自动获取并写入，不能手动预填。
   password: null, // 运行时实际密码，由 customPassword 或程序自动生成后写入。
   accounts: [], // 已生成账号记录：{ email, password, createdAt }。
@@ -2154,6 +2155,33 @@ function normalizeEmailGenerator(value = '') {
   if (normalized === 'cloudmail') return 'cloudmail';
   if (normalized === yydsMailGenerator) return yydsMailGenerator;
   return 'duck';
+}
+
+function normalizeRegistrationEmailPool(value = []) {
+  const source = Array.isArray(value)
+    ? value
+    : String(value || '').split(/[\r\n,;；]+/);
+
+  const seen = new Set();
+  const emails = [];
+  for (const item of source) {
+    const email = String(item || '').trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      continue;
+    }
+    if (seen.has(email)) {
+      continue;
+    }
+    seen.add(email);
+    emails.push(email);
+  }
+  return emails;
+}
+
+function getRegistrationEmailForRun(state = {}, targetRun = 1) {
+  const entries = normalizeRegistrationEmailPool(state?.registrationEmailPool);
+  const numericRun = Math.max(1, Math.floor(Number(targetRun) || 1));
+  return entries[numericRun - 1] || '';
 }
 
 function normalizeIcloudFetchMode(value = '') {
@@ -11515,6 +11543,25 @@ function shouldStopEmailAutoFetchRetries(generator, error) {
   return generator === CLOUDFLARE_TEMP_EMAIL_GENERATOR && /(服务地址|Admin Auth|域名)/.test(message);
 }
 
+async function prepareRegistrationEmailPoolForAutoRunRound(targetRun, totalRuns, attemptRuns) {
+  const currentState = await getState();
+  const pool = normalizeRegistrationEmailPool(currentState.registrationEmailPool);
+  if (!pool.length) {
+    return '';
+  }
+
+  const queuedEmail = getRegistrationEmailForRun(currentState, targetRun);
+  if (!queuedEmail) {
+    throw new Error(`注册邮箱列表第 ${targetRun} 个邮箱不存在，请检查邮箱数量是否与自动循环次数一致。`);
+  }
+
+  if (String(currentState.email || '').trim().toLowerCase() !== queuedEmail) {
+    await setEmailState(queuedEmail, { source: 'manual-list' });
+  }
+  await addLog(`=== 目标 ${targetRun}/${totalRuns} 轮：注册邮箱列表已选用 ${queuedEmail}（第 ${attemptRuns} 次尝试）===`, 'ok');
+  return queuedEmail;
+}
+
 async function ensureAutoEmailReady(targetRun, totalRuns, attemptRuns) {
   const currentState = await getState();
   if (isHotmailProvider(currentState)) {
@@ -11863,6 +11910,9 @@ async function runAutoSequenceFromNodeGraph(startNodeId, context = {}) {
   const plusPaymentMethodGpcHelper = typeof PLUS_PAYMENT_METHOD_GPC_HELPER === 'string'
     ? PLUS_PAYMENT_METHOD_GPC_HELPER
     : 'gpc-helper';
+  if (resolvedSignupMethod !== SIGNUP_METHOD_PHONE && typeof prepareRegistrationEmailPoolForAutoRunRound === 'function') {
+    await prepareRegistrationEmailPoolForAutoRunRound(targetRun, totalRuns, attemptRuns);
+  }
   const getNodeStatusForNode = (state, nodeId) => (
     String(state?.nodeStatuses?.[nodeId] || 'pending').trim() || 'pending'
   );
@@ -12907,6 +12957,7 @@ const messageRouter = self.MultiPageBackgroundMessageRouter?.createMessageRouter
   normalizeHotmailAccounts,
   normalizeMail2925Accounts,
   normalizePayPalAccounts,
+  normalizeRegistrationEmailPool,
   normalizeRunCount,
   AUTO_RUN_TIMER_KIND_SCHEDULED_START,
   notifyNodeComplete,

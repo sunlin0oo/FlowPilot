@@ -141,6 +141,9 @@
       normalizeHotmailAccounts,
       normalizeMail2925Accounts,
       normalizePayPalAccounts,
+      normalizeRegistrationEmailPool = (value = []) => (Array.isArray(value) ? value : String(value || '').split(/[\r\n,;；]+/))
+        .map((item) => String(item || '').trim().toLowerCase())
+        .filter((item) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(item)),
       normalizeRunCount,
       AUTO_RUN_TIMER_KIND_SCHEDULED_START,
       notifyNodeComplete,
@@ -1219,7 +1222,12 @@
           const totalRuns = normalizeRunCount(message.payload?.totalRuns || 1);
           const autoRunSkipFailures = Boolean(message.payload?.autoRunSkipFailures);
           const mode = message.payload?.mode === 'continue' ? 'continue' : 'restart';
-          await setState({ autoRunSkipFailures });
+          await setState({
+            autoRunSkipFailures,
+            ...(message.payload?.registrationEmailPool !== undefined
+              ? { registrationEmailPool: normalizeRegistrationEmailPool(message.payload.registrationEmailPool) }
+              : {}),
+          });
           startAutoRunLoop(totalRuns, { autoRunSkipFailures, mode });
           return { ok: true };
         }
@@ -1239,6 +1247,11 @@
                 contributionQq,
               });
             }
+          }
+          if (message.payload?.registrationEmailPool !== undefined) {
+            await setState({
+              registrationEmailPool: normalizeRegistrationEmailPool(message.payload.registrationEmailPool),
+            });
           }
           const state = await getState();
           const autoRunStartValidation = validateAutoRunStart(state, { state });

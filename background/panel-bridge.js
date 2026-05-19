@@ -20,6 +20,11 @@
     } = deps;
 
     let sub2ApiApi = null;
+    const CPA_PANEL_INJECT_FILES = [
+      'content/activation-utils.js',
+      'content/utils.js',
+      'content/vps-panel.js',
+    ];
 
     function getSub2ApiApi() {
       if (sub2ApiApi) {
@@ -75,6 +80,21 @@
         throw new Error('CPA 地址格式无效，请先在侧边栏检查。');
       }
       return parsed.origin;
+    }
+
+    function resolveCpaOAuthManagementUrl(vpsUrl) {
+      const normalizedUrl = String(vpsUrl || '').trim();
+      if (!normalizedUrl) {
+        throw new Error('CPA URL is not configured. Please fill it in the side panel first.');
+      }
+      let parsed;
+      try {
+        parsed = new URL(normalizedUrl);
+      } catch {
+        throw new Error('CPA URL is invalid. Please check it in the side panel first.');
+      }
+      parsed.hash = '#/oauth';
+      return parsed.toString();
     }
 
     function getCpaApiErrorMessage(payload, responseStatus = 500) {
@@ -195,6 +215,13 @@
       }
 
       const origin = deriveCpaManagementOrigin(state.vpsUrl);
+      if (typeof createAutomationTab === 'function' && typeof sendToContentScriptResilient === 'function') {
+        return requestCpaOAuthUrlFromPage(state, {
+          ...options,
+          origin,
+          managementKey,
+        });
+      }
 
       await addLog(`${logLabel}：正在通过 CPA 管理接口获取 OAuth 授权链接...`);
       const result = await fetchCpaManagementJson(origin, '/v0/management/codex-auth-url', {
@@ -224,6 +251,66 @@
 
       if (!oauthUrl || !oauthUrl.startsWith('http')) {
         throw new Error('CPA 管理接口未返回有效的 auth_url。');
+      }
+
+      return {
+        oauthUrl,
+        cpaOAuthState: oauthState || null,
+        cpaManagementOrigin: origin,
+      };
+    }
+
+    async function requestCpaOAuthUrlFromPage(state, options = {}) {
+      const { logLabel = 'OAuth refresh', origin, managementKey } = options;
+      const cpaOAuthUrl = resolveCpaOAuthManagementUrl(state.vpsUrl);
+      const visibleStep = Math.floor(
+        Number(state?.visibleStep)
+        || Number(String(logLabel).match(/\d+/)?.[0])
+        || 1
+      );
+
+      await addLog(`${logLabel}: opening CPA OAuth management page and starting Codex login...`);
+      if (typeof closeConflictingTabsForSource === 'function') {
+        await closeConflictingTabsForSource('vps-panel');
+      }
+      if (typeof rememberSourceLastUrl === 'function') {
+        await rememberSourceLastUrl('vps-panel', cpaOAuthUrl);
+      }
+
+      const tab = await createAutomationTab({ url: cpaOAuthUrl, active: true });
+      if (typeof ensureContentScriptReadyOnTab === 'function') {
+        await ensureContentScriptReadyOnTab('vps-panel', tab?.id, {
+          inject: CPA_PANEL_INJECT_FILES,
+          injectSource: 'vps-panel',
+          timeoutMs: 45000,
+        });
+      }
+
+      const result = await sendToContentScriptResilient(
+        'vps-panel',
+        {
+          type: 'REQUEST_OAUTH_URL',
+          payload: {
+            vpsPassword: managementKey,
+            logStep: visibleStep,
+            forceStartCodexLogin: true,
+          },
+        },
+        {
+          timeoutMs: 90000,
+          responseTimeoutMs: 90000,
+          retryDelayMs: 1000,
+          logMessage: 'Waiting for the CPA OAuth management page before clicking Codex login...',
+          logStep: visibleStep,
+          logStepKey: 'oauth-login',
+        }
+      );
+
+      const oauthUrl = String(result?.oauthUrl || '').trim();
+      const oauthState = String(result?.cpaOAuthState || result?.state || '').trim()
+        || extractStateFromAuthUrl(oauthUrl);
+      if (!oauthUrl || !oauthUrl.startsWith('http')) {
+        throw new Error('CPA OAuth management page did not return a valid auth_url.');
       }
 
       return {

@@ -546,6 +546,7 @@
               mail2925BaseEmail: prevState.mail2925BaseEmail,
               currentMail2925AccountId: prevState.currentMail2925AccountId,
               emailPrefix: prevState.emailPrefix,
+              registrationEmailPool: prevState.registrationEmailPool,
               inbucketHost: prevState.inbucketHost,
               inbucketMailbox: prevState.inbucketMailbox,
               cloudflareDomain: prevState.cloudflareDomain,

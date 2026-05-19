@@ -24,6 +24,7 @@ const btnCloseAccountRecords = document.getElementById('btn-close-account-record
 const btnClearAccountRecords = document.getElementById('btn-clear-account-records');
 const btnToggleAccountRecordsSelection = document.getElementById('btn-toggle-account-records-selection');
 const btnDeleteSelectedAccountRecords = document.getElementById('btn-delete-selected-account-records');
+const btnExportAccountRecordMails = document.getElementById('btn-export-account-record-mails');
 const updateSection = document.getElementById('update-section');
 const btnRepoHome = document.getElementById('btn-repo-home');
 const extensionUpdateStatus = document.getElementById('extension-update-status');
@@ -2274,7 +2275,31 @@ async function settlePendingSettingsBeforeImport() {
   await waitForSettingsSaveIdle();
 }
 
-function downloadTextFile(content, fileName, mimeType = 'application/json;charset=utf-8') {
+async function downloadTextFile(content, fileName, mimeType = 'application/json;charset=utf-8', options = {}) {
+  if (
+    options?.preferDesktop
+    && typeof window !== 'undefined'
+    && typeof window.showSaveFilePicker === 'function'
+  ) {
+    const pickerOptions = {
+      suggestedName: fileName,
+      startIn: 'desktop',
+      types: [
+        {
+          description: 'Text file',
+          accept: {
+            [mimeType.split(';')[0] || 'text/plain']: ['.txt'],
+          },
+        },
+      ],
+    };
+    const handle = await window.showSaveFilePicker(pickerOptions);
+    const writable = await handle.createWritable();
+    await writable.write(content);
+    await writable.close();
+    return;
+  }
+
   const blob = new Blob([content], { type: mimeType });
   const objectUrl = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
@@ -3009,6 +3034,47 @@ function normalizeCustomEmailPoolEntries(value = '') {
   return source
     .map((item) => String(item || '').trim().toLowerCase())
     .filter((item) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(item));
+}
+
+function normalizeRegistrationEmailPoolInput(value = '') {
+  const source = Array.isArray(value)
+    ? value
+    : String(value || '').split(/[\r\n,;；]+/);
+  const seenEmails = new Set();
+  const emails = [];
+
+  for (const rawEmail of source) {
+    const email = String(rawEmail || '').trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      continue;
+    }
+    if (seenEmails.has(email)) {
+      continue;
+    }
+    seenEmails.add(email);
+    emails.push(email);
+  }
+  return emails;
+}
+
+function getRegistrationEmailPoolForAutoRun() {
+  const rawEmailInput = String(inputEmail?.value || '').trim();
+  const emails = normalizeRegistrationEmailPoolInput(rawEmailInput);
+  if (rawEmailInput.includes(';') || rawEmailInput.includes('；') || emails.length > 1 || isCustomMailProvider()) {
+    return emails;
+  }
+  return [];
+}
+
+function shouldPreserveRegistrationEmailPoolInputOnEmptyEmailUpdate(nextEmail, currentInputValue = '') {
+  if (String(nextEmail || '').trim()) {
+    return false;
+  }
+  const currentInput = String(currentInputValue || '').trim();
+  if (!currentInput.includes(';') && !currentInput.includes('；')) {
+    return false;
+  }
+  return normalizeRegistrationEmailPoolInput(currentInput).length > 0;
 }
 
 function normalizeCustomEmailPoolEntryEmail(value = '') {
@@ -9436,7 +9502,9 @@ function applySettingsState(state) {
   }
   renderStepStatuses(latestState);
 
-  inputEmail.value = state?.email || '';
+  if (!shouldPreserveRegistrationEmailPoolInputOnEmptyEmailUpdate(state?.email, inputEmail.value)) {
+    inputEmail.value = state?.email || '';
+  }
   if (typeof syncSignupPhoneInputFromState === 'function') {
     syncSignupPhoneInputFromState(state);
   }
@@ -12361,11 +12429,13 @@ const accountRecordsManager = window.SidepanelAccountRecordsManager?.createAccou
     btnAccountRecordsPrev,
     btnClearAccountRecords,
     btnDeleteSelectedAccountRecords,
+    btnExportAccountRecordMails,
     btnCloseAccountRecords,
     btnOpenAccountRecords,
     btnToggleAccountRecordsSelection,
   },
   helpers: {
+    downloadTextFile,
     escapeHtml,
     openConfirmModal,
     showToast,
@@ -12975,6 +13045,9 @@ async function startAutoRunFromCurrentSettings() {
 
   const customEmailPoolEnabled = typeof usesCustomEmailPoolGenerator === 'function'
     && usesCustomEmailPoolGenerator();
+  const registrationEmailPool = typeof getRegistrationEmailPoolForAutoRun === 'function'
+    ? getRegistrationEmailPoolForAutoRun()
+    : [];
   const lockedRunCount = typeof getLockedRunCountFromEmailPool === 'function'
     ? getLockedRunCountFromEmailPool()
     : 0;
@@ -13033,6 +13106,7 @@ async function startAutoRunFromCurrentSettings() {
       totalRuns,
       delayMinutes,
       autoRunSkipFailures,
+      registrationEmailPool,
       contributionMode: Boolean(latestState?.contributionMode),
       contributionNickname,
       contributionQq,
@@ -13180,6 +13254,16 @@ inputEmail.addEventListener('change', async () => {
   inputEmail.value = email;
   try {
     if (email) {
+      const registrationEmailPool = normalizeRegistrationEmailPoolInput(email);
+      if (email.includes(';') || email.includes('；') || registrationEmailPool.length > 1) {
+        if (!registrationEmailPool.length) {
+          showToast('注册邮箱列表中没有有效邮箱，请用 ; 分割有效邮箱。', 'warn');
+          return;
+        }
+        syncLatestState({ registrationEmailPool, email: null });
+        await setRuntimeEmailState(null);
+        return;
+      }
       if (!validateCurrentRegistrationEmail(email, { showToastOnFailure: true })) {
         return;
       }
@@ -15227,7 +15311,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         applyOperationDelayState(message.payload);
       }
       if (message.payload.email !== undefined) {
-        inputEmail.value = message.payload.email || '';
+        if (!shouldPreserveRegistrationEmailPoolInputOnEmptyEmailUpdate(message.payload.email, inputEmail.value)) {
+          inputEmail.value = message.payload.email || '';
+        }
         queueCustomEmailPoolRefresh();
       }
       if (
