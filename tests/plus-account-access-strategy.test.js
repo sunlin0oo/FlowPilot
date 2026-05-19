@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
 const sidepanelSource = fs.readFileSync('sidepanel/sidepanel.js', 'utf8');
+const backgroundSource = fs.readFileSync('background.js', 'utf8');
 
 function extractFunction(name) {
   const markers = [`async function ${name}(`, `function ${name}(`];
@@ -267,4 +268,16 @@ return {
       },
     },
   ]);
+});
+
+test('background declares Plus account access strategy constants before precomputing session-tail step definitions', () => {
+  const strategyConstantIndex = backgroundSource.indexOf("const PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION = 'sub2api_codex_session';");
+  const precomputedSessionStepsIndex = backgroundSource.indexOf('const PLUS_PAYPAL_SUB2API_SESSION_STEP_DEFINITIONS =');
+
+  assert.ok(strategyConstantIndex >= 0, 'expected Plus account access strategy constant declaration');
+  assert.ok(precomputedSessionStepsIndex >= 0, 'expected precomputed SUB2API session step definitions');
+  assert.ok(
+    strategyConstantIndex < precomputedSessionStepsIndex,
+    'strategy constant must be declared before background precomputes session-tail step definitions'
+  );
 });
