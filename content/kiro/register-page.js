@@ -41,22 +41,10 @@ const KIRO_OTP_INPUT_SELECTOR = [
   'input[name*="code" i]',
 ].join(', ');
 
-const KIRO_PASSWORD_INPUT_SELECTOR = [
-  'input[placeholder="Enter password"]',
-  'input[placeholder*="Create password" i]',
-  'input[placeholder*="Password" i]',
-  'input[name="password"]',
-  'input[id*="password" i]',
-  'input[type="password"]',
-].join(', ');
-
-const KIRO_CONFIRM_PASSWORD_SELECTOR = [
-  'input[placeholder*="Re-enter password" i]',
-  'input[placeholder*="Confirm password" i]',
-  'input[placeholder*="Confirm Password" i]',
-  'input[name="confirmPassword"]',
-  'input[id*="confirm" i]',
-].join(', ');
+const KIRO_PASSWORD_FIELD_SELECTOR = 'input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]):not([type="file"])';
+const KIRO_PASSWORD_TEXT_PATTERN = /password|\u5bc6\u7801/i;
+const KIRO_CONFIRM_PASSWORD_TEXT_PATTERN = /confirm\s*password|re[-\s]*enter\s*password|repeat\s*password|verify\s*password|\u786e\u8ba4\s*\u5bc6\u7801|\u518d\u6b21.*\u5bc6\u7801|\u91cd\u590d.*\u5bc6\u7801/i;
+const KIRO_PRIMARY_PASSWORD_HINT_PATTERN = /enter\s*password|create\s*password|new\s*password|\u8f93\u5165.*\u5bc6\u7801|\u521b\u5efa.*\u5bc6\u7801|^\s*\u5bc6\u7801\s*$/i;
 
 function isVisibleKiroElement(element) {
   if (!element) return false;
@@ -190,12 +178,156 @@ function findVisibleOtpInput() {
   return findFirstVisible(KIRO_OTP_INPUT_SELECTOR);
 }
 
+function getKiroElementText(element) {
+  return String(element?.textContent || '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function cssEscapeKiroValue(value = '') {
+  if (globalThis.CSS?.escape) {
+    return globalThis.CSS.escape(String(value));
+  }
+  return String(value).replace(/["\\]/g, '\\$&');
+}
+
+function getKiroInputLabelText(input) {
+  const labels = [];
+  for (const label of Array.from(input?.labels || [])) {
+    const text = getKiroElementText(label);
+    if (text) labels.push(text);
+  }
+
+  const id = String(input?.id || '').trim();
+  if (id) {
+    for (const label of Array.from(document.querySelectorAll(`label[for="${cssEscapeKiroValue(id)}"]`))) {
+      const text = getKiroElementText(label);
+      if (text) labels.push(text);
+    }
+  }
+
+  const labelledBy = String(input?.getAttribute?.('aria-labelledby') || '').trim();
+  if (labelledBy) {
+    for (const labelId of labelledBy.split(/\s+/).filter(Boolean)) {
+      const label = document.getElementById?.(labelId);
+      const text = getKiroElementText(label);
+      if (text) labels.push(text);
+    }
+  }
+
+  const parentLabel = input?.closest?.('label');
+  const parentLabelText = getKiroElementText(parentLabel);
+  if (parentLabelText) labels.push(parentLabelText);
+
+  return Array.from(new Set(labels)).join(' ');
+}
+
+function getKiroPasswordInputContext(input) {
+  const describedBy = String(input?.getAttribute?.('aria-describedby') || '').trim();
+  const describedByText = describedBy
+    ? describedBy
+      .split(/\s+/)
+      .map((id) => getKiroElementText(document.getElementById?.(id)))
+      .filter(Boolean)
+      .join(' ')
+    : '';
+
+  return [
+    input?.getAttribute?.('placeholder'),
+    input?.getAttribute?.('name'),
+    input?.id,
+    input?.getAttribute?.('aria-label'),
+    input?.getAttribute?.('data-testid'),
+    input?.getAttribute?.('autocomplete'),
+    getKiroInputLabelText(input),
+    describedByText,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function createKiroPasswordCandidate(input, index) {
+  const context = getKiroPasswordInputContext(input);
+  const type = String(input?.getAttribute?.('type') || input?.type || '').trim().toLowerCase();
+  const isConfirm = KIRO_CONFIRM_PASSWORD_TEXT_PATTERN.test(context);
+  const hasPasswordHint = KIRO_PASSWORD_TEXT_PATTERN.test(context) || type === 'password';
+  if (!hasPasswordHint && !isConfirm) {
+    return null;
+  }
+
+  let primaryScore = 0;
+  let confirmScore = 0;
+  if (type === 'password') primaryScore += 5;
+  if (KIRO_PASSWORD_TEXT_PATTERN.test(context)) primaryScore += 20;
+  if (KIRO_PRIMARY_PASSWORD_HINT_PATTERN.test(context)) primaryScore += 40;
+  if (isConfirm) {
+    primaryScore -= 100;
+    confirmScore += 100;
+  }
+  if (/^password$/i.test(String(input?.getAttribute?.('name') || ''))) primaryScore += 40;
+  if (/^password$/i.test(String(input?.id || ''))) primaryScore += 20;
+
+  return {
+    input,
+    index,
+    context,
+    isConfirm,
+    primaryScore,
+    confirmScore,
+  };
+}
+
+function findKiroPasswordFields() {
+  const candidates = collectVisibleElements(KIRO_PASSWORD_FIELD_SELECTOR)
+    .map((input, index) => createKiroPasswordCandidate(input, index))
+    .filter(Boolean);
+  if (!candidates.length) {
+    return {
+      passwordInput: null,
+      confirmPasswordInput: null,
+      passwordInputs: [],
+    };
+  }
+
+  const confirmCandidate = candidates
+    .filter((candidate) => candidate.isConfirm)
+    .sort((left, right) => right.confirmScore - left.confirmScore || left.index - right.index)[0] || null;
+
+  let passwordCandidate = candidates
+    .filter((candidate) => !candidate.isConfirm)
+    .sort((left, right) => right.primaryScore - left.primaryScore || left.index - right.index)[0] || null;
+
+  if (!passwordCandidate) {
+    passwordCandidate = candidates
+      .filter((candidate) => !confirmCandidate || candidate.input !== confirmCandidate.input)
+      .sort((left, right) => left.index - right.index)[0] || null;
+  }
+
+  let resolvedConfirmCandidate = confirmCandidate;
+  if (
+    (!resolvedConfirmCandidate || resolvedConfirmCandidate.input === passwordCandidate?.input)
+    && passwordCandidate
+  ) {
+    resolvedConfirmCandidate = candidates
+      .filter((candidate) => candidate.input !== passwordCandidate.input)
+      .sort((left, right) => left.index - right.index)[0] || null;
+  }
+
+  return {
+    passwordInput: passwordCandidate?.input || null,
+    confirmPasswordInput: resolvedConfirmCandidate?.input || null,
+    passwordInputs: candidates.map((candidate) => candidate.input),
+  };
+}
+
 function findVisiblePasswordInputs() {
-  return collectVisibleElements(KIRO_PASSWORD_INPUT_SELECTOR);
+  return findKiroPasswordFields().passwordInputs;
 }
 
 function findVisibleConfirmPasswordInput() {
-  return findFirstVisible(KIRO_CONFIRM_PASSWORD_SELECTOR);
+  return findKiroPasswordFields().confirmPasswordInput;
 }
 
 function findEmailContinueButton(emailInput = null) {
@@ -378,15 +510,14 @@ function detectKiroRegisterPageState() {
     }
   }
 
-  const passwordInputs = findVisiblePasswordInputs();
-  const confirmPasswordInput = findVisibleConfirmPasswordInput();
-  if (passwordInputs.length) {
-    const passwordInput = passwordInputs[0];
+  const passwordFields = findKiroPasswordFields();
+  if (passwordFields.passwordInput) {
+    const passwordInput = passwordFields.passwordInput;
     return {
       state: 'password_page',
       url: currentUrl,
       passwordInput,
-      confirmPasswordInput,
+      confirmPasswordInput: passwordFields.confirmPasswordInput,
       continueButton: findPasswordContinueButton(passwordInput),
     };
   }
@@ -645,15 +776,29 @@ async function submitKiroPassword(payload = {}) {
 
   fillInput(readyState.passwordInput, password);
   await sleep(150);
+  if (String(readyState.passwordInput.value || '') !== password) {
+    throw new Error('Kiro \u5bc6\u7801\u9875\u4e3b\u5bc6\u7801\u6846\u586b\u5165\u5931\u8d25\uff0c\u5df2\u505c\u6b62\u63d0\u4ea4\uff0c\u8bf7\u68c0\u67e5\u9875\u9762\u5b57\u6bb5\u7ed3\u6784\u3002');
+  }
 
   const confirmPasswordInput = readyState.confirmPasswordInput
     || (() => {
       const passwordInputs = findVisiblePasswordInputs();
-      return passwordInputs.length > 1 ? passwordInputs[1] : null;
+      return passwordInputs.find((input) => input !== readyState.passwordInput) || null;
     })();
   if (confirmPasswordInput && confirmPasswordInput !== readyState.passwordInput) {
     fillInput(confirmPasswordInput, password);
     await sleep(150);
+    if (String(confirmPasswordInput.value || '') !== password) {
+      throw new Error('Kiro \u5bc6\u7801\u9875\u786e\u8ba4\u5bc6\u7801\u6846\u586b\u5165\u5931\u8d25\uff0c\u5df2\u505c\u6b62\u63d0\u4ea4\uff0c\u8bf7\u68c0\u67e5\u9875\u9762\u5b57\u6bb5\u7ed3\u6784\u3002');
+    }
+  }
+
+  if (
+    confirmPasswordInput
+    && confirmPasswordInput !== readyState.passwordInput
+    && String(confirmPasswordInput.value || '') !== String(readyState.passwordInput.value || '')
+  ) {
+    throw new Error('Kiro \u5bc6\u7801\u9875\u4e24\u4e2a\u5bc6\u7801\u6846\u5185\u5bb9\u4e0d\u4e00\u81f4\uff0c\u5df2\u505c\u6b62\u63d0\u4ea4\u3002');
   }
 
   simulateClick(readyState.continueButton);
