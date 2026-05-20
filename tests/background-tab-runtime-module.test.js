@@ -152,6 +152,60 @@ test('tab runtime gives step 5 profile submit enough response time for slow page
   );
 });
 
+test('tab runtime replays retryable transport recovery hook and surfaces a localized timeout error', async () => {
+  const source = fs.readFileSync('background/tab-runtime.js', 'utf8');
+  const globalScope = {};
+  const api = new Function('self', `${source}; return self.MultiPageBackgroundTabRuntime;`)(globalScope);
+
+  let recoveryCalls = 0;
+  const runtime = api.createTabRuntime({
+    LOG_PREFIX: '[test]',
+    addLog: async () => {},
+    chrome: {
+      tabs: {
+        get: async () => ({
+          id: 9,
+          windowId: 1,
+          url: 'https://profile.aws.amazon.com/complete',
+          status: 'complete',
+        }),
+        query: async () => [],
+        sendMessage: async () => {
+          throw new Error('Could not establish connection. Receiving end does not exist.');
+        },
+      },
+    },
+    getSourceLabel: () => 'Kiro 授权页',
+    getState: async () => ({
+      tabRegistry: {
+        'kiro-register-page': { tabId: 9, ready: true },
+      },
+      sourceLastUrls: {},
+    }),
+    isRetryableContentScriptTransportError: (error) => /Receiving end does not exist/i.test(String(error?.message || error || '')),
+    matchesSourceUrlFamily: () => false,
+    setState: async () => {},
+    sleepWithStop: async () => {},
+    throwIfStopped: () => {},
+  });
+
+  await assert.rejects(
+    runtime.sendToContentScriptResilient('kiro-register-page', {
+      type: 'ENSURE_KIRO_PAGE_STATE',
+      payload: {},
+    }, {
+      timeoutMs: 5,
+      retryDelayMs: 0,
+      onRetryableError: async () => {
+        recoveryCalls += 1;
+      },
+    }),
+    /页面刚完成跳转或刷新，内容脚本还没有重新接回/
+  );
+
+  assert.equal(recoveryCalls > 0, true);
+});
+
 test('tab runtime waitForTabComplete waits until tab status becomes complete', async () => {
   const source = fs.readFileSync('background/tab-runtime.js', 'utf8');
   const globalScope = {};
@@ -327,6 +381,61 @@ test('tab runtime opens new automation tabs in the locked window', async () => {
 
   assert.equal(created.length, 1);
   assert.equal(created[0].windowId, 100);
+});
+
+test('tab runtime force-new opens replacement before removing the active stale source tab', async () => {
+  const source = fs.readFileSync('background/tab-runtime.js', 'utf8');
+  const globalScope = {};
+  const api = new Function('self', `${source}; return self.MultiPageBackgroundTabRuntime;`)(globalScope);
+  const events = [];
+  let tabs = [
+    { id: 1, active: true, windowId: 100, url: 'https://chatgpt.com/' },
+  ];
+  const runtime = api.createTabRuntime({
+    LOG_PREFIX: '[test]',
+    addLog: async () => {},
+    chrome: {
+      tabs: {
+        create: async (payload) => {
+          events.push({ type: 'create', payload });
+          const tab = { id: 2, active: true, windowId: payload.windowId, url: payload.url };
+          tabs = tabs.map((item) => ({ ...item, active: false })).concat(tab);
+          return tab;
+        },
+        get: async (tabId) => tabs.find((tab) => tab.id === tabId),
+        query: async () => tabs,
+        remove: async (ids) => {
+          events.push({ type: 'remove', ids });
+          tabs = tabs.filter((tab) => !ids.includes(tab.id));
+        },
+      },
+    },
+    getSourceLabel: (sourceName) => sourceName || 'unknown',
+    getState: async () => ({
+      automationWindowId: 100,
+      sourceLastUrls: { 'signup-page': 'https://chatgpt.com/' },
+      tabRegistry: {},
+    }),
+    matchesSourceUrlFamily: (sourceName, candidateUrl) => (
+      sourceName === 'signup-page'
+      && /chatgpt\.com|auth\.openai\.com/.test(String(candidateUrl || ''))
+    ),
+    setState: async () => {},
+    throwIfStopped: () => {},
+  });
+
+  const tabId = await runtime.reuseOrCreateTab('signup-page', 'https://auth.openai.com/authorize', {
+    forceNew: true,
+  });
+
+  assert.equal(tabId, 2);
+  assert.deepEqual(events, [
+    { type: 'create', payload: { url: 'https://auth.openai.com/authorize', active: true, windowId: 100 } },
+    { type: 'remove', ids: [1] },
+  ]);
+  assert.deepEqual(tabs, [
+    { id: 2, active: true, windowId: 100, url: 'https://auth.openai.com/authorize' },
+  ]);
 });
 
 test('tab runtime scopes tab queries to the locked automation window', async () => {

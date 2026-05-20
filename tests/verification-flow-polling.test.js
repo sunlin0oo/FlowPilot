@@ -1682,6 +1682,57 @@ test('verification flow does not replay step 8 code submit after transient auth-
   assert.deepStrictEqual(resilientMessages, ['GET_LOGIN_AUTH_STATE']);
 });
 
+test('verification flow forwards dynamic completion node id when submitting bound-email login code', async () => {
+  const directCalls = [];
+
+  const helpers = api.createVerificationFlowHelpers({
+    addLog: async () => {},
+    chrome: {
+      tabs: {
+        update: async () => {},
+      },
+    },
+    CLOUDFLARE_TEMP_EMAIL_PROVIDER: 'cloudflare-temp-email',
+    completeNodeFromBackground: async () => {},
+    confirmCustomVerificationStepBypassRequest: async () => ({ confirmed: true }),
+    getHotmailVerificationPollConfig: () => ({}),
+    getHotmailVerificationRequestTimestamp: () => 0,
+    getNodeIdByStepForState: (step) => ({
+      14: 'fetch-bound-email-login-code',
+    })[Number(step)] || '',
+    getState: async () => ({}),
+    getTabId: async () => 1,
+    HOTMAIL_PROVIDER: 'hotmail-api',
+    isStopError: () => false,
+    LUCKMAIL_PROVIDER: 'luckmail-api',
+    MAIL_2925_VERIFICATION_INTERVAL_MS: 15000,
+    MAIL_2925_VERIFICATION_MAX_ATTEMPTS: 15,
+    pollCloudflareTempEmailVerificationCode: async () => ({}),
+    pollHotmailVerificationCode: async () => ({}),
+    pollLuckmailVerificationCode: async () => ({}),
+    sendToContentScript: async (_source, message) => {
+      directCalls.push(message);
+      return { success: true };
+    },
+    sendToContentScriptResilient: async () => {
+      throw new Error('step 8 code submit should use the direct channel once');
+    },
+    sendToMailContentScriptResilient: async () => ({}),
+    setState: async () => {},
+    setStepStatus: async () => {},
+    sleepWithStop: async () => {},
+    throwIfStopped: () => {},
+    VERIFICATION_POLL_MAX_ROUNDS: 5,
+  });
+
+  await helpers.submitVerificationCode(8, '246810', { completionStep: 14 });
+
+  assert.equal(directCalls.length, 1);
+  assert.equal(directCalls[0].type, 'FILL_CODE');
+  assert.equal(directCalls[0].payload.code, '246810');
+  assert.equal(directCalls[0].payload.nodeId, 'fetch-bound-email-login-code');
+});
+
 test('verification flow keeps step 8 code submit response timeout above local floor when flow budget is nearly exhausted', async () => {
   const directCalls = [];
 

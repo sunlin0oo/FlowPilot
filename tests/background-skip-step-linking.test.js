@@ -17,6 +17,18 @@ const OPENAI_NODE_IDS = [
   'platform-verify',
 ];
 
+const KIRO_NODE_IDS = [
+  'kiro-open-register-page',
+  'kiro-submit-email',
+  'kiro-submit-name',
+  'kiro-submit-verification-code',
+  'kiro-submit-password',
+  'kiro-complete-register-consent',
+  'kiro-start-desktop-authorize',
+  'kiro-complete-desktop-authorize',
+  'kiro-upload-credential',
+];
+
 function extractFunction(name) {
   const markers = [`async function ${name}(`, `function ${name}(`];
   const start = markers
@@ -61,7 +73,7 @@ function extractFunction(name) {
   return source.slice(start, end);
 }
 
-function createApi() {
+function createApi(nodeIds = OPENAI_NODE_IDS) {
   const bundle = [
     extractFunction('isStepDoneStatus'),
     extractFunction('skipNode'),
@@ -70,7 +82,7 @@ function createApi() {
   return new Function(`
 const DEFAULT_STATE = { nodeStatuses: {} };
 function getNodeIdsForState() {
-  return ${JSON.stringify(OPENAI_NODE_IDS)};
+  return ${JSON.stringify(nodeIds)};
 }
 function normalizeStatusMapForNodes(statuses = {}) {
   return { ...statuses };
@@ -80,7 +92,7 @@ function isNodeExecutionAllowedForState() {
   return true;
 }
 function getExecutionAllowedNodeIdsForState() {
-  return ${JSON.stringify(OPENAI_NODE_IDS)};
+  return ${JSON.stringify(nodeIds)};
 }
 ${bundle}
 return { skipNode };
@@ -172,5 +184,45 @@ test('skipNode from open-chatgpt skips only unfinished linked signup nodes', asy
       message === '节点 open-chatgpt 已跳过，节点 fetch-signup-code、wait-registration-success 也已同时跳过。'
     )),
     true
+  );
+});
+
+test('skipNode cascades from kiro open-register through the whole register branch', async () => {
+  const statuses = Object.fromEntries(KIRO_NODE_IDS.map((nodeId) => [nodeId, 'pending']));
+  const events = {
+    setNodeStatusCalls: [],
+    logs: [],
+  };
+  const api = createApi(KIRO_NODE_IDS);
+
+  globalThis.ensureManualInteractionAllowed = async () => ({
+    nodeStatuses: { ...statuses },
+  });
+  globalThis.getState = async () => ({
+    nodeStatuses: { ...statuses },
+  });
+  globalThis.setNodeStatus = async (nodeId, status) => {
+    events.setNodeStatusCalls.push({ nodeId, status });
+    statuses[nodeId] = status;
+  };
+  globalThis.addLog = async (message, level) => {
+    events.logs.push({ message, level });
+  };
+
+  const result = await api.skipNode('kiro-open-register-page');
+
+  assert.deepStrictEqual(result, { ok: true, nodeId: 'kiro-open-register-page', status: 'skipped' });
+  assert.deepStrictEqual(events.setNodeStatusCalls, [
+    { nodeId: 'kiro-open-register-page', status: 'skipped' },
+    { nodeId: 'kiro-submit-email', status: 'skipped' },
+    { nodeId: 'kiro-submit-name', status: 'skipped' },
+    { nodeId: 'kiro-submit-verification-code', status: 'skipped' },
+    { nodeId: 'kiro-submit-password', status: 'skipped' },
+    { nodeId: 'kiro-complete-register-consent', status: 'skipped' },
+  ]);
+  assert.equal(events.logs[0]?.message, '节点 kiro-open-register-page 已跳过');
+  assert.equal(
+    events.logs[1]?.message,
+    '节点 kiro-open-register-page 已跳过，节点 kiro-submit-email、kiro-submit-name、kiro-submit-verification-code、kiro-submit-password、kiro-complete-register-consent 也已同时跳过。'
   );
 });

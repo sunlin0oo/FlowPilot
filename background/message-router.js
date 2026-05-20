@@ -37,6 +37,7 @@
       exportSettingsBundle,
       fetchGeneratedEmail,
       refreshGpcCardBalance,
+      testKiroRsConnection,
       finalizePhoneActivationAfterSuccessfulFlow,
       finalizeStep3Completion,
       finalizeIcloudAliasAfterSuccessfulFlow,
@@ -66,7 +67,7 @@
         }
         return Boolean(state?.phoneVerificationEnabled)
           && !Boolean(state?.plusModeEnabled)
-          && !Boolean(state?.contributionMode);
+          && !Boolean(state?.accountContributionEnabled);
       },
       resolveSignupMethod = (state = {}) => {
         const method = normalizeSignupMethod(state?.signupMethod);
@@ -151,6 +152,7 @@
       patchMail2925Account,
       patchHotmailAccount,
       pollContributionStatus,
+      submitFlowContribution,
       registerTab,
       requestStop,
       probeIpProxyExit,
@@ -164,7 +166,7 @@
       setCurrentPayPalAccount,
       setCurrentMail2925Account,
       setCurrentHotmailAccount,
-      setContributionMode,
+      setAccountContributionMode,
       setEmailState,
       setEmailStateSilently,
       persistRegistrationEmailState,
@@ -181,7 +183,7 @@
       setNodeStatus,
       skipAutoRunCountdown,
       skipNode,
-      startContributionFlow,
+      startFlowContribution,
       startAutoRunLoop,
       deleteMail2925Account,
       deleteMail2925Accounts,
@@ -193,6 +195,55 @@
       upsertHotmailAccount,
       verifyHotmailAccount,
     } = deps;
+
+    function normalizeMessageFlowId(value = '', fallback = 'openai') {
+      const rootScope = typeof self !== 'undefined' ? self : globalThis;
+      if (typeof rootScope.MultiPageFlowRegistry?.normalizeFlowId === 'function') {
+        return rootScope.MultiPageFlowRegistry.normalizeFlowId(value, fallback);
+      }
+      const fallbackFlowId = String(fallback || 'openai').trim().toLowerCase() || 'openai';
+      const normalized = String(value || '').trim().toLowerCase();
+      if (!normalized || normalized === 'codex') {
+        return fallbackFlowId;
+      }
+      return normalized;
+    }
+
+    function normalizeMessageTargetId(flowId, targetId = '', fallback = '') {
+      const rootScope = typeof self !== 'undefined' ? self : globalThis;
+      if (typeof rootScope.MultiPageFlowRegistry?.normalizeTargetId === 'function') {
+        return rootScope.MultiPageFlowRegistry.normalizeTargetId(flowId, targetId, fallback);
+      }
+      const fallbackSourceId = String(
+        fallback || (normalizeMessageFlowId(flowId) === 'kiro' ? 'kiro-rs' : 'cpa')
+      ).trim().toLowerCase();
+      return String(targetId || fallbackSourceId).trim().toLowerCase() || fallbackSourceId;
+    }
+
+    function mapAutoRunTargetIdToPanelMode(targetId = '', fallback = 'cpa') {
+      return String(targetId || fallback || 'cpa').trim().toLowerCase() || 'cpa';
+    }
+
+    function buildAutoRunFlowStateUpdates(payload = {}) {
+      const hasActiveFlowId = Object.prototype.hasOwnProperty.call(payload, 'activeFlowId');
+      const hasTargetId = Object.prototype.hasOwnProperty.call(payload, 'targetId');
+      if (!hasActiveFlowId && !hasTargetId) {
+        return {};
+      }
+      const activeFlowId = normalizeMessageFlowId(payload.activeFlowId, 'openai');
+      const updates = {
+        activeFlowId,
+        flowId: activeFlowId,
+      };
+      if (hasTargetId) {
+        if (activeFlowId === 'kiro') {
+          updates.kiroTargetId = normalizeMessageTargetId('kiro', payload.targetId, 'kiro-rs');
+        } else {
+          updates.panelMode = mapAutoRunTargetIdToPanelMode(payload.targetId, 'cpa');
+        }
+      }
+      return updates;
+    }
 
     function preserveKeyFromState(updates, currentState, key) {
       if (!Object.prototype.hasOwnProperty.call(updates, key)) {
@@ -543,6 +594,44 @@
         return 'GPC';
       }
       return method === 'gopay' ? 'GoPay' : 'PayPal';
+    }
+
+    function normalizePlusAccountAccessStrategyForDisplay(value = '') {
+      const normalized = String(value || '').trim().toLowerCase();
+      if (normalized === 'sub2api_codex_session') {
+        return 'sub2api_codex_session';
+      }
+      if (normalized === 'cpa_codex_session') {
+        return 'cpa_codex_session';
+      }
+      return 'oauth';
+    }
+
+    function getPlusAccountAccessStrategyLabel(value = '') {
+      return normalizePlusAccountAccessStrategyForDisplay(value) === 'sub2api_codex_session'
+        ? '导入当前 ChatGPT 会话到 SUB2API'
+        : 'OAuth';
+    }
+
+    function getPlusAccountAccessStrategyLabel(value = '', targetId = '') {
+      const strategy = normalizePlusAccountAccessStrategyForDisplay(value);
+      const normalizedTargetId = String(targetId || '').trim().toLowerCase();
+      if (strategy === 'sub2api_codex_session') {
+        return '导入当前 ChatGPT 会话到 SUB2API';
+      }
+      if (strategy === 'cpa_codex_session') {
+        return '导入当前 ChatGPT 会话到 CPA';
+      }
+      if (normalizedTargetId === 'cpa') {
+        return '通过 OAuth 回调创建 CPA 账号';
+      }
+      if (normalizedTargetId === 'sub2api') {
+        return '通过 OAuth 回调创建 SUB2API 账号';
+      }
+      if (normalizedTargetId === 'codex2api') {
+        return '通过 OAuth 回调创建 Codex2API 账号';
+      }
+      return 'OAuth';
     }
 
     async function handlePlatformVerifyStepData(payload) {
@@ -1069,59 +1158,61 @@
           return await setFreeReusablePhoneActivation(message.payload || {});
         }
 
-        case 'SET_CONTRIBUTION_MODE': {
+        case 'SET_ACCOUNT_CONTRIBUTION_MODE': {
           const enabled = Boolean(message.payload?.enabled);
-          const state = await ensureManualInteractionAllowed(enabled ? '进入贡献模式' : '退出贡献模式');
+          const state = await ensureManualInteractionAllowed(enabled ? '进入账号贡献' : '退出账号贡献');
           if (Object.values(state.nodeStatuses || {}).some((status) => status === 'running')) {
-            throw new Error(enabled ? '当前有步骤正在执行，无法进入贡献模式。' : '当前有步骤正在执行，无法退出贡献模式。');
+            throw new Error(enabled ? '当前有步骤正在执行，无法进入账号贡献。' : '当前有步骤正在执行，无法退出账号贡献。');
           }
-          if (typeof setContributionMode !== 'function') {
-            throw new Error('贡献模式切换能力未接入。');
+          if (typeof setAccountContributionMode !== 'function') {
+            throw new Error('账号贡献切换能力未接入。');
           }
           return {
             ok: true,
-            state: await setContributionMode(enabled),
+            state: await setAccountContributionMode(enabled, {
+              adapterId: message.payload?.adapterId,
+              flowId: message.payload?.flowId || state?.activeFlowId || state?.flowId,
+            }),
           };
         }
 
-        case 'START_CONTRIBUTION_FLOW': {
+        case 'START_FLOW_CONTRIBUTION': {
           const state = await ensureManualInteractionAllowed('开始贡献');
           if (Object.values(state.nodeStatuses || {}).some((status) => status === 'running')) {
             throw new Error('当前有步骤正在执行，无法开始贡献流程。');
           }
-          if (typeof startContributionFlow !== 'function') {
+          if (!state?.accountContributionEnabled) {
+            throw new Error('请先进入账号贡献。');
+          }
+          if (typeof startFlowContribution !== 'function') {
             throw new Error('贡献 OAuth 流程尚未接入。');
           }
           return {
             ok: true,
-            state: await startContributionFlow({
+            state: await startFlowContribution({
               nickname: message.payload?.nickname,
               qq: message.payload?.qq,
             }),
           };
         }
 
-        case 'SET_CONTRIBUTION_PROFILE': {
+        case 'SUBMIT_FLOW_CONTRIBUTION': {
           const state = await getState();
-          if (!state?.contributionMode) {
-            throw new Error('请先进入贡献模式。');
+          if (!state?.accountContributionEnabled) {
+            throw new Error('请先进入账号贡献。');
           }
-          const nickname = String(message.payload?.nickname || '').trim();
-          const qq = String(message.payload?.qq || '').trim();
-          if (qq && !/^\d{1,20}$/.test(qq)) {
-            throw new Error('QQ 只能填写数字，且长度不能超过 20 位。');
+          if (typeof submitFlowContribution !== 'function') {
+            throw new Error('贡献提交能力尚未接入。');
           }
-          await setState({
-            contributionNickname: nickname,
-            contributionQq: qq,
-          });
           return {
             ok: true,
-            state: await getState(),
+            state: await submitFlowContribution(message.payload?.callbackUrl, {
+              reason: message.payload?.reason || 'sidepanel_submit',
+            }),
           };
         }
 
-        case 'POLL_CONTRIBUTION_STATUS': {
+        case 'POLL_FLOW_CONTRIBUTION_STATUS': {
           if (typeof pollContributionStatus !== 'function') {
             throw new Error('贡献状态轮询能力尚未接入。');
           }
@@ -1200,8 +1291,11 @@
           if (message.source === 'sidepanel') {
             await lockAutomationWindowFromMessage(message, sender);
           }
-          if (Boolean(message.payload?.contributionMode) && typeof setContributionMode === 'function') {
-            await setContributionMode(true);
+          if (Boolean(message.payload?.accountContributionEnabled) && typeof setAccountContributionMode === 'function') {
+            await setAccountContributionMode(true, {
+              adapterId: message.payload?.contributionAdapterId,
+              flowId: message.payload?.activeFlowId || message.payload?.flowId,
+            });
             if (typeof setState === 'function') {
               const contributionNickname = String(message.payload?.contributionNickname || '').trim();
               const contributionQq = String(message.payload?.contributionQq || '').trim();
@@ -1211,8 +1305,16 @@
               });
             }
           }
+          const autoRunFlowStateUpdates = buildAutoRunFlowStateUpdates(message.payload || {});
+          if (Object.keys(autoRunFlowStateUpdates).length > 0 && typeof setState === 'function') {
+            await setState(autoRunFlowStateUpdates);
+          }
           const state = await getState();
-          const autoRunStartValidation = validateAutoRunStart(state, { state });
+          const autoRunStartValidation = validateAutoRunStart(state, {
+            activeFlowId: autoRunFlowStateUpdates.activeFlowId ?? state?.activeFlowId,
+            panelMode: autoRunFlowStateUpdates.panelMode ?? state?.panelMode,
+            state,
+          });
           if (autoRunStartValidation?.ok === false) {
             throw new Error(autoRunStartValidation.errors?.[0]?.message || '当前设置不支持启动自动流程。');
           }
@@ -1237,8 +1339,11 @@
           if (message.source === 'sidepanel') {
             await lockAutomationWindowFromMessage(message, sender);
           }
-          if (Boolean(message.payload?.contributionMode) && typeof setContributionMode === 'function') {
-            await setContributionMode(true);
+          if (Boolean(message.payload?.accountContributionEnabled) && typeof setAccountContributionMode === 'function') {
+            await setAccountContributionMode(true, {
+              adapterId: message.payload?.contributionAdapterId,
+              flowId: message.payload?.activeFlowId || message.payload?.flowId,
+            });
             if (typeof setState === 'function') {
               const contributionNickname = String(message.payload?.contributionNickname || '').trim();
               const contributionQq = String(message.payload?.contributionQq || '').trim();
@@ -1254,7 +1359,11 @@
             });
           }
           const state = await getState();
-          const autoRunStartValidation = validateAutoRunStart(state, { state });
+          const autoRunStartValidation = validateAutoRunStart(state, {
+            activeFlowId: autoRunFlowStateUpdates.activeFlowId ?? state?.activeFlowId,
+            panelMode: autoRunFlowStateUpdates.panelMode ?? state?.panelMode,
+            state,
+          });
           if (autoRunStartValidation?.ok === false) {
             throw new Error(autoRunStartValidation.errors?.[0]?.message || '当前设置不支持启动自动流程。');
           }
@@ -1353,7 +1462,7 @@
             || Object.prototype.hasOwnProperty.call(updates, 'signupMethod')
             || Object.prototype.hasOwnProperty.call(updates, 'panelMode')
             || Object.prototype.hasOwnProperty.call(updates, 'activeFlowId')
-            || Object.prototype.hasOwnProperty.call(updates, 'contributionMode')
+            || Object.prototype.hasOwnProperty.call(updates, 'accountContributionEnabled')
           ) {
             updates.signupMethod = resolveSignupMethod(nextSignupState);
           }
@@ -1368,6 +1477,9 @@
           const plusPaymentChanged = Object.prototype.hasOwnProperty.call(updates, 'plusPaymentMethod')
             && normalizePlusPaymentMethodForDisplay(currentState?.plusPaymentMethod || 'paypal')
               !== normalizePlusPaymentMethodForDisplay(updates.plusPaymentMethod || 'paypal');
+          const plusAccountAccessStrategyChanged = Object.prototype.hasOwnProperty.call(updates, 'plusAccountAccessStrategy')
+            && normalizePlusAccountAccessStrategyForDisplay(currentState?.plusAccountAccessStrategy || 'oauth')
+              !== normalizePlusAccountAccessStrategyForDisplay(updates.plusAccountAccessStrategy || 'oauth');
           const phoneSignupReloginAfterBindEmailChanged = Object.prototype.hasOwnProperty.call(updates, 'phoneSignupReloginAfterBindEmailEnabled')
             && Boolean(currentState?.phoneSignupReloginAfterBindEmailEnabled) !== Boolean(updates.phoneSignupReloginAfterBindEmailEnabled);
           const nextPlusModeEnabled = Object.prototype.hasOwnProperty.call(updates, 'plusModeEnabled')
@@ -1375,29 +1487,68 @@
             : Boolean(currentState?.plusModeEnabled);
           const stepModeChanged = modeChanged
             || (nextPlusModeEnabled && plusPaymentChanged)
+            || (nextPlusModeEnabled && plusAccountAccessStrategyChanged)
             || phoneSignupReloginAfterBindEmailChanged;
           const oauthFlowTimeoutDisabled = Object.prototype.hasOwnProperty.call(updates, 'oauthFlowTimeoutEnabled')
             && updates.oauthFlowTimeoutEnabled === false;
-          await setPersistentSettings(updates);
+          const canonicalSettingsUpdates = await setPersistentSettings(updates);
           const stateUpdates = {
-            ...updates,
+            ...canonicalSettingsUpdates,
             ...sessionUpdates,
             ...(oauthFlowTimeoutDisabled ? {
               oauthFlowDeadlineAt: null,
               oauthFlowDeadlineSourceUrl: null,
             } : {}),
           };
-          if (Object.prototype.hasOwnProperty.call(updates, 'icloudHostPreference')) {
-            const nextHostPreference = String(updates.icloudHostPreference || '').trim().toLowerCase();
+          if (Object.prototype.hasOwnProperty.call(canonicalSettingsUpdates, 'activeFlowId')
+            && !Object.prototype.hasOwnProperty.call(stateUpdates, 'flowId')) {
+            stateUpdates.flowId = canonicalSettingsUpdates.activeFlowId;
+          }
+          if (Object.prototype.hasOwnProperty.call(canonicalSettingsUpdates, 'icloudHostPreference')) {
+            const nextHostPreference = String(canonicalSettingsUpdates.icloudHostPreference || '').trim().toLowerCase();
             stateUpdates.preferredIcloudHost = nextHostPreference === 'icloud.com' || nextHostPreference === 'icloud.com.cn'
               ? nextHostPreference
               : '';
           }
-          if (stepModeChanged && typeof getStepIdsForState === 'function') {
-            const nextStateForSteps = { ...currentState, ...stateUpdates };
-            const nextNodeIds = typeof getNodeIdsForState === 'function'
-              ? getNodeIdsForState(nextStateForSteps)
-              : getStepIdsForState(nextStateForSteps).map((stepId) => getStepKeyForState(stepId, nextStateForSteps)).filter(Boolean);
+          const currentNodeIds = typeof getNodeIdsForState === 'function'
+            ? getNodeIdsForState(currentState)
+            : (typeof getStepIdsForState === 'function'
+              ? getStepIdsForState(currentState).map((stepId) => getStepKeyForState(stepId, currentState)).filter(Boolean)
+              : []);
+          const nextStateForSteps = { ...currentState, ...stateUpdates };
+          const nextNodeIds = typeof getNodeIdsForState === 'function'
+            ? getNodeIdsForState(nextStateForSteps)
+            : (typeof getStepIdsForState === 'function'
+              ? getStepIdsForState(nextStateForSteps).map((stepId) => getStepKeyForState(stepId, nextStateForSteps)).filter(Boolean)
+              : []);
+          const nodeTopologyChanged = currentNodeIds.length !== nextNodeIds.length
+            || currentNodeIds.some((nodeId, index) => nodeId !== nextNodeIds[index]);
+          const shouldRebuildNodeStatuses = stepModeChanged || nodeTopologyChanged;
+          if (shouldRebuildNodeStatuses && nextNodeIds.length > 0) {
+            Object.assign(stateUpdates, {
+              oauthUrl: null,
+              localhostUrl: null,
+              oauthFlowDeadlineAt: null,
+              oauthFlowDeadlineSourceUrl: null,
+              cpaOAuthState: null,
+              cpaManagementOrigin: null,
+              sub2apiSessionId: null,
+              sub2apiOAuthState: null,
+              sub2apiGroupId: null,
+              sub2apiGroupIds: [],
+              sub2apiDraftName: null,
+              sub2apiProxyId: null,
+              codex2apiSessionId: null,
+              codex2apiOAuthState: null,
+              plusManualConfirmationPending: false,
+              plusManualConfirmationRequestId: '',
+              plusManualConfirmationStep: 0,
+              plusManualConfirmationMethod: '',
+              plusManualConfirmationTitle: '',
+              plusManualConfirmationMessage: '',
+            });
+          }
+          if (shouldRebuildNodeStatuses && nextNodeIds.length > 0) {
             stateUpdates.nodeStatuses = Object.fromEntries(nextNodeIds.map((nodeId) => [nodeId, 'pending']));
             stateUpdates.currentNodeId = '';
           }
@@ -1443,8 +1594,11 @@
               error: error?.message || String(error || '代理应用失败'),
             }));
           }
-          if (Boolean(currentState?.contributionMode) && typeof setContributionMode === 'function') {
-            await setContributionMode(true);
+          if (Boolean(currentState?.accountContributionEnabled) && typeof setAccountContributionMode === 'function') {
+            await setAccountContributionMode(true, {
+              adapterId: currentState?.contributionAdapterId,
+              flowId: currentState?.activeFlowId || currentState?.flowId,
+            });
           }
           if (Object.keys(stateUpdates).length > 0 && typeof broadcastDataUpdate === 'function') {
             broadcastDataUpdate(stateUpdates);
@@ -1453,9 +1607,17 @@
             const selectedPlusPaymentMethod = getPlusPaymentMethodLabel(
               stateUpdates.plusPaymentMethod ?? currentState?.plusPaymentMethod ?? 'paypal'
             );
+            const selectedPlusAccountAccessStrategy = getPlusAccountAccessStrategyLabel(
+              stateUpdates.plusAccountAccessStrategy ?? currentState?.plusAccountAccessStrategy ?? 'oauth',
+              stateUpdates.panelMode
+                ?? currentState?.panelMode
+                ?? stateUpdates.openaiIntegrationTargetId
+                ?? currentState?.openaiIntegrationTargetId
+                ?? 'cpa'
+            );
             await addLog(
               Boolean(updates.plusModeEnabled)
-                ? `Plus 模式已开启，已切换为 Plus Checkout 步骤，当前支付方式：${selectedPlusPaymentMethod}。`
+                ? `Plus 模式已开启，已切换为 Plus Checkout 步骤，当前支付方式：${selectedPlusPaymentMethod}，账号接入策略：${selectedPlusAccountAccessStrategy}。`
                 : 'Plus 模式已关闭，已恢复普通注册授权步骤。',
               'info'
             );
@@ -1464,6 +1626,16 @@
               stateUpdates.plusPaymentMethod ?? currentState?.plusPaymentMethod ?? 'paypal'
             );
             await addLog(`Plus 支付方式已切换为 ${selectedPlusPaymentMethod}，已更新对应的 Plus 步骤。`, 'info');
+          } else if (plusAccountAccessStrategyChanged && nextPlusModeEnabled) {
+            const selectedPlusAccountAccessStrategy = getPlusAccountAccessStrategyLabel(
+              stateUpdates.plusAccountAccessStrategy ?? currentState?.plusAccountAccessStrategy ?? 'oauth',
+              stateUpdates.panelMode
+                ?? currentState?.panelMode
+                ?? stateUpdates.openaiIntegrationTargetId
+                ?? currentState?.openaiIntegrationTargetId
+                ?? 'cpa'
+            );
+            await addLog(`Plus 账号接入策略已切换为 ${selectedPlusAccountAccessStrategy}，已更新对应的 Plus 尾链。`, 'info');
           }
           return {
             ok: true,
@@ -1485,6 +1657,44 @@
             reason: message.payload?.reason,
           });
           return { ok: true, ...result };
+        }
+
+        case 'CHECK_KIRO_RS_CONNECTION': {
+          if (typeof testKiroRsConnection !== 'function') {
+            throw new Error('kiro.rs 连接测试能力尚未接入。');
+          }
+          const currentState = await getState();
+          const activeFlowId = normalizeMessageFlowId(
+            message.payload?.activeFlowId || currentState?.activeFlowId || 'kiro',
+            'kiro'
+          );
+          const targetId = normalizeMessageTargetId(
+            activeFlowId,
+            message.payload?.targetId || currentState?.kiroTargetId || 'kiro-rs',
+            'kiro-rs'
+          );
+          const nestedTargetConfig = currentState?.settingsState?.flows?.kiro?.targets?.[targetId]
+            || currentState?.flows?.kiro?.targets?.[targetId]
+            || {};
+          const baseUrl = String(
+            message.payload?.baseUrl
+            ?? nestedTargetConfig.baseUrl
+            ?? currentState?.kiroRsUrl
+            ?? ''
+          ).trim();
+          const apiKey = String(
+            message.payload?.apiKey
+            ?? nestedTargetConfig.apiKey
+            ?? currentState?.kiroRsKey
+            ?? ''
+          );
+          const result = await testKiroRsConnection(baseUrl, apiKey);
+          return {
+            ok: Boolean(result?.ok),
+            targetId,
+            status: Number(result?.status) || 0,
+            message: String(result?.message || '').trim(),
+          };
         }
 
         case 'RUN_IP_PROXY_AUTO_SYNC_NOW': {

@@ -9,14 +9,6 @@
     'auth0.openai.com',
     'accounts.openai.com',
   ];
-  const STEP1_COOKIE_CLEAR_ORIGINS = [
-    'https://chatgpt.com',
-    'https://chat.openai.com',
-    'https://auth.openai.com',
-    'https://auth0.openai.com',
-    'https://accounts.openai.com',
-    'https://openai.com',
-  ];
 
   function normalizeCookieDomainForStep1(domain) {
     return String(domain || '').trim().replace(/^\.+/, '').toLowerCase();
@@ -28,6 +20,16 @@
     return STEP1_COOKIE_CLEAR_DOMAINS.some((target) => (
       domain === target || domain.endsWith(`.${target}`)
     ));
+  }
+
+  function buildStep1CookieKey(cookie, fallbackStoreId = '') {
+    return [
+      cookie?.storeId || fallbackStoreId || '',
+      cookie?.domain || '',
+      cookie?.path || '',
+      cookie?.name || '',
+      cookie?.partitionKey ? JSON.stringify(cookie.partitionKey) : '',
+    ].join('|');
   }
 
   function buildStep1CookieRemovalUrl(cookie) {
@@ -51,22 +53,39 @@
       : [{ id: undefined }];
     const cookies = [];
     const seen = new Set();
+    const queryDomains = Array.from(
+      new Set(
+        STEP1_COOKIE_CLEAR_DOMAINS
+          .map((domain) => normalizeCookieDomainForStep1(domain))
+          .filter(Boolean)
+      )
+    );
 
     for (const store of stores) {
       const storeId = store?.id;
-      const batch = await chromeApi.cookies.getAll(storeId ? { storeId } : {});
-      for (const cookie of batch || []) {
-        if (!shouldClearStep1Cookie(cookie)) continue;
-        const key = [
-          cookie.storeId || storeId || '',
-          cookie.domain || '',
-          cookie.path || '',
-          cookie.name || '',
-          cookie.partitionKey ? JSON.stringify(cookie.partitionKey) : '',
-        ].join('|');
-        if (seen.has(key)) continue;
-        seen.add(key);
-        cookies.push(cookie);
+      for (const domain of queryDomains) {
+        let batch = [];
+        try {
+          batch = await chromeApi.cookies.getAll(
+            storeId
+              ? { storeId, domain }
+              : { domain }
+          );
+        } catch (error) {
+          console.warn('[MultiPage:step1] query cookies failed', {
+            storeId: storeId || '',
+            domain,
+            message: getStep1ErrorMessage(error),
+          });
+          continue;
+        }
+        for (const cookie of batch || []) {
+          if (!shouldClearStep1Cookie(cookie)) continue;
+          const key = buildStep1CookieKey(cookie, storeId);
+          if (seen.has(key)) continue;
+          seen.add(key);
+          cookies.push(cookie);
+        }
       }
     }
 
@@ -112,6 +131,7 @@
         return;
       }
 
+      const startedAt = Date.now();
       await addLog('步骤 1：打开 ChatGPT 官网前清理 ChatGPT / OpenAI cookies...', 'info');
       const cookies = await collectStep1Cookies(chromeApi);
       let removedCount = 0;
@@ -121,18 +141,8 @@
         }
       }
 
-      if (chromeApi.browsingData?.removeCookies) {
-        try {
-          await chromeApi.browsingData.removeCookies({
-            since: 0,
-            origins: STEP1_COOKIE_CLEAR_ORIGINS,
-          });
-        } catch (error) {
-          await addLog(`步骤 1：browsingData 补扫 cookies 失败：${getStep1ErrorMessage(error)}`, 'warn');
-        }
-      }
-
-      await addLog(`步骤 1：已清理 ${removedCount} 个 ChatGPT / OpenAI cookies。`, 'ok');
+      const elapsedMs = Date.now() - startedAt;
+      await addLog(`步骤 1：已清理 ${removedCount} 个 ChatGPT / OpenAI cookies（耗时 ${elapsedMs}ms）。`, 'ok');
     }
 
     async function executeStep1() {

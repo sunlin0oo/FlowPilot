@@ -5,6 +5,7 @@ const fs = require('node:fs');
 test('background imports auto-run controller module', () => {
   const source = fs.readFileSync('background.js', 'utf8');
   assert.match(source, /background\/auto-run-controller\.js/);
+  assert.match(source, /buildFreshAutoRunKeepState/);
 });
 
 test('auto-run controller module exposes a factory', () => {

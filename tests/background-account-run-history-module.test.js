@@ -102,7 +102,7 @@ test('account run history helper upgrades old records, keeps stopped items and s
       attemptRun: 3,
     },
     plusModeEnabled: false,
-    contributionMode: false,
+    accountContributionEnabled: false,
   });
 
   const appended = await helpers.appendAccountRunRecord('node:fetch-login-code:failed', null, '步骤 8：认证页进入了手机号页面，当前不是 OAuth 同意页，无法继续自动授权。');
@@ -213,7 +213,7 @@ test('account run history helper accepts phone-only records without forcing emai
     source: 'manual',
     autoRunContext: null,
     plusModeEnabled: false,
-    contributionMode: false,
+    accountContributionEnabled: false,
   });
 
   const normalized = helpers.normalizeAccountRunHistoryRecord({
@@ -426,22 +426,22 @@ test('account run history records preserve Plus and contribution mode flags', ()
     email: 'plus@example.com',
     password: 'secret',
     plusModeEnabled: true,
-    contributionMode: true,
+    accountContributionEnabled: true,
   }, 'success');
 
   assert.equal(record.plusModeEnabled, true);
-  assert.equal(record.contributionMode, true);
+  assert.equal(record.accountContributionEnabled, true);
 
   const normalized = helpers.normalizeAccountRunHistoryRecord({
     email: 'plus@example.com',
     password: 'secret',
     finalStatus: 'success',
     plusModeEnabled: true,
-    contributionMode: true,
+    accountContributionEnabled: true,
   });
 
   assert.equal(normalized.plusModeEnabled, true);
-  assert.equal(normalized.contributionMode, true);
+  assert.equal(normalized.accountContributionEnabled, true);
 });
 
 test('account run history helper clears persisted records and syncs full snapshot payload to local helper', async () => {

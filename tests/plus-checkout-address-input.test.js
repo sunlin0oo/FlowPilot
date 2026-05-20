@@ -38,7 +38,7 @@ test('plus checkout content script can be injected repeatedly on the same page',
   assert.equal(context.__MULTIPAGE_PLUS_CHECKOUT_READY__, true);
 });
 
-function createPlusCheckoutMessageHarness({ checkoutSessionId = 'cs_test_123' } = {}) {
+function createPlusCheckoutMessageHarness({ checkoutSessionId = 'cs_test_123', checkoutResponse = null } = {}) {
   const attrs = new Map();
   let listener = null;
   const fetchCalls = [];
@@ -84,7 +84,7 @@ function createPlusCheckoutMessageHarness({ checkoutSessionId = 'cs_test_123' } 
         return {
           ok: true,
           status: 200,
-          json: async () => ({ checkout_session_id: checkoutSessionId }),
+          json: async () => (checkoutResponse || { checkout_session_id: checkoutSessionId }),
         };
       }
       throw new Error(`unexpected fetch url: ${url}`);
@@ -151,6 +151,40 @@ test('CREATE_PLUS_CHECKOUT uses ID/IDR and openai_llc merchant path for GoPay', 
     promo_campaign_id: 'plus-1-month-free',
     is_coupon_from_query_param: false,
   });
+});
+
+test('CREATE_PLUS_CHECKOUT uses hosted US/USD checkout for PayPal no-card binding', async () => {
+  const hostedUrl = 'https://pay.openai.com/c/pay/cs_hosted_123';
+  const harness = createPlusCheckoutMessageHarness({
+    checkoutSessionId: 'cs_hosted',
+    checkoutResponse: {
+      checkout_session_id: 'cs_hosted',
+      next_action: {
+        redirect_to_url: {
+          url: hostedUrl,
+        },
+      },
+    },
+  });
+
+  const result = await harness.send({
+    type: 'CREATE_PLUS_CHECKOUT',
+    source: 'test',
+    payload: { paymentMethod: 'paypal-hosted' },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.checkoutUrl, 'https://chatgpt.com/checkout/openai_llc/cs_hosted');
+  assert.equal(result.hostedCheckoutUrl, hostedUrl);
+  assert.equal(result.preferredCheckoutUrl, hostedUrl);
+  assert.equal(result.country, 'US');
+  assert.equal(result.currency, 'USD');
+
+  const checkoutCall = harness.fetchCalls.find((call) => call.url === 'https://chatgpt.com/backend-api/payments/checkout');
+  assert.ok(checkoutCall);
+  const payload = JSON.parse(checkoutCall.options.body);
+  assert.equal(payload.checkout_ui_mode, 'hosted');
+  assert.deepEqual(payload.billing_details, { country: 'US', currency: 'USD' });
 });
 
 function extractFunction(name) {
@@ -530,6 +564,49 @@ return { findSubscribeButton };
 `)(windowMock, documentMock, cssMock);
 
   assert.equal(api.findSubscribeButton(), submitButton);
+});
+
+test('getSubscribeButtonState does not treat processing subscribe text as clickable', () => {
+  const bundle = [
+    extractFunction('normalizeText'),
+    extractFunction('getActionText'),
+    extractFunction('getSearchText'),
+    extractFunction('getFieldText'),
+    extractFunction('getCombinedSearchText'),
+    extractFunction('isEnabledControl'),
+    extractFunction('isBusySubscribeButton'),
+    'const SUBSCRIBE_READY_TEXT_PATTERN = /\\u8ba2\\u9605|\\u7ee7\\u7eed|\\u786e\\u8ba4|\\u652f\\u4ed8|subscribe|continue|confirm|pay|\\u8d2d\\u4e70\\s*ChatGPT\\s*Plus|start\\s*subscription|place\\s*order/i;',
+    'const SUBSCRIBE_PROCESSING_TEXT_PATTERN = /\\u6b63\\u5728\\u5904\\u7406|\\u5904\\u7406\\u4e2d|\\u8bf7\\u7a0d\\u5019|\\u52a0\\u8f7d\\u4e2d|loading|processing|submitting/i;',
+    extractFunction('getSubscribeButtonState'),
+  ].join('\n');
+
+  const processingButton = createElement({
+    tagName: 'BUTTON',
+    text: '订阅 正在处理',
+    attrs: { type: 'submit' },
+  });
+  const readyButton = createElement({
+    tagName: 'BUTTON',
+    text: '订阅',
+    attrs: { type: 'submit' },
+  });
+
+  const api = new Function(`
+${bundle}
+return { getSubscribeButtonState };
+`)();
+
+  assert.deepEqual(
+    {
+      ready: api.getSubscribeButtonState(processingButton).ready,
+      status: api.getSubscribeButtonState(processingButton).status,
+    },
+    {
+      ready: false,
+      status: 'processing',
+    }
+  );
+  assert.equal(api.getSubscribeButtonState(readyButton).ready, true);
 });
 
 test('humanLikeClick submits a detached submit button through its form attribute', async () => {

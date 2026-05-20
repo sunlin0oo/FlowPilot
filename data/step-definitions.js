@@ -3,8 +3,12 @@
 })(typeof self !== 'undefined' ? self : globalThis, function createStepDefinitionsModule() {
   const DEFAULT_ACTIVE_FLOW_ID = 'openai';
   const PLUS_PAYMENT_METHOD_PAYPAL = 'paypal';
+  const PLUS_PAYMENT_METHOD_PAYPAL_HOSTED = 'paypal-hosted';
   const PLUS_PAYMENT_METHOD_GOPAY = 'gopay';
   const PLUS_PAYMENT_METHOD_GPC_HELPER = 'gpc-helper';
+  const PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH = 'oauth';
+  const PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION = 'sub2api_codex_session';
+  const PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION = 'cpa_codex_session';
   const PLUS_PAYMENT_STEP_KEY = 'paypal-approve';
   const SIGNUP_METHOD_EMAIL = 'email';
   const SIGNUP_METHOD_PHONE = 'phone';
@@ -28,6 +32,13 @@
     { id: 7, order: 70, key: 'plus-checkout-billing', title: '填写账单并提交订单', sourceId: 'plus-checkout', driverId: 'content/plus-checkout', command: 'plus-checkout-billing' },
     { id: 8, order: 80, key: 'paypal-approve', title: 'PayPal 登录与授权', sourceId: 'paypal-flow', driverId: 'content/paypal-flow', command: 'paypal-approve' },
     { id: 9, order: 90, key: 'plus-checkout-return', title: '订阅回跳确认', sourceId: 'plus-checkout', driverId: 'content/plus-checkout', command: 'plus-checkout-return' },
+  ];
+  const PLUS_PAYPAL_HOSTED_CHECKOUT_PREFIX_STEP_DEFINITIONS = [
+    ...PLUS_PAYPAL_PREFIX_STEP_DEFINITIONS.slice(0, 6),
+    { id: 7, order: 70, key: 'paypal-hosted-email', title: '无卡直绑填写 PayPal 邮箱', sourceId: 'paypal-flow', driverId: 'content/paypal-flow', command: 'paypal-hosted-email' },
+    { id: 8, order: 80, key: 'paypal-hosted-card', title: '无卡直绑填写 PayPal 资料', sourceId: 'paypal-flow', driverId: 'content/paypal-flow', command: 'paypal-hosted-card' },
+    { id: 9, order: 90, key: 'paypal-hosted-create-account', title: '无卡直绑确认创建 PayPal', sourceId: 'paypal-flow', driverId: 'content/paypal-flow', command: 'paypal-hosted-create-account' },
+    { id: 10, order: 100, key: 'paypal-hosted-review', title: '无卡直绑完成 PayPal 授权', sourceId: 'paypal-flow', driverId: 'content/paypal-flow', command: 'paypal-hosted-review' },
   ];
 
   const PLUS_GOPAY_PREFIX_STEP_DEFINITIONS = [
@@ -92,10 +103,118 @@
     ];
   }
 
+  function createSub2ApiSessionImportTail(startId, startOrder) {
+    const id = Number(startId) || 10;
+    const order = Number(startOrder) || id * 10;
+    return [
+      {
+        id,
+        order,
+        key: 'sub2api-session-import',
+        title: '导入当前 ChatGPT 会话到 SUB2API',
+        sourceId: 'sub2api-panel',
+        driverId: 'background/sub2api-session-import',
+        command: 'sub2api-session-import',
+      },
+    ];
+  }
+
+  function createCpaSessionImportTail(startId, startOrder) {
+    const id = Number(startId) || 10;
+    const order = Number(startOrder) || id * 10;
+    return [
+      {
+        id,
+        order,
+        key: 'cpa-session-import',
+        title: '导入当前 ChatGPT 会话到 CPA',
+        sourceId: 'vps-panel',
+        driverId: 'background/cpa-session-import',
+        command: 'cpa-session-import',
+      },
+    ];
+  }
+
+  function normalizePlusAccountAccessStrategy(value = '') {
+    const normalized = String(value || '').trim().toLowerCase();
+    if (normalized === PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION) {
+      return PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION;
+    }
+    if (normalized === PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION) {
+      return PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION;
+    }
+    return PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH;
+  }
+
+  function resolvePlusSessionImportTail(options = {}, signupMethod = SIGNUP_METHOD_EMAIL) {
+    if (signupMethod !== SIGNUP_METHOD_EMAIL) {
+      return null;
+    }
+    const strategy = normalizePlusAccountAccessStrategy(options?.plusAccountAccessStrategy);
+    if (strategy === PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION) {
+      return createSub2ApiSessionImportTail;
+    }
+    if (strategy === PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION) {
+      return createCpaSessionImportTail;
+    }
+    return null;
+  }
+
   function createOpenAiSteps(prefixSteps, startId, startOrder, signupMethod = SIGNUP_METHOD_EMAIL, options = {}) {
+    const sessionTailFactory = resolvePlusSessionImportTail(options, signupMethod);
+    const tailSteps = sessionTailFactory
+      ? sessionTailFactory(startId, startOrder)
+      : createOpenAiAuthTail(startId, startOrder, signupMethod, options);
     return [
       ...prefixSteps,
-      ...createOpenAiAuthTail(startId, startOrder, signupMethod, options),
+      ...tailSteps,
+    ];
+  }
+
+  function createHostedCheckoutAuthTail(startId, startOrder, signupMethod = SIGNUP_METHOD_EMAIL, options = {}) {
+    const id = Number(startId) || 7;
+    const order = Number(startOrder) || id * 10;
+    const commonStart = [
+      { id, order, key: 'oauth-login', title: '刷新 OAuth 并登录', sourceId: 'openai-auth', driverId: 'content/signup-page', command: 'oauth-login' },
+      { id: id + 1, order: order + 10, key: 'fetch-login-code', title: '获取登录验证码', sourceId: 'openai-auth', driverId: 'content/signup-page', command: 'submit-verification-code', mailRuleId: 'openai-login-code' },
+    ];
+
+    if (signupMethod === SIGNUP_METHOD_PHONE) {
+      if (isPhoneSignupReloginAfterBindEmailEnabled(options)) {
+        return [
+          ...commonStart,
+          { id: id + 2, order: order + 20, key: 'bind-email', title: '绑定邮箱', sourceId: 'openai-auth', driverId: 'content/signup-page', command: 'bind-email' },
+          { id: id + 3, order: order + 30, key: 'fetch-bind-email-code', title: '获取绑定邮箱验证码', sourceId: 'openai-auth', driverId: 'content/signup-page', command: 'fetch-bind-email-code', mailRuleId: 'openai-login-code' },
+          { id: id + 4, order: order + 40, key: 'relogin-bound-email', title: '绑定邮箱后刷新 OAuth 并登录（邮箱）', sourceId: 'openai-auth', driverId: 'content/signup-page', command: 'oauth-login' },
+          { id: id + 5, order: order + 50, key: 'fetch-bound-email-login-code', title: '获取登录验证码（邮箱）', sourceId: 'openai-auth', driverId: 'content/signup-page', command: 'submit-verification-code', mailRuleId: 'openai-login-code' },
+          { id: id + 6, order: order + 60, key: 'confirm-oauth', title: '自动确认 OAuth', sourceId: 'openai-auth', driverId: 'content/signup-page', command: 'confirm-oauth' },
+          { id: id + 7, order: order + 70, key: 'platform-verify', title: '平台回调验证', sourceId: 'platform-panel', driverId: 'content/platform-panel', command: 'platform-verify' },
+        ];
+      }
+      return [
+        ...commonStart,
+        { id: id + 2, order: order + 20, key: 'bind-email', title: '绑定邮箱', sourceId: 'openai-auth', driverId: 'content/signup-page', command: 'bind-email' },
+        { id: id + 3, order: order + 30, key: 'fetch-bind-email-code', title: '获取绑定邮箱验证码', sourceId: 'openai-auth', driverId: 'content/signup-page', command: 'fetch-bind-email-code', mailRuleId: 'openai-login-code' },
+        { id: id + 4, order: order + 40, key: 'confirm-oauth', title: '自动确认 OAuth', sourceId: 'openai-auth', driverId: 'content/signup-page', command: 'confirm-oauth' },
+        { id: id + 5, order: order + 50, key: 'platform-verify', title: '平台回调验证', sourceId: 'platform-panel', driverId: 'content/platform-panel', command: 'platform-verify' },
+      ];
+    }
+
+    return [
+      ...commonStart,
+      { id: id + 2, order: order + 20, key: 'confirm-oauth', title: '自动确认 OAuth', sourceId: 'openai-auth', driverId: 'content/signup-page', command: 'confirm-oauth' },
+      { id: id + 3, order: order + 30, key: 'platform-verify', title: '平台回调验证', sourceId: 'platform-panel', driverId: 'content/platform-panel', command: 'platform-verify' },
+    ];
+  }
+
+  function createHostedCheckoutSteps(prefixSteps, startId, startOrder, signupMethod = SIGNUP_METHOD_EMAIL, options = {}) {
+    const sessionTailFactory = resolvePlusSessionImportTail(options, signupMethod);
+    const tailSteps = sessionTailFactory
+      ? sessionTailFactory(startId, startOrder)
+      : createHostedCheckoutAuthTail(startId, startOrder, signupMethod, options);
+    return [
+      ...prefixSteps,
+      ...tailSteps,
     ];
   }
 
@@ -103,19 +222,162 @@
   const NORMAL_PHONE_STEP_DEFINITIONS = createOpenAiSteps(NORMAL_PREFIX_STEP_DEFINITIONS, 7, 70, SIGNUP_METHOD_PHONE);
   const NORMAL_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS = createOpenAiSteps(NORMAL_PREFIX_STEP_DEFINITIONS, 7, 70, SIGNUP_METHOD_PHONE, { phoneSignupReloginAfterBindEmailEnabled: true });
   const PLUS_PAYPAL_STEP_DEFINITIONS = createOpenAiSteps(PLUS_PAYPAL_PREFIX_STEP_DEFINITIONS, 10, 100, SIGNUP_METHOD_EMAIL);
+  const PLUS_PAYPAL_SUB2API_SESSION_STEP_DEFINITIONS = createOpenAiSteps(
+    PLUS_PAYPAL_PREFIX_STEP_DEFINITIONS,
+    10,
+    100,
+    SIGNUP_METHOD_EMAIL,
+    { plusAccountAccessStrategy: PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION }
+  );
+  const PLUS_PAYPAL_CPA_SESSION_STEP_DEFINITIONS = createOpenAiSteps(
+    PLUS_PAYPAL_PREFIX_STEP_DEFINITIONS,
+    10,
+    100,
+    SIGNUP_METHOD_EMAIL,
+    { plusAccountAccessStrategy: PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION }
+  );
   const PLUS_PAYPAL_PHONE_STEP_DEFINITIONS = createOpenAiSteps(PLUS_PAYPAL_PREFIX_STEP_DEFINITIONS, 10, 100, SIGNUP_METHOD_PHONE);
   const PLUS_PAYPAL_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS = createOpenAiSteps(PLUS_PAYPAL_PREFIX_STEP_DEFINITIONS, 10, 100, SIGNUP_METHOD_PHONE, { phoneSignupReloginAfterBindEmailEnabled: true });
+  const PLUS_PAYPAL_HOSTED_CHECKOUT_STEP_DEFINITIONS = createHostedCheckoutSteps(PLUS_PAYPAL_HOSTED_CHECKOUT_PREFIX_STEP_DEFINITIONS, 11, 110, SIGNUP_METHOD_EMAIL);
+  const PLUS_PAYPAL_HOSTED_CHECKOUT_SUB2API_SESSION_STEP_DEFINITIONS = createHostedCheckoutSteps(
+    PLUS_PAYPAL_HOSTED_CHECKOUT_PREFIX_STEP_DEFINITIONS,
+    11,
+    110,
+    SIGNUP_METHOD_EMAIL,
+    { plusAccountAccessStrategy: PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION }
+  );
+  const PLUS_PAYPAL_HOSTED_CHECKOUT_CPA_SESSION_STEP_DEFINITIONS = createHostedCheckoutSteps(
+    PLUS_PAYPAL_HOSTED_CHECKOUT_PREFIX_STEP_DEFINITIONS,
+    11,
+    110,
+    SIGNUP_METHOD_EMAIL,
+    { plusAccountAccessStrategy: PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION }
+  );
+  const PLUS_PAYPAL_HOSTED_CHECKOUT_PHONE_STEP_DEFINITIONS = createHostedCheckoutSteps(PLUS_PAYPAL_HOSTED_CHECKOUT_PREFIX_STEP_DEFINITIONS, 11, 110, SIGNUP_METHOD_PHONE);
+  const PLUS_PAYPAL_HOSTED_CHECKOUT_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS = createHostedCheckoutSteps(PLUS_PAYPAL_HOSTED_CHECKOUT_PREFIX_STEP_DEFINITIONS, 11, 110, SIGNUP_METHOD_PHONE, { phoneSignupReloginAfterBindEmailEnabled: true });
   const PLUS_GOPAY_STEP_DEFINITIONS = createOpenAiSteps(PLUS_GOPAY_PREFIX_STEP_DEFINITIONS, 10, 100, SIGNUP_METHOD_EMAIL);
+  const PLUS_GOPAY_SUB2API_SESSION_STEP_DEFINITIONS = createOpenAiSteps(
+    PLUS_GOPAY_PREFIX_STEP_DEFINITIONS,
+    10,
+    100,
+    SIGNUP_METHOD_EMAIL,
+    { plusAccountAccessStrategy: PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION }
+  );
+  const PLUS_GOPAY_CPA_SESSION_STEP_DEFINITIONS = createOpenAiSteps(
+    PLUS_GOPAY_PREFIX_STEP_DEFINITIONS,
+    10,
+    100,
+    SIGNUP_METHOD_EMAIL,
+    { plusAccountAccessStrategy: PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION }
+  );
   const PLUS_GOPAY_PHONE_STEP_DEFINITIONS = createOpenAiSteps(PLUS_GOPAY_PREFIX_STEP_DEFINITIONS, 10, 100, SIGNUP_METHOD_PHONE);
   const PLUS_GOPAY_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS = createOpenAiSteps(PLUS_GOPAY_PREFIX_STEP_DEFINITIONS, 10, 100, SIGNUP_METHOD_PHONE, { phoneSignupReloginAfterBindEmailEnabled: true });
   const PLUS_GPC_STEP_DEFINITIONS = createOpenAiSteps(PLUS_GPC_PREFIX_STEP_DEFINITIONS, 10, 100, SIGNUP_METHOD_EMAIL);
+  const PLUS_GPC_SUB2API_SESSION_STEP_DEFINITIONS = createOpenAiSteps(
+    PLUS_GPC_PREFIX_STEP_DEFINITIONS,
+    10,
+    100,
+    SIGNUP_METHOD_EMAIL,
+    { plusAccountAccessStrategy: PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION }
+  );
+  const PLUS_GPC_CPA_SESSION_STEP_DEFINITIONS = createOpenAiSteps(
+    PLUS_GPC_PREFIX_STEP_DEFINITIONS,
+    10,
+    100,
+    SIGNUP_METHOD_EMAIL,
+    { plusAccountAccessStrategy: PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION }
+  );
   const PLUS_GPC_PHONE_STEP_DEFINITIONS = createOpenAiSteps(PLUS_GPC_PREFIX_STEP_DEFINITIONS, 10, 100, SIGNUP_METHOD_PHONE);
   const PLUS_GPC_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS = createOpenAiSteps(PLUS_GPC_PREFIX_STEP_DEFINITIONS, 10, 100, SIGNUP_METHOD_PHONE, { phoneSignupReloginAfterBindEmailEnabled: true });
+  const KIRO_STEP_DEFINITIONS = [
+    {
+      id: 1,
+      order: 10,
+      key: 'kiro-open-register-page',
+      title: '打开注册页',
+      sourceId: 'kiro-register-page',
+      driverId: 'background/kiro-register',
+      command: 'kiro-open-register-page',
+    },
+    {
+      id: 2,
+      order: 20,
+      key: 'kiro-submit-email',
+      title: '获取邮箱并继续',
+      sourceId: 'kiro-register-page',
+      driverId: 'background/kiro-register',
+      command: 'kiro-submit-email',
+    },
+    {
+      id: 3,
+      order: 30,
+      key: 'kiro-submit-name',
+      title: '填写姓名并继续',
+      sourceId: 'kiro-register-page',
+      driverId: 'background/kiro-register',
+      command: 'kiro-submit-name',
+    },
+    {
+      id: 4,
+      order: 40,
+      key: 'kiro-submit-verification-code',
+      title: '获取验证码并继续',
+      sourceId: 'kiro-register-page',
+      driverId: 'background/kiro-register',
+      command: 'kiro-submit-verification-code',
+    },
+    {
+      id: 5,
+      order: 50,
+      key: 'kiro-submit-password',
+      title: '设置密码并继续',
+      sourceId: 'kiro-register-page',
+      driverId: 'background/kiro-register',
+      command: 'kiro-submit-password',
+    },
+    {
+      id: 6,
+      order: 60,
+      key: 'kiro-complete-register-consent',
+      title: '完成注册授权',
+      sourceId: 'kiro-register-page',
+      driverId: 'background/kiro-register',
+      command: 'kiro-complete-register-consent',
+    },
+    {
+      id: 7,
+      order: 70,
+      key: 'kiro-start-desktop-authorize',
+      title: '启动桌面授权',
+      sourceId: 'kiro-desktop-authorize',
+      driverId: 'background/kiro-desktop-authorize',
+      command: 'kiro-start-desktop-authorize',
+    },
+    {
+      id: 8,
+      order: 80,
+      key: 'kiro-complete-desktop-authorize',
+      title: '完成桌面授权',
+      sourceId: 'kiro-desktop-authorize',
+      driverId: 'background/kiro-desktop-authorize',
+      command: 'kiro-complete-desktop-authorize',
+    },
+    {
+      id: 9,
+      order: 90,
+      key: 'kiro-upload-credential',
+      title: '上传凭据到 kiro.rs',
+      sourceId: 'kiro-rs-admin',
+      driverId: 'background/kiro-publisher-kiro-rs',
+      command: 'kiro-upload-credential',
+    },
+  ];
 
   const PHONE_SIGNUP_TITLE_OVERRIDES = Object.freeze({
     'submit-signup-email': '注册并输入手机号',
     'fetch-signup-code': '获取手机验证码',
   });
+  const KIRO_CONTRIBUTION_STEP_TITLE = '贡献上传';
 
   function isPlusModeEnabled(options = {}) {
     return Boolean(options?.plusModeEnabled || options?.plusMode);
@@ -123,6 +385,9 @@
 
   function normalizePlusPaymentMethod(value = '') {
     const normalized = String(value || '').trim().toLowerCase();
+    if (normalized === PLUS_PAYMENT_METHOD_PAYPAL_HOSTED || normalized === 'paypal_direct' || normalized === 'paypal-direct') {
+      return PLUS_PAYMENT_METHOD_PAYPAL_HOSTED;
+    }
     if (normalized === PLUS_PAYMENT_METHOD_GPC_HELPER) {
       return PLUS_PAYMENT_METHOD_GPC_HELPER;
     }
@@ -161,11 +426,32 @@
       return NORMAL_STEP_DEFINITIONS;
     }
     const paymentMethod = normalizePlusPaymentMethod(options?.plusPaymentMethod || options?.paymentMethod);
+    const plusAccountAccessStrategy = normalizePlusAccountAccessStrategy(options?.plusAccountAccessStrategy);
+    if (paymentMethod === PLUS_PAYMENT_METHOD_PAYPAL_HOSTED) {
+      if (signupMethod === SIGNUP_METHOD_PHONE) {
+        return reloginAfterBindEmail
+          ? PLUS_PAYPAL_HOSTED_CHECKOUT_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS
+          : PLUS_PAYPAL_HOSTED_CHECKOUT_PHONE_STEP_DEFINITIONS;
+      }
+      if (plusAccountAccessStrategy === PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION) {
+        return PLUS_PAYPAL_HOSTED_CHECKOUT_SUB2API_SESSION_STEP_DEFINITIONS;
+      }
+      if (plusAccountAccessStrategy === PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION) {
+        return PLUS_PAYPAL_HOSTED_CHECKOUT_CPA_SESSION_STEP_DEFINITIONS;
+      }
+      return PLUS_PAYPAL_HOSTED_CHECKOUT_STEP_DEFINITIONS;
+    }
     if (paymentMethod === PLUS_PAYMENT_METHOD_GPC_HELPER) {
       if (signupMethod === SIGNUP_METHOD_PHONE) {
         return reloginAfterBindEmail
           ? PLUS_GPC_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS
           : PLUS_GPC_PHONE_STEP_DEFINITIONS;
+      }
+      if (plusAccountAccessStrategy === PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION) {
+        return PLUS_GPC_SUB2API_SESSION_STEP_DEFINITIONS;
+      }
+      if (plusAccountAccessStrategy === PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION) {
+        return PLUS_GPC_CPA_SESSION_STEP_DEFINITIONS;
       }
       return PLUS_GPC_STEP_DEFINITIONS;
     }
@@ -175,12 +461,24 @@
           ? PLUS_GOPAY_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS
           : PLUS_GOPAY_PHONE_STEP_DEFINITIONS;
       }
+      if (plusAccountAccessStrategy === PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION) {
+        return PLUS_GOPAY_SUB2API_SESSION_STEP_DEFINITIONS;
+      }
+      if (plusAccountAccessStrategy === PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION) {
+        return PLUS_GOPAY_CPA_SESSION_STEP_DEFINITIONS;
+      }
       return PLUS_GOPAY_STEP_DEFINITIONS;
     }
     if (signupMethod === SIGNUP_METHOD_PHONE) {
       return reloginAfterBindEmail
         ? PLUS_PAYPAL_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS
         : PLUS_PAYPAL_PHONE_STEP_DEFINITIONS;
+    }
+    if (plusAccountAccessStrategy === PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION) {
+      return PLUS_PAYPAL_SUB2API_SESSION_STEP_DEFINITIONS;
+    }
+    if (plusAccountAccessStrategy === PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION) {
+      return PLUS_PAYPAL_CPA_SESSION_STEP_DEFINITIONS;
     }
     return PLUS_PAYPAL_STEP_DEFINITIONS;
   }
@@ -207,6 +505,10 @@
     return step.title;
   }
 
+  function isKiroContributionModeEnabled(options = {}) {
+    return Boolean(options?.accountContributionEnabled || options?.state?.accountContributionEnabled);
+  }
+
   const FLOW_DEFINITION_BUILDERS = Object.freeze({
     openai: {
       getAllSteps() {
@@ -216,12 +518,23 @@
           ...NORMAL_PHONE_STEP_DEFINITIONS,
           ...NORMAL_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS,
           ...PLUS_PAYPAL_STEP_DEFINITIONS,
+          ...PLUS_PAYPAL_SUB2API_SESSION_STEP_DEFINITIONS,
+          ...PLUS_PAYPAL_CPA_SESSION_STEP_DEFINITIONS,
           ...PLUS_PAYPAL_PHONE_STEP_DEFINITIONS,
           ...PLUS_PAYPAL_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS,
+          ...PLUS_PAYPAL_HOSTED_CHECKOUT_STEP_DEFINITIONS,
+          ...PLUS_PAYPAL_HOSTED_CHECKOUT_SUB2API_SESSION_STEP_DEFINITIONS,
+          ...PLUS_PAYPAL_HOSTED_CHECKOUT_CPA_SESSION_STEP_DEFINITIONS,
+          ...PLUS_PAYPAL_HOSTED_CHECKOUT_PHONE_STEP_DEFINITIONS,
+          ...PLUS_PAYPAL_HOSTED_CHECKOUT_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS,
           ...PLUS_GOPAY_STEP_DEFINITIONS,
+          ...PLUS_GOPAY_SUB2API_SESSION_STEP_DEFINITIONS,
+          ...PLUS_GOPAY_CPA_SESSION_STEP_DEFINITIONS,
           ...PLUS_GOPAY_PHONE_STEP_DEFINITIONS,
           ...PLUS_GOPAY_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS,
           ...PLUS_GPC_STEP_DEFINITIONS,
+          ...PLUS_GPC_SUB2API_SESSION_STEP_DEFINITIONS,
+          ...PLUS_GPC_CPA_SESSION_STEP_DEFINITIONS,
           ...PLUS_GPC_PHONE_STEP_DEFINITIONS,
           ...PLUS_GPC_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS,
         ]) {
@@ -237,6 +550,23 @@
       getModeStepDefinitions: getOpenAiModeStepDefinitions,
       getPlusPaymentStepTitle: getOpenAiPlusPaymentStepTitle,
       resolveStepTitle: getOpenAiResolvedStepTitle,
+    },
+    kiro: {
+      getAllSteps() {
+        return KIRO_STEP_DEFINITIONS;
+      },
+      getModeStepDefinitions() {
+        return KIRO_STEP_DEFINITIONS;
+      },
+      getPlusPaymentStepTitle() {
+        return '';
+      },
+      resolveStepTitle(step, options = {}) {
+        if (step?.key === 'kiro-upload-credential' && isKiroContributionModeEnabled(options)) {
+          return KIRO_CONTRIBUTION_STEP_TITLE;
+        }
+        return step?.title || '';
+      },
     },
   });
 
@@ -269,11 +599,10 @@
   function cloneNodes(steps = [], options = {}, flowId = DEFAULT_ACTIVE_FLOW_ID) {
     const { builder } = getFlowDefinitionBuilder({ activeFlowId: flowId });
     return steps.map((step) => ({
-      legacyStepId: Number(step.id),
       nodeId: String(step.key || '').trim(),
       flowId,
       title: builder?.resolveStepTitle ? builder.resolveStepTitle(step, options) : step.title,
-      displayOrder: Number.isFinite(Number(step.order)) ? Number(step.order) : Number(step.id),
+      displayOrder: Number.isFinite(Number(step.id)) ? Number(step.id) : Number(step.order),
       nodeType: 'task',
       sourceId: step.sourceId || '',
       driverId: step.driverId || '',
@@ -401,12 +730,20 @@
     NORMAL_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS,
     PLUS_STEP_DEFINITIONS: PLUS_PAYPAL_STEP_DEFINITIONS,
     PLUS_PAYPAL_STEP_DEFINITIONS,
+    PLUS_PAYPAL_SUB2API_SESSION_STEP_DEFINITIONS,
     PLUS_PAYPAL_PHONE_STEP_DEFINITIONS,
     PLUS_PAYPAL_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS,
+    PLUS_PAYPAL_HOSTED_CHECKOUT_STEP_DEFINITIONS,
+    PLUS_PAYPAL_HOSTED_CHECKOUT_SUB2API_SESSION_STEP_DEFINITIONS,
+    PLUS_PAYPAL_HOSTED_CHECKOUT_CPA_SESSION_STEP_DEFINITIONS,
+    PLUS_PAYPAL_HOSTED_CHECKOUT_PHONE_STEP_DEFINITIONS,
+    PLUS_PAYPAL_HOSTED_CHECKOUT_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS,
     PLUS_GOPAY_STEP_DEFINITIONS,
+    PLUS_GOPAY_SUB2API_SESSION_STEP_DEFINITIONS,
     PLUS_GOPAY_PHONE_STEP_DEFINITIONS,
     PLUS_GOPAY_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS,
     PLUS_GPC_STEP_DEFINITIONS,
+    PLUS_GPC_SUB2API_SESSION_STEP_DEFINITIONS,
     PLUS_GPC_PHONE_STEP_DEFINITIONS,
     PLUS_GPC_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS,
     SIGNUP_METHOD_EMAIL,

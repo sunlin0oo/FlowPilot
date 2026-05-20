@@ -80,6 +80,17 @@
     </div>
   </header>
 
+  <div id="auto-run-ad-bar" class="auto-run-ad-bar" hidden aria-live="polite">
+    <span class="auto-run-ad-badge">作者自营</span>
+    <div id="auto-run-ad-viewport" class="auto-run-ad-viewport">
+      <div id="auto-run-ad-track" class="auto-run-ad-track">
+        <span id="auto-run-ad-text" class="auto-run-ad-text"></span>
+        <span id="auto-run-ad-text-clone" class="auto-run-ad-text auto-run-ad-text--clone" aria-hidden="true"></span>
+      </div>
+    </div>
+    <span class="auto-run-ad-badge auto-run-ad-badge--end">售后保障</span>
+  </div>
+
   <div id="contribution-update-layer" class="contribution-update-layer" hidden>
     <div id="contribution-update-hint" class="contribution-update-hint" aria-live="polite" hidden>
       <p id="contribution-update-hint-text" class="contribution-update-hint-text">
@@ -113,13 +124,12 @@
       <div class="data-row">
         <span class="data-label">注册</span>
         <select id="select-flow" class="data-select" aria-label="Flow 选择">
-          <option value="codex" selected>codex</option>
-          <option value="pending-1" disabled>kiro</option>
-          <option value="pending-2" disabled>待添加</option>
+          <option value="openai" selected>Codex / OpenAI</option>
+          <option value="kiro">Kiro</option>
         </select>
       </div>
       <div class="data-row">
-        <span class="data-label">来源</span>
+        <span id="label-source-selector" class="data-label">来源</span>
         <select id="select-panel-mode" class="data-select">
           <option value="cpa">CPA 面板</option>
           <option value="sub2api">SUB2API</option>
@@ -144,11 +154,11 @@
         </div>
         <div class="contribution-mode-status-grid">
           <div class="contribution-mode-status-card">
-            <span class="contribution-mode-status-label">OAUTH</span>
+            <span id="contribution-primary-status-label" class="contribution-mode-status-label">OAUTH</span>
             <span id="contribution-oauth-status" class="contribution-mode-status-value">未生成登录地址</span>
           </div>
           <div class="contribution-mode-status-card">
-            <span class="contribution-mode-status-label">回调</span>
+            <span id="contribution-secondary-status-label" class="contribution-mode-status-label">回调</span>
             <span id="contribution-callback-status" class="contribution-mode-status-value">等待回调</span>
           </div>
         </div>
@@ -242,11 +252,49 @@
             title="显示 Codex2API 管理密钥"></button>
         </div>
       </div>
+      <div class="data-row" id="row-kiro-rs-url" style="display:none;">
+        <span class="data-label">kiro.rs</span>
+        <div class="data-inline">
+          <input type="text" id="input-kiro-rs-url" class="data-input"
+            placeholder="请输入 kiro.rs 管理地址" />
+          <button id="btn-open-kiro-rs-github" class="btn btn-ghost btn-xs data-inline-btn" type="button">GitHub</button>
+        </div>
+      </div>
+      <div class="data-row" id="row-kiro-rs-key" style="display:none;">
+        <span class="data-label">API Key</span>
+        <div class="data-inline">
+          <div class="input-with-icon">
+            <input type="password" id="input-kiro-rs-key" class="data-input data-input-with-icon"
+              placeholder="请输入 kiro.rs API Key" />
+            <button id="btn-toggle-kiro-rs-key" class="input-icon-btn" type="button"
+              data-password-toggle="input-kiro-rs-key" data-show-label="显示 kiro.rs API Key"
+              data-hide-label="隐藏 kiro.rs API Key" aria-label="显示 kiro.rs API Key"
+              title="显示 kiro.rs API Key"></button>
+          </div>
+          <button id="btn-test-kiro-rs" class="btn btn-ghost btn-xs data-inline-btn" type="button">测试</button>
+        </div>
+      </div>
+      <div class="data-row" id="row-kiro-rs-test-status" style="display:none;">
+        <span class="data-label">连接测试</span>
+        <span id="display-kiro-rs-test-status" class="data-value mono">未测试</span>
+      </div>
+      <div class="data-row" id="row-kiro-web-status" style="display:none;">
+        <span class="data-label">Kiro Web</span>
+        <span id="display-kiro-web-status" class="data-value mono">未开始</span>
+      </div>
+      <div class="data-row" id="row-kiro-login-url" style="display:none;">
+        <span class="data-label">注册入口</span>
+        <span id="display-kiro-login-url" class="data-value mono">未打开</span>
+      </div>
+      <div class="data-row" id="row-kiro-upload-status" style="display:none;">
+        <span class="data-label">上传状态</span>
+        <span id="display-kiro-upload-status" class="data-value mono">未开始</span>
+      </div>
       <div class="data-row module-divider-start" id="row-custom-password">
         <span class="data-label">账户密码</span>
         <div class="input-with-icon">
           <input type="password" id="input-password" class="data-input data-input-with-icon"
-            placeholder="codex密码，留空则自动生成" />
+            placeholder="账户密码，留空则自动生成" />
           <button id="btn-toggle-password" class="input-icon-btn" type="button" aria-label="显示密码" title="显示密码"></button>
         </div>
       </div>
@@ -264,13 +312,27 @@
           <span class="setting-caption">Plus 订阅链路</span>
         </div>
       </div>
+      <div class="data-row" id="row-plus-account-access-strategy" style="display:none;">
+        <span class="data-label">账号接入策略</span>
+        <div class="data-inline">
+          <select id="select-plus-account-access-strategy" class="data-select">
+            <option value="oauth">OAuth</option>
+            <option value="cpa_codex_session">导入当前 ChatGPT 会话到 CPA</option>
+            <option value="sub2api_codex_session">导入当前 ChatGPT 会话到 SUB2API</option>
+          </select>
+          <span class="setting-caption" id="plus-account-access-strategy-caption">当前来源仅支持 OAuth</span>
+        </div>
+      </div>
       <div class="data-row" id="row-plus-payment-method" style="display:none;">
         <span class="data-label">Plus 支付</span>
         <div class="data-inline">
           <select id="select-plus-payment-method" class="data-select">
+            <option value="paypal-hosted">PayPal 无卡直绑</option>
             <option value="paypal">PayPal</option>
+            <!--
             <option value="gopay">GoPay</option>
             <option value="gpc-helper">GPC</option>
+            -->
           </select>
           <button id="btn-gpc-card-key-purchase" class="btn btn-outline btn-sm data-inline-btn" type="button" style="display:none;">购买卡密</button>
           <span class="setting-caption" id="plus-payment-method-caption">PayPal 订阅链路</span>
@@ -290,6 +352,22 @@
           </div>
           <button id="btn-add-paypal-account" class="btn btn-outline btn-sm data-inline-btn" type="button">添加</button>
         </div>
+      </div>
+      <div class="data-row" id="row-hosted-checkout-verification-url" style="display:none;">
+        <span class="data-label">直绑验证码</span>
+        <input type="text" id="input-hosted-checkout-verification-url" class="data-input"
+          placeholder="用于读取 PayPal / OpenAI 验证码的接口地址" autocomplete="off" />
+      </div>
+      <div class="data-row" id="row-hosted-checkout-phone" style="display:none;">
+        <span class="data-label">直绑电话</span>
+        <input type="text" id="input-hosted-checkout-phone" class="data-input"
+          placeholder="填 10 位美国本地号码，不要带 +1" autocomplete="tel" />
+      </div>
+      <div class="data-row" id="row-plus-hosted-checkout-oauth-delay" style="display:none;">
+        <span class="data-label">成功等待</span>
+        <input type="number" id="input-plus-hosted-checkout-oauth-delay-seconds" class="data-input auto-delay-input"
+          value="3" min="0" max="120" step="1" />
+        <span class="setting-caption">支付成功页出现后再继续账号接入</span>
       </div>
       <div class="data-row" id="row-gpc-helper-api" style="display:none;">
         <span class="data-label">GPC API</span>
@@ -565,29 +643,9 @@
           <button id="btn-fetch-email" class="btn btn-outline btn-sm data-inline-btn" type="button">获取</button>
         </div>
       </div>
-      <div class="data-row" id="row-step-execution-range">
-        <span class="data-label">执行范围</span>
-        <div class="data-inline setting-pair step-execution-range-setting">
-          <div class="setting-group setting-group-primary">
-            <label class="toggle-switch" for="input-step-execution-range-enabled" title="开启后，只执行指定起止步骤，范围外步骤禁用">
-              <input type="checkbox" id="input-step-execution-range-enabled" />
-              <span class="toggle-switch-track" aria-hidden="true">
-                <span class="toggle-switch-thumb"></span>
-              </span>
-              <span>启用</span>
-            </label>
-          </div>
-          <div class="setting-group setting-group-secondary step-range-controls">
-            <span class="setting-caption">步骤</span>
-            <input type="number" id="input-step-execution-range-from" class="data-input auto-delay-input step-range-input" value="1" min="1" step="1" title="允许执行的起始步骤" />
-            <span class="data-unit">到</span>
-            <input type="number" id="input-step-execution-range-to" class="data-input auto-delay-input step-range-input" value="1" min="1" step="1" title="允许执行的结束步骤" />
-          </div>
-        </div>
-      </div>
-      <div class="data-row module-divider-start" id="row-auto-delay-settings">
+      <div class="data-row" id="row-step6-cookie-settings">
         <span class="data-label">第六步</span>
-        <div class="data-inline setting-pair auto-delay-setting-pair">
+        <div class="data-inline">
           <div class="setting-group setting-group-primary step6-cookie-cleanup-setting">
             <span class="setting-caption setting-caption-left">清 Cookies</span>
             <label class="toggle-switch" for="input-step6-cookie-cleanup-enabled">
@@ -597,6 +655,11 @@
               </span>
             </label>
           </div>
+        </div>
+      </div>
+      <div class="data-row module-divider-start" id="row-auto-delay-settings">
+        <span class="data-label">启动前</span>
+        <div class="data-inline setting-pair auto-delay-setting-pair">
           <div class="setting-group setting-group-secondary auto-run-delay-setting">
             <span class="setting-caption">延迟</span>
             <label class="toggle-switch" for="input-auto-delay-enabled">
@@ -610,21 +673,6 @@
                 max="1440" step="1" title="启动前倒计时分钟数" />
               <span class="data-unit">分钟</span>
             </div>
-          </div>
-        </div>
-      </div>
-      <div class="data-row" id="row-operation-delay-settings">
-        <span class="data-label">操作间延迟</span>
-        <div class="data-inline setting-pair operation-delay-setting-pair">
-          <div class="setting-group setting-group-primary operation-delay-setting">
-            <label class="toggle-switch" for="input-operation-delay-enabled" title="开启后，页面输入、选择、点击、提交、继续、授权操作完成后等待 2 秒">
-              <input type="checkbox" id="input-operation-delay-enabled" checked />
-              <span class="toggle-switch-track" aria-hidden="true">
-                <span class="toggle-switch-thumb"></span>
-              </span>
-              <span>启用</span>
-            </label>
-            <span class="setting-caption">页面输入、选择、点击、提交、继续、授权后等待 2 秒</span>
           </div>
         </div>
       </div>
@@ -670,6 +718,26 @@
                 class="data-input auto-delay-input" value="0" min="0" max="1440" step="1" title="兜底模式下，两轮线程之间的等待分钟数" />
               <span class="data-unit">分钟</span>
             </div>
+          </div>
+        </div>
+      </div>
+      <div class="data-row" id="row-step-execution-range">
+        <span class="data-label">执行范围</span>
+        <div class="data-inline setting-pair step-execution-range-setting">
+          <div class="setting-group setting-group-primary">
+            <label class="toggle-switch" for="input-step-execution-range-enabled" title="开启后，只执行指定起止步骤，范围外步骤禁用">
+              <input type="checkbox" id="input-step-execution-range-enabled" />
+              <span class="toggle-switch-track" aria-hidden="true">
+                <span class="toggle-switch-thumb"></span>
+              </span>
+              <span>启用</span>
+            </label>
+          </div>
+          <div class="setting-group setting-group-secondary step-range-controls">
+            <span class="setting-caption">节点</span>
+            <select id="input-step-execution-range-from" class="data-select step-range-input" title="允许执行的起始节点"></select>
+            <span class="data-unit">到</span>
+            <select id="input-step-execution-range-to" class="data-select step-range-input" title="允许执行的结束节点"></select>
           </div>
         </div>
       </div>
@@ -1810,6 +1878,9 @@
   <script src="../hotmail-utils.js"></script>
   <script src="../luckmail-utils.js"></script>
   <script src="../yyds-mail-utils.js"></script>
+  <script src="../shared/flow-registry.js"></script>
+  <script src="../shared/contribution-registry.js"></script>
+  <script src="../shared/settings-schema.js"></script>
   <script src="../shared/flow-capabilities.js"></script>
   <script src="../data/step-definitions.js"></script>
   <script src="update-service.js"></script>

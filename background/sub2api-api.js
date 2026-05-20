@@ -345,6 +345,145 @@
       return `${prefix}-${stamp}-${random}`;
     }
 
+    function normalizeCodexSessionObject(value) {
+      return value && typeof value === 'object' && !Array.isArray(value) ? value : null;
+    }
+
+    function normalizeEmailValue(value = '') {
+      const email = normalizeString(value);
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : '';
+    }
+
+    function decodeCodexBase64UrlSegment(segment = '') {
+      const normalized = normalizeString(segment)
+        .replace(/-/g, '+')
+        .replace(/_/g, '/');
+      if (!normalized) {
+        return '';
+      }
+      const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4);
+      try {
+        if (typeof Buffer !== 'undefined') {
+          return Buffer.from(padded, 'base64').toString('utf8');
+        }
+        if (typeof atob === 'function') {
+          const binary = atob(padded);
+          const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+          if (typeof TextDecoder !== 'undefined') {
+            return new TextDecoder().decode(bytes);
+          }
+          return binary;
+        }
+      } catch {
+        return '';
+      }
+      return '';
+    }
+
+    function parseCodexAccessTokenClaims(accessToken = '') {
+      const token = normalizeString(accessToken);
+      if (!token) {
+        return null;
+      }
+      const parts = token.split('.');
+      if (parts.length !== 3) {
+        return null;
+      }
+      try {
+        return JSON.parse(decodeCodexBase64UrlSegment(parts[1]));
+      } catch {
+        return null;
+      }
+    }
+
+    function resolveCodexSessionImportAccountName(state = {}, session = null, accessToken = '') {
+      const sessionObject = normalizeCodexSessionObject(session);
+      const claims = parseCodexAccessTokenClaims(accessToken || sessionObject?.accessToken);
+      const accountIdentifierType = normalizeString(state?.accountIdentifierType).toLowerCase();
+      const accountIdentifierEmail = accountIdentifierType === 'email'
+        ? normalizeEmailValue(state?.accountIdentifier)
+        : '';
+
+      return normalizeEmailValue(sessionObject?.user?.email)
+        || normalizeEmailValue(sessionObject?.email)
+        || normalizeEmailValue(claims?.email)
+        || normalizeEmailValue(state?.email)
+        || accountIdentifierEmail;
+    }
+
+    function buildCodexSessionImportContent(session, accessToken = '') {
+      const normalizedAccessToken = normalizeString(accessToken);
+      const sessionObject = normalizeCodexSessionObject(session);
+
+      if (sessionObject) {
+        const contentObject = normalizedAccessToken
+          ? {
+            ...sessionObject,
+            accessToken: normalizedAccessToken,
+          }
+          : sessionObject;
+        return JSON.stringify(contentObject);
+      }
+
+      if (normalizedAccessToken) {
+        return normalizedAccessToken;
+      }
+
+      throw new Error('未读取到可导入的 ChatGPT 会话或 accessToken。');
+    }
+
+    function resolveCodexSessionImportExpiresAt(session) {
+      const sessionObject = normalizeCodexSessionObject(session);
+      const expiresValue = normalizeString(sessionObject?.expires);
+      if (!expiresValue) {
+        return null;
+      }
+      const expiresAtMs = Date.parse(expiresValue);
+      if (!Number.isFinite(expiresAtMs) || expiresAtMs <= 0) {
+        return null;
+      }
+      return Math.floor(expiresAtMs / 1000);
+    }
+
+    function normalizeCodexSessionImportMessages(messages) {
+      return (Array.isArray(messages) ? messages : [])
+        .map((item, index) => ({
+          index: Number(item?.index) || index + 1,
+          name: normalizeString(item?.name),
+          message: normalizeString(item?.message),
+        }))
+        .filter((item) => item.message);
+    }
+
+    function normalizeCodexSessionImportResult(result) {
+      return {
+        total: Math.max(0, Number(result?.total) || 0),
+        created: Math.max(0, Number(result?.created) || 0),
+        updated: Math.max(0, Number(result?.updated) || 0),
+        skipped: Math.max(0, Number(result?.skipped) || 0),
+        failed: Math.max(0, Number(result?.failed) || 0),
+        items: Array.isArray(result?.items) ? result.items : [],
+        warnings: normalizeCodexSessionImportMessages(result?.warnings),
+        errors: normalizeCodexSessionImportMessages(result?.errors),
+      };
+    }
+
+    function buildCodexSessionImportSummary(result) {
+      const normalized = normalizeCodexSessionImportResult(result);
+      return `SUB2API 会话导入完成：新建 ${normalized.created}，更新 ${normalized.updated}，跳过 ${normalized.skipped}，失败 ${normalized.failed}`;
+    }
+
+    function getCodexSessionImportFailureMessage(result) {
+      const normalized = normalizeCodexSessionImportResult(result);
+      const detail = normalized.errors.map((item) => item.message).find(Boolean)
+        || normalized.warnings.map((item) => item.message).find(Boolean)
+        || normalized.items
+          .map((item) => normalizeString(item?.message))
+          .find(Boolean)
+        || buildCodexSessionImportSummary(normalized);
+      return detail || 'SUB2API 会话导入失败。';
+    }
+
     function parseLocalhostCallback(rawUrl, visibleStep = 10) {
       let parsed;
       try {
@@ -364,15 +503,15 @@
       }
 
       const code = normalizeString(parsed.searchParams.get('code'));
-      const state = normalizeString(parsed.searchParams.get('state'));
-      if (!code || !state) {
+      const oauthState = normalizeString(parsed.searchParams.get('state'));
+      if (!code || !oauthState) {
         throw new Error('回调 URL 中缺少 code 或 state。');
       }
 
       return {
         url: parsed.toString(),
         code,
-        state,
+        state: oauthState,
       };
     }
 
@@ -580,14 +719,95 @@
       };
     }
 
+    async function importCurrentChatGptSession(state = {}, options = {}) {
+      const logLabel = normalizeString(options.logLabel) || 'SUB2API 会话导入';
+      const session = normalizeCodexSessionObject(state?.session);
+      const accessToken = normalizeString(
+        state?.accessToken
+        || session?.accessToken
+      );
+      const importContent = buildCodexSessionImportContent(session, accessToken);
+      const importExpiresAt = resolveCodexSessionImportExpiresAt(session);
+      const preferredAccountName = resolveCodexSessionImportAccountName(state, session, accessToken);
+
+      await logWithOptions(`${logLabel}：正在通过 SUB2API 管理接口登录并准备导入当前 ChatGPT 会话...`, 'info', options);
+      const { origin, token } = await loginSub2Api(state, options);
+      const groupNames = state.sub2apiGroupName || DEFAULT_SUB2API_GROUP_NAME;
+      const groups = await getGroupsByNames(origin, token, groupNames, options);
+      const groupLabel = groups.map((item) => `${item.name}（${item.id}）`).join('、');
+      const proxyPreference = resolveSub2ApiProxyPreference(state);
+      const proxy = proxyPreference ? await resolveSub2ApiProxy(origin, token, proxyPreference, options) : null;
+      const proxyId = normalizeProxyId(proxy?.id);
+      const accountPriority = resolveSub2ApiAccountPriority(state);
+
+      await logWithOptions(`${logLabel}：已登录 SUB2API，使用分组 ${groupLabel}。`, 'info', options);
+      if (proxy) {
+        await logWithOptions(`${logLabel}：已选择 SUB2API 默认代理 ${buildProxyDisplayName(proxy)}。`, 'info', options);
+      } else {
+        await logWithOptions(`${logLabel}：未配置 SUB2API 默认代理，本次将不使用代理。`, 'info', options);
+      }
+
+      const importPayload = {
+        content: importContent,
+        group_ids: groups
+          .map((group) => Number(group?.id))
+          .filter((id) => Number.isFinite(id) && id > 0),
+        ...(preferredAccountName ? { name: preferredAccountName } : {}),
+        priority: accountPriority,
+        auto_pause_on_expired: true,
+        update_existing: true,
+      };
+      if (!importPayload.group_ids.length) {
+        throw new Error('SUB2API 返回的目标分组 ID 无效。');
+      }
+      if (proxyId) {
+        importPayload.proxy_id = proxyId;
+      }
+      if (importExpiresAt) {
+        importPayload.expires_at = importExpiresAt;
+      }
+
+      await logWithOptions(`${logLabel}：正在导入当前 ChatGPT 会话到 SUB2API...`, 'info', options);
+      const importResult = normalizeCodexSessionImportResult(await requestJson(origin, '/api/v1/admin/accounts/import/codex-session', {
+        method: 'POST',
+        token,
+        timeoutMs: options.importTimeoutMs || options.timeoutMs,
+        body: importPayload,
+      }));
+
+      for (const warning of importResult.warnings) {
+        await logWithOptions(`${logLabel}：${warning.message}`, 'warn', options);
+      }
+
+      if (importResult.failed > 0) {
+        throw new Error(getCodexSessionImportFailureMessage(importResult));
+      }
+      if (importResult.created <= 0 && importResult.updated <= 0) {
+        throw new Error(getCodexSessionImportFailureMessage(importResult));
+      }
+
+      const verifiedStatus = buildCodexSessionImportSummary(importResult);
+      await logWithOptions(verifiedStatus, 'ok', options);
+      return {
+        verifiedStatus,
+        sub2apiImportTotal: importResult.total,
+        sub2apiImportCreated: importResult.created,
+        sub2apiImportUpdated: importResult.updated,
+        sub2apiImportSkipped: importResult.skipped,
+        sub2apiImportFailed: importResult.failed,
+      };
+    }
+
     return {
       buildDraftAccountName,
+      buildCodexSessionImportContent,
       buildOpenAiCredentials,
       buildOpenAiExtra,
       buildProxyDisplayName,
       extractStateFromAuthUrl,
       generateOpenAiAuthUrl,
       getGroupsByNames,
+      importCurrentChatGptSession,
       loginSub2Api,
       normalizeProxyId,
       normalizeRedirectUri,

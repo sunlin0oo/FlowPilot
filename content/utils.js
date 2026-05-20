@@ -505,6 +505,7 @@ function simulateClick(el) {
     : { method: 'click' };
 
   let method = strategy.method || 'click';
+  const textBeforeClick = el.textContent || '';
 
   if (method === 'requestSubmit' && form && typeof form.requestSubmit === 'function') {
     form.requestSubmit(el);
@@ -516,8 +517,8 @@ function simulateClick(el) {
     el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
   }
 
-  console.log(LOG_PREFIX, `已点击(${method}): ${el.tagName} ${el.textContent?.slice(0, 30) || ''}`);
-  log(`已点击(${method}) [${el.tagName}] "${el.textContent?.trim().slice(0, 30) || ''}"`);
+  console.log(LOG_PREFIX, `已点击(${method}): ${el.tagName} ${textBeforeClick.slice(0, 30)}`);
+  log(`已点击(${method}) [${el.tagName}] "${textBeforeClick.trim().slice(0, 30) || ''}"`);
 }
 
 /**

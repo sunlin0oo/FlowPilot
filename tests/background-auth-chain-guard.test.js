@@ -48,6 +48,16 @@ function extractFunction(name) {
   return source.slice(start, end);
 }
 
+test('background auth chain set does not include Plus session import nodes', () => {
+  const authChainStart = source.indexOf('const AUTH_CHAIN_NODE_IDS = new Set([');
+  const authChainEnd = source.indexOf(']);', authChainStart);
+  const authChainBlock = source.slice(authChainStart, authChainEnd);
+
+  assert.ok(authChainStart >= 0, 'expected AUTH_CHAIN_NODE_IDS block to exist');
+  assert.doesNotMatch(authChainBlock, /sub2api-session-import/);
+  assert.doesNotMatch(authChainBlock, /cpa-session-import/);
+});
+
 const NODE_EXECUTE_COMPAT_HELPERS = `
 const AUTH_CHAIN_NODE_IDS = new Set(['oauth-login', 'fetch-login-code', 'confirm-oauth', 'platform-verify']);
 const STEP_NODE_IDS = {
@@ -458,6 +468,146 @@ return {
     oauthFlowDeadlineSourceUrl: null,
   }]);
   assert.match(events.logs[0].message, /授权后链总超时已关闭/);
+});
+
+test('oauth localhost timeout recovery resumes from bound-email relogin tail when present', async () => {
+  const events = {
+    logs: [],
+    recoveryRuns: [],
+    stateUpdates: [],
+    timeoutWindows: [],
+  };
+
+  const api = new Function('events', `
+const FINAL_OAUTH_CHAIN_START_STEP = 7;
+const state = {
+  oauthUrl: 'https://oauth.example/current',
+  phoneSignupReloginAfterBindEmailEnabled: true,
+};
+const STEP_NODE_IDS = {
+  7: 'oauth-login',
+  8: 'fetch-login-code',
+  9: 'bind-email',
+  10: 'fetch-bind-email-code',
+  11: 'relogin-bound-email',
+  12: 'fetch-bound-email-login-code',
+  13: 'post-bound-email-phone-verification',
+  14: 'confirm-oauth',
+  15: 'platform-verify',
+};
+const NODE_STEP_IDS = Object.fromEntries(Object.entries(STEP_NODE_IDS).map(([step, nodeId]) => [nodeId, Number(step)]));
+
+function getErrorMessage(error) {
+  return error?.message || String(error || '');
+}
+function getAuthChainStartStepId() {
+  return 7;
+}
+function getStepIdByKeyForState(stepKey) {
+  return NODE_STEP_IDS[String(stepKey || '').trim()] || null;
+}
+function getNodeIdByStepForState(step) {
+  return STEP_NODE_IDS[Number(step)] || '';
+}
+function getStepIdByNodeIdForState(nodeId) {
+  return NODE_STEP_IDS[String(nodeId || '').trim()] || null;
+}
+function getAutoRunWorkflowNodeIds() {
+  return [
+    'oauth-login',
+    'fetch-login-code',
+    'bind-email',
+    'fetch-bind-email-code',
+    'relogin-bound-email',
+    'fetch-bound-email-login-code',
+    'post-bound-email-phone-verification',
+    'confirm-oauth',
+    'platform-verify',
+  ];
+}
+async function addLog(message, level = 'info', options = {}) {
+  events.logs.push({ message, level, options });
+}
+async function getLoginAuthStateFromContent() {
+  return { state: 'oauth_consent_page' };
+}
+function isAddPhoneAuthState() {
+  return false;
+}
+function getLoginAuthStateLabel(value) {
+  return value || 'unknown';
+}
+async function getState() {
+  return { ...state };
+}
+async function setState(update) {
+  events.stateUpdates.push(update);
+  Object.assign(state, update);
+}
+async function startOAuthFlowTimeoutWindow(payload) {
+  events.timeoutWindows.push(payload);
+}
+const step7Executor = {
+  async executeStep7(payload) {
+    events.recoveryRuns.push({ nodeId: 'oauth-login', visibleStep: payload.visibleStep });
+  },
+};
+const step8Executor = {
+  async executeStep8(payload) {
+    events.recoveryRuns.push({ nodeId: 'fetch-login-code', visibleStep: payload.visibleStep });
+  },
+  async executePostLoginPhoneVerification(payload) {
+    events.recoveryRuns.push({ nodeId: 'post-login-phone-verification', visibleStep: payload.visibleStep });
+  },
+  async executeBindEmail(payload) {
+    events.recoveryRuns.push({ nodeId: 'bind-email', visibleStep: payload.visibleStep });
+  },
+  async executeFetchBindEmailCode(payload) {
+    events.recoveryRuns.push({ nodeId: 'fetch-bind-email-code', visibleStep: payload.visibleStep });
+  },
+  async executeBoundEmailLoginCode(payload) {
+    events.recoveryRuns.push({ nodeId: 'fetch-bound-email-login-code', visibleStep: payload.visibleStep });
+  },
+  async executeBoundEmailPostLoginPhoneVerification(payload) {
+    events.recoveryRuns.push({ nodeId: 'post-bound-email-phone-verification', visibleStep: payload.visibleStep });
+  },
+};
+async function executeReloginBoundEmail(payload) {
+  events.recoveryRuns.push({ nodeId: 'relogin-bound-email', visibleStep: payload.visibleStep });
+}
+
+${extractFunction('isStep9OAuthLocalhostTimeoutError')}
+${extractFunction('recoverOAuthLocalhostTimeout')}
+
+return {
+  recoverOAuthLocalhostTimeout,
+};
+`)(events);
+
+  const recoveredState = await api.recoverOAuthLocalhostTimeout({
+    error: new Error('步骤 14：从拿到 OAuth 登录地址开始，5 分钟内未完成 OAuth localhost 回调，结束当前链路。'),
+    state: {
+      oauthUrl: 'https://oauth.example/current',
+      phoneSignupReloginAfterBindEmailEnabled: true,
+    },
+    visibleStep: 14,
+  });
+
+  assert.deepStrictEqual(events.recoveryRuns, [
+    { nodeId: 'relogin-bound-email', visibleStep: 11 },
+    { nodeId: 'fetch-bound-email-login-code', visibleStep: 12 },
+    { nodeId: 'post-bound-email-phone-verification', visibleStep: 13 },
+  ]);
+  assert.deepStrictEqual(events.stateUpdates, [{ localhostUrl: null }]);
+  assert.deepStrictEqual(events.timeoutWindows, [
+    {
+      step: 14,
+      oauthUrl: 'https://oauth.example/current',
+    },
+  ]);
+  assert.equal(recoveredState.localhostUrl, null);
+  assert.ok(events.logs.some(({ message }) => /步骤 11/.test(message)));
+  assert.equal(events.recoveryRuns.some(({ nodeId }) => nodeId === 'oauth-login'), false);
 });
 
 test('executeNode retries fetch-network errors for fetch-signup-code with cooldown and bounded attempts', async () => {

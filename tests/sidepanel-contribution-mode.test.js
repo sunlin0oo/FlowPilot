@@ -193,8 +193,11 @@ test('collectSettingsPayload omits custom password and local sync settings in co
   const bundle = extractFunction('collectSettingsPayload');
 
   const api = new Function('normalizeIcloudTargetMailboxType', 'normalizeIcloudForwardMailProvider', `
-let latestState = { contributionMode: true };
+let latestState = { accountContributionEnabled: true };
 const window = {};
+const PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH = 'oauth';
+const PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION = 'sub2api_codex_session';
+const DEFAULT_PLUS_ACCOUNT_ACCESS_STRATEGY = PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH;
 let cloudflareDomainEditMode = false;
 let cloudflareTempEmailDomainEditMode = false;
 const selectCfDomain = { value: 'example.com' };
@@ -297,6 +300,7 @@ function normalizeAutoRunThreadIntervalMinutes(value) { return Number(value) || 
 function normalizeAutoDelayMinutes(value) { return Number(value) || 30; }
 function normalizeAutoStepDelaySeconds(value) { return value === '' ? null : Number(value); }
 function normalizeVerificationResendCount(value, fallback) { return Number.isFinite(Number(value)) ? Number(value) : fallback; }
+function normalizePlusAccountAccessStrategy(value = '') { return String(value || '').trim().toLowerCase() === PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION ? PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION : PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH; }
 function normalizePhoneSmsProvider(value = '') { return String(value || '').trim().toLowerCase() === '5sim' ? '5sim' : 'hero-sms'; }
 function getSelectedPhoneSmsProvider() { return normalizePhoneSmsProvider(selectPhoneSmsProvider?.value || latestState?.phoneSmsProvider); }
 function normalizeFiveSimCountryId(value, fallback = DEFAULT_FIVE_SIM_COUNTRY_ID) { return String(value || '').trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '') || fallback; }
@@ -333,7 +337,7 @@ return {
   assert.equal(contributionPayload.phoneVerificationEnabled, true);
   assert.equal(contributionPayload.cloudflareTempEmailUseRandomSubdomain, true);
 
-  api.setLatestState({ contributionMode: false });
+  api.setLatestState({ accountContributionEnabled: false });
   const normalPayload = api.collectSettingsPayload();
   assert.equal(normalPayload.panelMode, 'cpa');
   assert.equal(normalPayload.customPassword, 'Secret123!');
@@ -366,7 +370,7 @@ test('contribution mode manager enters mode, starts main auto flow, polls contri
   assert.equal(typeof api?.createContributionModeManager, 'function');
 
   let latestState = {
-    contributionMode: false,
+    accountContributionEnabled: false,
     panelMode: 'sub2api',
     contributionSource: 'sub2api',
     contributionTargetGroupName: 'codex号池',
@@ -397,13 +401,13 @@ test('contribution mode manager enters mode, starts main auto flow, polls contri
     btnOpenAccountRecords: createElement(),
     btnOpenContributionUpload: createElement(),
     btnStartContribution: createElement(),
-    contributionModeBadge: createElement(),
+    accountContributionBadge: createElement(),
     inputContributionNickname: createElement({ value: '贡献者昵称' }),
     inputContributionQq: createElement({ value: '123456' }),
     contributionCallbackStatus: createElement(),
-    contributionModePanel: createElement({ hidden: true }),
-    contributionModeSummary: createElement(),
-    contributionModeText: createElement(),
+    accountContributionPanel: createElement({ hidden: true }),
+    accountContributionSummary: createElement(),
+    accountContributionText: createElement(),
     contributionOauthStatus: createElement(),
     rowAccountRunHistoryHelperBaseUrl: createElement(),
     rowAccountRunHistoryTextEnabled: createElement(),
@@ -488,11 +492,11 @@ test('contribution mode manager enters mode, starts main auto flow, polls contri
     runtime: {
       sendMessage: async (message) => {
         sentMessages.push(message);
-        if (message.type === 'SET_CONTRIBUTION_MODE') {
+        if (message.type === 'SET_ACCOUNT_CONTRIBUTION_MODE') {
           return {
             state: message.payload.enabled
               ? {
-                contributionMode: true,
+                accountContributionEnabled: true,
                 panelMode: 'sub2api',
                 contributionSource: 'sub2api',
                 contributionTargetGroupName: 'codex号池',
@@ -508,7 +512,7 @@ test('contribution mode manager enters mode, starts main auto flow, polls contri
                 email: latestState.email,
               }
               : {
-                contributionMode: false,
+                accountContributionEnabled: false,
                 panelMode: 'cpa',
                 contributionSource: 'cpa',
                 contributionTargetGroupName: '',
@@ -526,7 +530,7 @@ test('contribution mode manager enters mode, starts main auto flow, polls contri
               },
           };
         }
-        if (message.type === 'POLL_CONTRIBUTION_STATUS') {
+        if (message.type === 'POLL_FLOW_CONTRIBUTION_STATUS') {
           return {
             state: {
               ...latestState,
@@ -536,14 +540,6 @@ test('contribution mode manager enters mode, starts main auto flow, polls contri
               contributionCallbackMessage: '已提交回调',
             },
           };
-        }
-        if (message.type === 'SET_CONTRIBUTION_PROFILE') {
-          latestState = {
-            ...latestState,
-            contributionNickname: message.payload.nickname,
-            contributionQq: message.payload.qq,
-          };
-          return { state: latestState };
         }
         return {};
       },
@@ -556,21 +552,21 @@ test('contribution mode manager enters mode, starts main auto flow, polls contri
   });
 
   manager.render();
-  assert.equal(dom.contributionModePanel.hidden, true);
+  assert.equal(dom.accountContributionPanel.hidden, true);
   assert.equal(dom.btnContributionMode.disabled, false);
-  assert.equal(dom.contributionModeBadge.textContent, '');
+  assert.equal(dom.accountContributionBadge.textContent, '');
 
   manager.bindEvents();
   await dom.btnContributionMode.listeners.click();
 
-  assert.equal(dom.contributionModePanel.hidden, false);
+  assert.equal(dom.accountContributionPanel.hidden, false);
   assert.equal(dom.selectPanelMode.value, 'sub2api');
   assert.equal(dom.selectPanelMode.disabled, true);
-  assert.equal(dom.contributionModeBadge.textContent, 'SUB2API');
+  assert.equal(dom.accountContributionBadge.textContent, 'SUB2API');
   assert.equal(dom.btnOpenAccountRecords.disabled, true);
   assert.equal(dom.contributionOauthStatus.textContent, '\u672a\u751f\u6210\u767b\u5f55\u5730\u5740');
   assert.equal(dom.contributionCallbackStatus.textContent, '\u7b49\u5f85\u56de\u8c03');
-  assert.equal(dom.contributionModeSummary.textContent.length > 0, true);
+  assert.equal(dom.accountContributionSummary.textContent.length > 0, true);
   assert.equal(dom.btnContributionMode.classList.contains('is-active'), true);
   assert.equal(dom.rowVpsUrl.classList.contains('is-contribution-hidden'), true);
   assert.equal(dom.rowCodex2ApiUrl.classList.contains('is-contribution-hidden'), true);
@@ -591,28 +587,28 @@ test('contribution mode manager enters mode, starts main auto flow, polls contri
   assert.equal(appliedState.contributionSessionId, '');
   assert.equal(latestState.contributionSessionId, 'session-002');
   assert.equal(latestState.contributionStatus, 'started');
-  const contributionProfileMessage = sentMessages.find((message) => message.type === 'SET_CONTRIBUTION_PROFILE');
-  assert.deepStrictEqual(contributionProfileMessage?.payload, { nickname: '贡献者昵称', qq: '123456' });
+  assert.equal(latestState.contributionNickname, '贡献者昵称');
+  assert.equal(latestState.contributionQq, '123456');
   assert.equal(timers.length > 0, true);
 
   await manager.pollOnce({ reason: 'test_poll' });
   assert.equal(statusState.contributionStatus, 'processing');
   assert.equal(dom.contributionOauthStatus.textContent, '\u5df2\u63d0\u4ea4\u56de\u8c03');
   assert.equal(dom.contributionCallbackStatus.textContent, '\u5df2\u63d0\u4ea4\u56de\u8c03');
-  assert.equal(dom.contributionModeSummary.textContent, '\u5df2\u63d0\u4ea4\u56de\u8c03\uff0c\u7b49\u5f85\u670d\u52a1\u7aef\u786e\u8ba4');
+  assert.equal(dom.accountContributionSummary.textContent, '\u5df2\u63d0\u4ea4\u56de\u8c03\uff0c\u7b49\u5f85\u670d\u52a1\u7aef\u786e\u8ba4');
 
   dom.btnOpenContributionUpload.listeners.click();
   assert.deepStrictEqual(openedUrls, ['https://flowpilot.qlhazycoder.top', 'https://flowpilot.qlhazycoder.top/upload']);
 
   await dom.btnExitContributionMode.listeners.click();
   manager.render();
-  assert.equal(dom.contributionModePanel.hidden, true);
+  assert.equal(dom.accountContributionPanel.hidden, true);
   assert.equal(dom.btnContributionMode.classList.contains('is-active'), false);
   assert.equal(dom.selectPanelMode.disabled, false);
   assert.equal(dom.rowVpsUrl.classList.contains('is-contribution-hidden'), false);
   assert.deepStrictEqual(
     sentMessages.map((message) => message.type),
-    ['SET_CONTRIBUTION_MODE', 'SET_CONTRIBUTION_PROFILE', 'POLL_CONTRIBUTION_STATUS', 'SET_CONTRIBUTION_MODE']
+    ['SET_ACCOUNT_CONTRIBUTION_MODE', 'POLL_FLOW_CONTRIBUTION_STATUS', 'SET_ACCOUNT_CONTRIBUTION_MODE']
   );
   assert.deepStrictEqual(
     toasts.map((item) => item.message),
@@ -621,7 +617,7 @@ test('contribution mode manager enters mode, starts main auto flow, polls contri
 
   blocked = true;
   latestState = {
-    contributionMode: true,
+    accountContributionEnabled: true,
     panelMode: 'sub2api',
     contributionSource: 'sub2api',
     contributionTargetGroupName: 'codex号池',
@@ -636,7 +632,7 @@ test('contribution mode manager enters mode, starts main auto flow, polls contri
   };
   manager.render();
   assert.equal(dom.selectPanelMode.value, 'sub2api');
-  assert.equal(dom.contributionModeBadge.textContent, 'SUB2API');
+  assert.equal(dom.accountContributionBadge.textContent, 'SUB2API');
   assert.equal(dom.btnExitContributionMode.disabled, true);
   manager.stopPolling();
 });

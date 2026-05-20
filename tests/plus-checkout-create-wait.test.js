@@ -288,6 +288,272 @@ test('GoPay plus checkout create forwards gopay payment method to the checkout c
   assert.deepStrictEqual(events[0]?.payload, { paymentMethod: 'gopay' });
 });
 
+test('PayPal no-card binding create opens and submits hosted OpenAI checkout before completing', async () => {
+  const events = [];
+  let currentUrl = 'https://chatgpt.com/';
+  const executor = api.createPlusCheckoutCreateExecutor({
+    addLog: async (message, level = 'info') => {
+      events.push({ type: 'log', message, level });
+    },
+    chrome: {
+      tabs: {
+        create: async (payload) => {
+          events.push({ type: 'tab-create', payload });
+          return { id: 55, url: payload.url, status: 'complete' };
+        },
+        update: async (tabId, payload) => {
+          currentUrl = payload.url;
+          events.push({ type: 'tab-update', tabId, payload });
+          return { id: tabId, url: currentUrl, status: 'complete' };
+        },
+        get: async (tabId) => ({ id: tabId, url: currentUrl, status: 'complete' }),
+      },
+    },
+    completeNodeFromBackground: async (step, payload) => {
+      events.push({ type: 'complete', step, payload });
+    },
+    ensureContentScriptReadyOnTabUntilStopped: async (source, tabId, options) => {
+      events.push({ type: 'ready', source, tabId, options });
+    },
+    fetch: async (url) => {
+      events.push({ type: 'fetch', url });
+      assert.equal(url, 'https://www.meiguodizhi.com/api/v1/dz');
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          address: {
+            Address: '1 Main St',
+            City: 'New York',
+            State: 'New York',
+            Zip_Code: '10001',
+          },
+        }),
+      };
+    },
+    getState: async () => {
+      events.push({ type: 'get-state' });
+      return {
+        hostedCheckoutPhoneNumber: '4155551234',
+      };
+    },
+    registerTab: async (source, tabId) => {
+      events.push({ type: 'register', source, tabId });
+    },
+    sendTabMessageUntilStopped: async (tabId, source, message) => {
+      events.push({ type: 'tab-message', tabId, source, message });
+      if (message.type === 'CREATE_PLUS_CHECKOUT') {
+        return {
+          checkoutUrl: 'https://chatgpt.com/checkout/openai_llc/cs_hosted',
+          preferredCheckoutUrl: 'https://pay.openai.com/c/pay/cs_hosted',
+          hostedCheckoutUrl: 'https://pay.openai.com/c/pay/cs_hosted',
+          country: 'US',
+          currency: 'USD',
+        };
+      }
+      if (message.type === 'RUN_PAYPAL_HOSTED_OPENAI_CHECKOUT_STEP') {
+        currentUrl = 'https://www.paypal.com/pay?token=BA-hosted';
+        return { clicked: true };
+      }
+      throw new Error(`unexpected message type ${message.type}`);
+    },
+    setState: async (payload) => {
+      events.push({ type: 'set-state', payload });
+    },
+    sleepWithStop: async (ms) => {
+      events.push({ type: 'sleep', ms });
+    },
+    waitForTabCompleteUntilStopped: async () => {
+      events.push({ type: 'tab-complete' });
+    },
+  });
+
+  await executor.executePlusCheckoutCreate({
+    plusPaymentMethod: 'paypal-hosted',
+    plusHostedCheckoutOauthDelaySeconds: 0,
+  });
+
+  assert.deepStrictEqual(
+    events.find((event) => event.type === 'tab-message' && event.message.type === 'CREATE_PLUS_CHECKOUT')?.message?.payload,
+    { paymentMethod: 'paypal-hosted' }
+  );
+  assert.equal(
+    events.find((event) => event.type === 'tab-update')?.payload?.url,
+    'https://pay.openai.com/c/pay/cs_hosted'
+  );
+  const statePayload = events.filter((event) => event.type === 'set-state').at(-1)?.payload || {};
+  assert.equal(statePayload.plusCheckoutSource, 'paypal-hosted');
+  assert.equal(statePayload.plusCheckoutCountry, 'US');
+  assert.equal(statePayload.plusCheckoutCurrency, 'USD');
+  assert.equal(statePayload.plusReturnUrl, '');
+  assert.equal(events.some((event) => event.type === 'tab-message' && event.message.type === 'FILL_PLUS_BILLING_AND_SUBMIT'), false);
+  assert.equal(events.some((event) => event.type === 'tab-message' && event.message.type === 'RUN_PAYPAL_HOSTED_OPENAI_CHECKOUT_STEP'), true);
+  assert.equal(
+    events.find((event) => event.type === 'tab-message' && event.message.type === 'RUN_PAYPAL_HOSTED_OPENAI_CHECKOUT_STEP')?.message?.payload?.address?.street,
+    '1 Main St'
+  );
+  assert.deepStrictEqual(events.find((event) => event.type === 'complete'), {
+    type: 'complete',
+    step: 'plus-checkout-create',
+    payload: {
+      plusCheckoutCountry: 'US',
+      plusCheckoutCurrency: 'USD',
+      plusCheckoutSource: 'paypal-hosted',
+      plusCheckoutUrl: 'https://www.paypal.com/pay?token=BA-hosted',
+      plusReturnUrl: '',
+      plusHostedCheckoutCompleted: false,
+    },
+  });
+});
+
+test('PayPal no-card binding OpenAI checkout node submits hosted page and completes after success transition', async () => {
+  const events = [];
+  let currentUrl = 'https://pay.openai.com/c/pay/cs_hosted';
+  const executor = api.createPlusCheckoutCreateExecutor({
+    addLog: async (message, level = 'info') => {
+      events.push({ type: 'log', message, level });
+    },
+    chrome: {
+      tabs: {
+        get: async (tabId) => ({ id: tabId, url: currentUrl, status: 'complete' }),
+      },
+    },
+    completeNodeFromBackground: async (step, payload) => {
+      events.push({ type: 'complete', step, payload });
+    },
+    ensureContentScriptReadyOnTabUntilStopped: async (source, tabId, options) => {
+      events.push({ type: 'ready', source, tabId, options });
+    },
+    fetch: async (url) => {
+      events.push({ type: 'fetch', url });
+      assert.equal(url, 'https://www.meiguodizhi.com/api/v1/dz');
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          address: {
+            Address: '1 Main St',
+            City: 'New York',
+            State: 'New York',
+            Zip_Code: '10001',
+          },
+        }),
+      };
+    },
+    getState: async () => ({
+      hostedCheckoutPhoneNumber: '(415) 555-1234',
+    }),
+    registerTab: async (source, tabId) => {
+      events.push({ type: 'register', source, tabId });
+    },
+    sendTabMessageUntilStopped: async (tabId, source, message) => {
+      events.push({ type: 'tab-message', tabId, source, message });
+      if (message.type === 'RUN_PAYPAL_HOSTED_OPENAI_CHECKOUT_STEP') {
+        currentUrl = 'https://chatgpt.com/backend-api/payments/success?session_id=cs_hosted';
+        return { clicked: true };
+      }
+      if (message.type === 'PLUS_CHECKOUT_GET_STATE') {
+        return { hostedVerificationVisible: false };
+      }
+      throw new Error(`unexpected message type ${message.type}`);
+    },
+    setState: async (payload) => {
+      events.push({ type: 'set-state', payload });
+    },
+    sleepWithStop: async (ms) => {
+      events.push({ type: 'sleep', ms });
+    },
+    waitForTabCompleteUntilStopped: async () => {
+      events.push({ type: 'tab-complete' });
+    },
+  });
+
+  await executor.executePayPalHostedOpenAiCheckout({
+    plusCheckoutTabId: 55,
+    plusPaymentMethod: 'paypal-hosted',
+    hostedCheckoutPhoneNumber: '2125550000',
+    plusHostedCheckoutOauthDelaySeconds: 0,
+  });
+
+  const profileState = events.find((event) => event.type === 'set-state' && event.payload.plusHostedCheckoutGuestProfile)?.payload || {};
+  assert.equal(profileState.plusHostedCheckoutGuestProfile.phone, '4155551234');
+  assert.equal(profileState.plusHostedCheckoutPhoneDigits, '4155551234');
+  assert.equal(
+    events.find((event) => event.type === 'tab-message' && event.message.type === 'RUN_PAYPAL_HOSTED_OPENAI_CHECKOUT_STEP')?.message?.payload?.address?.street,
+    '1 Main St'
+  );
+  assert.deepStrictEqual(events.find((event) => event.type === 'complete'), {
+    type: 'complete',
+    step: 'paypal-hosted-openai-checkout',
+    payload: {
+      plusCheckoutUrl: 'https://chatgpt.com/backend-api/payments/success?session_id=cs_hosted',
+      plusCheckoutSource: 'paypal-hosted',
+      plusReturnUrl: 'https://chatgpt.com/backend-api/payments/success?session_id=cs_hosted',
+      plusHostedCheckoutCompleted: true,
+    },
+  });
+});
+
+test('PayPal hosted email node completes when Next navigation drops the content response', async () => {
+  const events = [];
+  let currentUrl = 'https://www.paypal.com/checkoutweb/pay?token=EC-test';
+  const executor = api.createPlusCheckoutCreateExecutor({
+    addLog: async (message, level = 'info', options = {}) => events.push({ type: 'log', message, level, options }),
+    chrome: {
+      tabs: {
+        get: async (tabId) => ({ id: tabId, url: currentUrl, status: 'complete' }),
+      },
+    },
+    completeNodeFromBackground: async (step, payload) => events.push({ type: 'complete', step, payload }),
+    ensureContentScriptReadyOnTabUntilStopped: async (source, tabId, options) => events.push({ type: 'ready', source, tabId, options }),
+    getState: async () => ({
+      hostedCheckoutPhoneNumber: '(415) 555-1234',
+    }),
+    registerTab: async (source, tabId) => events.push({ type: 'register', source, tabId }),
+    sendTabMessageUntilStopped: async (tabId, source, message) => {
+      events.push({ type: 'tab-message', tabId, source, message });
+      if (message.type === 'PAYPAL_RUN_HOSTED_CHECKOUT_STEP') {
+        currentUrl = 'https://www.paypal.com/checkoutweb/signup?ba_token=BA-test&token=EC-test';
+        return new Promise(() => {});
+      }
+      if (message.type === 'PAYPAL_HOSTED_GET_STATE') {
+        return {
+          hostedStage: currentUrl.includes('/signup')
+            ? 'guest_checkout'
+            : 'pay_login',
+        };
+      }
+      throw new Error(`unexpected message type ${message.type}`);
+    },
+    setState: async (payload) => events.push({ type: 'set-state', payload }),
+    sleepWithStop: async (ms) => events.push({ type: 'sleep', ms }),
+    waitForTabCompleteUntilStopped: async () => events.push({ type: 'tab-complete' }),
+  });
+
+  await executor.executePayPalHostedEmail({
+    plusCheckoutTabId: 85661333,
+    plusHostedCheckoutGuestProfile: {
+      email: 'guest@example.com',
+      phone: '4155551234',
+      address: { street: '1 Main St', city: 'New York', state: 'New York', zip: '10001' },
+    },
+  });
+
+  assert.equal(currentUrl.includes('/signup'), true);
+  assert.equal(
+    events.some((event) => event.type === 'complete' && event.step === 'paypal-hosted-email'),
+    true
+  );
+  assert.equal(
+    events.some((event) => event.type === 'log' && /已检测到 PayPal 进入后续页面（guest_checkout）/.test(event.message)),
+    true
+  );
+  assert.equal(
+    events.some((event) => event.type === 'tab-message' && event.message.type === 'PAYPAL_RUN_HOSTED_CHECKOUT_STEP'),
+    true
+  );
+});
+
 test('Plus checkout content routes billing operations through the operation delay gate', async () => {
   const { checkoutEvents, send } = createCheckoutContentHarness();
 

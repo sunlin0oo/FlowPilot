@@ -69,7 +69,7 @@ test('background imports contribution oauth module and keeps contribution runtim
 
   assert.match(backgroundSource, /background\/contribution-oauth\.js/);
   assert.doesNotMatch(persistedBlock, /contributionSessionId|contributionAuthUrl|contributionCallbackUrl|contributionStatus/);
-  assert.match(defaultStateBlock, /contributionMode:\s*false|CONTRIBUTION_RUNTIME_DEFAULTS/);
+  assert.match(defaultStateBlock, /accountContributionEnabled:\s*false|CONTRIBUTION_RUNTIME_DEFAULTS/);
 });
 
 test('contribution oauth module exposes a factory', () => {
@@ -84,14 +84,48 @@ test('contribution oauth module exposes a factory', () => {
   assert.equal(Array.isArray(api?.RUNTIME_KEYS), true);
 });
 
-test('buildContributionModeState preserves active contribution runtime while keeping contribution on sub2api', () => {
-  const bundle = extractFunction(backgroundSource, 'buildContributionModeState');
+test('buildAccountContributionState preserves active contribution runtime while keeping contribution on sub2api', () => {
+  const bundle = extractFunction(backgroundSource, 'buildAccountContributionState');
+  const helperBundle = [
+    'normalizeAccountContributionFlowId',
+    'normalizeAccountContributionAdapterId',
+    'assertAccountContributionAdapterAvailable',
+    'buildFlowContributionRuntimePatch',
+    'normalizeOpenAiContributionSource',
+    'resolveOpenAiContributionRoutingState',
+  ].map((name) => extractFunction(backgroundSource, name)).join('\n');
 
 const api = new Function(`
+const DEFAULT_ACTIVE_FLOW_ID = 'openai';
+const CONTRIBUTION_SOURCE_CPA = 'cpa';
+const CONTRIBUTION_SOURCE_SUB2API = 'sub2api';
+const CONTRIBUTION_SUB2API_DEFAULT_GROUP_NAME = 'codex号池';
+const CONTRIBUTION_SUB2API_PLUS_GROUP_NAME = 'openai-plus';
+const self = {
+  MultiPageFlowRegistry: {
+    normalizeFlowId(value = '', fallback = 'openai') {
+      const normalized = String(value || '').trim().toLowerCase();
+      return normalized || fallback || 'openai';
+    },
+  },
+  MultiPageContributionRegistry: {
+    normalizeAdapterId(value = '') {
+      return String(value || '').trim().toLowerCase();
+    },
+    hasContributionAdapter(flowId, adapterId) {
+      return flowId === 'openai' && adapterId === 'openai-oauth';
+    },
+    getDefaultContributionAdapterId(flowId) {
+      return flowId === 'openai' ? 'openai-oauth' : '';
+    },
+  },
+};
 const DEFAULT_STATE = { panelMode: 'cpa' };
 const CONTRIBUTION_RUNTIME_DEFAULTS = {
-  contributionMode: false,
-  contributionModeExpected: false,
+  accountContributionEnabled: false,
+  accountContributionExpected: false,
+  contributionAdapterId: '',
+  flowContributionRuntime: {},
   contributionSource: 'sub2api',
   contributionTargetGroupName: 'codex号池',
   contributionNickname: '',
@@ -110,143 +144,130 @@ const CONTRIBUTION_RUNTIME_DEFAULTS = {
 };
 const CONTRIBUTION_RUNTIME_KEYS = Object.keys(CONTRIBUTION_RUNTIME_DEFAULTS);
 function isPlusModeState(state = {}) { return Boolean(state?.plusModeEnabled); }
-function normalizeContributionModeSource(value = '') {
-  const normalized = String(value || '').trim().toLowerCase();
-  return normalized === 'sub2api' ? 'sub2api' : 'cpa';
-}
-function resolveContributionModeRoutingState(state = {}) {
-  const currentStatus = String(state?.contributionStatus || '').trim().toLowerCase();
-  const currentSource = normalizeContributionModeSource(state?.contributionSource);
-  const hasActiveSession = Boolean(
-    String(state?.contributionSessionId || '').trim()
-    && currentStatus
-    && !['auto_approved', 'auto_rejected', 'expired', 'error'].includes(currentStatus)
-  );
-  if (hasActiveSession) {
-    return {
-      source: currentSource,
-      targetGroupName: currentSource === 'sub2api'
-        ? (String(state?.contributionTargetGroupName || '').trim() || 'codex号池')
-        : '',
-    };
-  }
-  const source = 'sub2api';
-  return {
-    source,
-    targetGroupName: isPlusModeState(state)
-      ? 'openai-plus'
-      : (String(state?.contributionTargetGroupName || '').trim() || 'codex号池'),
-  };
-}
+${helperBundle}
 ${bundle}
-return { buildContributionModeState };
+return { buildAccountContributionState };
 `)();
 
-  assert.deepStrictEqual(
-    api.buildContributionModeState(true, {
-      panelMode: 'sub2api',
-      customPassword: 'Secret123!',
-      accountRunHistoryTextEnabled: true,
-    }, {
-      contributionSessionId: 'session-001',
-      contributionAuthUrl: 'https://auth.example.com',
-      contributionStatus: 'waiting',
-      contributionCallbackStatus: 'waiting',
-    }),
-    {
-      contributionMode: true,
-      contributionModeExpected: true,
-      contributionSource: 'sub2api',
-      contributionTargetGroupName: 'codex号池',
-      contributionNickname: '',
-      contributionQq: '',
-      contributionSessionId: 'session-001',
-      contributionAuthUrl: 'https://auth.example.com',
-      contributionAuthState: '',
-      contributionCallbackUrl: '',
-      contributionStatus: 'waiting',
-      contributionStatusMessage: '',
-      contributionLastPollAt: 0,
-      contributionCallbackStatus: 'waiting',
-      contributionCallbackMessage: '',
-      contributionAuthOpenedAt: 0,
-      contributionAuthTabId: 0,
-      panelMode: 'sub2api',
-      customPassword: '',
-      accountRunHistoryTextEnabled: false,
-    }
-  );
+  const enabledState = api.buildAccountContributionState(true, {
+    panelMode: 'sub2api',
+    customPassword: 'Secret123!',
+    accountRunHistoryTextEnabled: true,
+  }, {
+    contributionSessionId: 'session-001',
+    contributionAuthUrl: 'https://auth.example.com',
+    contributionStatus: 'waiting',
+    contributionCallbackStatus: 'waiting',
+  });
+  assert.equal(enabledState.accountContributionEnabled, true);
+  assert.equal(enabledState.accountContributionExpected, true);
+  assert.equal(enabledState.contributionAdapterId, 'openai-oauth');
+  assert.deepStrictEqual(enabledState.flowContributionRuntime, {
+    openai: { enabled: true, adapterId: 'openai-oauth' },
+  });
+  assert.equal(enabledState.contributionSessionId, 'session-001');
+  assert.equal(enabledState.panelMode, 'sub2api');
+  assert.equal(enabledState.customPassword, '');
+  assert.equal(enabledState.accountRunHistoryTextEnabled, false);
 
-  assert.deepStrictEqual(
-    api.buildContributionModeState(false, {
-      panelMode: 'sub2api',
-      customPassword: 'Secret123!',
-      accountRunHistoryTextEnabled: true,
-    }, {
-      contributionSessionId: 'session-001',
-      contributionAuthUrl: 'https://auth.example.com',
-      contributionStatus: 'waiting',
-    }),
-    {
-      contributionMode: false,
-      contributionModeExpected: false,
-      contributionSource: 'sub2api',
-      contributionTargetGroupName: 'codex号池',
-      contributionNickname: '',
-      contributionQq: '',
-      contributionSessionId: '',
-      contributionAuthUrl: '',
-      contributionAuthState: '',
-      contributionCallbackUrl: '',
-      contributionStatus: '',
-      contributionStatusMessage: '',
-      contributionLastPollAt: 0,
-      contributionCallbackStatus: 'idle',
-      contributionCallbackMessage: '',
-      contributionAuthOpenedAt: 0,
-      contributionAuthTabId: 0,
-      panelMode: 'sub2api',
-      customPassword: 'Secret123!',
-      accountRunHistoryTextEnabled: true,
-    }
-  );
+  const disabledState = api.buildAccountContributionState(false, {
+    panelMode: 'sub2api',
+    customPassword: 'Secret123!',
+    accountRunHistoryTextEnabled: true,
+  }, {
+    contributionSessionId: 'session-001',
+    contributionAuthUrl: 'https://auth.example.com',
+    contributionStatus: 'waiting',
+  });
+  assert.equal(disabledState.accountContributionEnabled, false);
+  assert.equal(disabledState.accountContributionExpected, false);
+  assert.equal(disabledState.contributionAdapterId, '');
+  assert.deepStrictEqual(disabledState.flowContributionRuntime, {});
+  assert.equal(disabledState.contributionSessionId, '');
+  assert.equal(disabledState.panelMode, 'sub2api');
+  assert.equal(disabledState.customPassword, 'Secret123!');
 
-  assert.deepStrictEqual(
-    api.buildContributionModeState(true, {
-      panelMode: 'cpa',
-      plusModeEnabled: true,
-      customPassword: 'Secret123!',
-      accountRunHistoryTextEnabled: true,
-    }, {}),
-    {
-      contributionMode: true,
-      contributionModeExpected: true,
-      contributionSource: 'sub2api',
-      contributionTargetGroupName: 'openai-plus',
-      contributionNickname: '',
-      contributionQq: '',
-      contributionSessionId: '',
-      contributionAuthUrl: '',
-      contributionAuthState: '',
-      contributionCallbackUrl: '',
-      contributionStatus: '',
-      contributionStatusMessage: '',
-      contributionLastPollAt: 0,
-      contributionCallbackStatus: 'idle',
-      contributionCallbackMessage: '',
-      contributionAuthOpenedAt: 0,
-      contributionAuthTabId: 0,
-      panelMode: 'sub2api',
-      customPassword: '',
-      accountRunHistoryTextEnabled: false,
-    }
-  );
+  const plusContributionState = api.buildAccountContributionState(true, {
+    panelMode: 'cpa',
+    plusModeEnabled: true,
+    customPassword: 'Secret123!',
+    accountRunHistoryTextEnabled: true,
+  }, {});
+  assert.equal(plusContributionState.contributionTargetGroupName, 'openai-plus');
+  assert.equal(plusContributionState.panelMode, 'sub2api');
 });
 
 test('resetState preserves contribution runtime across reset', () => {
   assert.match(backgroundSource, /CONTRIBUTION_RUNTIME_KEYS/);
-  assert.match(backgroundSource, /const contributionModeState = buildContributionModeState/);
-  assert.match(backgroundSource, /\.\.\.contributionModeState/);
+  assert.match(backgroundSource, /const accountContributionState = buildAccountContributionState/);
+  assert.match(backgroundSource, /\.\.\.accountContributionState/);
+});
+
+test('storage migration upgrades legacy contribution mode into unified account contribution state', async () => {
+  const helperBundle = [
+    'normalizeAccountContributionFlowId',
+    'normalizeAccountContributionAdapterId',
+    'buildFlowContributionRuntimePatch',
+  ].map((name) => extractFunction(backgroundSource, name)).join('\n');
+  const migrationBundle = extractFunction(backgroundSource, 'migrateLegacyAccountContributionState');
+  const api = new Function(`
+const DEFAULT_ACTIVE_FLOW_ID = 'openai';
+const self = {
+  MultiPageFlowRegistry: {
+    normalizeFlowId(value = '', fallback = 'openai') {
+      const normalized = String(value || '').trim().toLowerCase();
+      return normalized || fallback || 'openai';
+    },
+  },
+  MultiPageContributionRegistry: {
+    normalizeAdapterId(value = '') {
+      return String(value || '').trim().toLowerCase();
+    },
+    hasContributionAdapter(flowId, adapterId) {
+      return (flowId === 'openai' && adapterId === 'openai-oauth')
+        || (flowId === 'kiro' && adapterId === 'kiro-builder-id');
+    },
+    getDefaultContributionAdapterId(flowId) {
+      return flowId === 'kiro' ? 'kiro-builder-id' : 'openai-oauth';
+    },
+  },
+};
+const sessionStore = {
+  contributionMode: true,
+  contributionModeExpected: true,
+  activeFlowId: 'kiro',
+};
+const removed = [];
+const chrome = {
+  storage: {
+    session: {
+      async get() { return { ...sessionStore }; },
+      async set(updates) { Object.assign(sessionStore, updates); },
+      async remove(keys) { removed.push(['session', ...keys]); keys.forEach((key) => { delete sessionStore[key]; }); },
+    },
+    local: {
+      async remove(keys) { removed.push(['local', ...keys]); },
+    },
+  },
+};
+${helperBundle}
+${migrationBundle}
+return { migrateLegacyAccountContributionState, sessionStore, removed };
+`)();
+
+  await api.migrateLegacyAccountContributionState();
+
+  assert.equal(api.sessionStore.accountContributionEnabled, true);
+  assert.equal(api.sessionStore.accountContributionExpected, true);
+  assert.equal(api.sessionStore.contributionAdapterId, 'kiro-builder-id');
+  assert.deepStrictEqual(api.sessionStore.flowContributionRuntime, {
+    kiro: { enabled: true, adapterId: 'kiro-builder-id' },
+  });
+  assert.equal(Object.prototype.hasOwnProperty.call(api.sessionStore, 'contributionMode'), false);
+  assert.deepStrictEqual(api.removed, [
+    ['session', 'contributionMode', 'contributionModeExpected'],
+    ['local', 'contributionMode', 'contributionModeExpected'],
+  ]);
 });
 
 test('message router handles contribution mode, start flow, and status polling messages', async () => {
@@ -258,23 +279,23 @@ test('message router handles contribution mode, start flow, and status polling m
   const router = api.createMessageRouter({
     ensureManualInteractionAllowed: async () => ({
       stepStatuses: { 1: 'pending', 2: 'completed' },
-      contributionMode: true,
+      accountContributionEnabled: true,
     }),
     pollContributionStatus: async (options) => {
       calls.push({ type: 'poll', options });
       return { contributionStatus: 'waiting' };
     },
-    setContributionMode: async (enabled) => {
+    setAccountContributionMode: async (enabled) => {
       calls.push({ type: 'toggle', enabled });
       return {
-        contributionMode: Boolean(enabled),
+        accountContributionEnabled: Boolean(enabled),
         panelMode: 'cpa',
       };
     },
-    startContributionFlow: async (options) => {
+    startFlowContribution: async (options) => {
       calls.push({ type: 'start', options });
       return {
-        contributionMode: true,
+        accountContributionEnabled: true,
         contributionSessionId: 'session-001',
         contributionStatus: 'started',
       };
@@ -282,15 +303,15 @@ test('message router handles contribution mode, start flow, and status polling m
   });
 
   const enableResponse = await router.handleMessage({
-    type: 'SET_CONTRIBUTION_MODE',
+    type: 'SET_ACCOUNT_CONTRIBUTION_MODE',
     payload: { enabled: true },
   });
   const startResponse = await router.handleMessage({
-    type: 'START_CONTRIBUTION_FLOW',
+    type: 'START_FLOW_CONTRIBUTION',
     payload: { nickname: '阿青', qq: '123456' },
   });
   const pollResponse = await router.handleMessage({
-    type: 'POLL_CONTRIBUTION_STATUS',
+    type: 'POLL_FLOW_CONTRIBUTION_STATUS',
     payload: { reason: 'test_poll' },
   });
 
@@ -304,7 +325,7 @@ test('message router handles contribution mode, start flow, and status polling m
   ]);
 });
 
-test('message router re-syncs contribution mode before AUTO_RUN when sidepanel payload marks contributionMode=true', async () => {
+test('message router re-syncs contribution mode before AUTO_RUN when sidepanel payload marks accountContributionEnabled=true', async () => {
   const source = fs.readFileSync('background/message-router.js', 'utf8');
   const globalScope = {};
   const api = new Function('self', `${source}; return self.MultiPageBackgroundMessageRouter;`)(globalScope);
@@ -314,13 +335,13 @@ test('message router re-syncs contribution mode before AUTO_RUN when sidepanel p
     clearStopRequest: () => {},
     getPendingAutoRunTimerPlan: () => null,
     getState: async () => ({
-      contributionMode: false,
+      accountContributionEnabled: false,
       stepStatuses: {},
     }),
     normalizeRunCount: (value) => Number(value) || 1,
-    setContributionMode: async (enabled) => {
+    setAccountContributionMode: async (enabled) => {
       calls.push({ type: 'toggle', enabled });
-      return { contributionMode: true };
+      return { accountContributionEnabled: true };
     },
     setState: async (updates) => {
       calls.push({ type: 'setState', updates });
@@ -336,7 +357,7 @@ test('message router re-syncs contribution mode before AUTO_RUN when sidepanel p
         totalRuns: 2,
         autoRunSkipFailures: true,
         mode: 'restart',
-        contributionMode: true,
+        accountContributionEnabled: true,
         contributionNickname: '阿青',
         contributionQq: '123456',
       },
@@ -433,7 +454,7 @@ test('account run history snapshot sync is disabled in contribution mode', () =>
 
   assert.equal(
     helpers.shouldSyncAccountRunHistorySnapshot({
-      contributionMode: true,
+      accountContributionEnabled: true,
       accountRunHistoryTextEnabled: true,
       accountRunHistoryHelperBaseUrl: 'http://127.0.0.1:17373',
     }),
@@ -442,7 +463,7 @@ test('account run history snapshot sync is disabled in contribution mode', () =>
 
   assert.equal(
     helpers.shouldSyncAccountRunHistorySnapshot({
-      contributionMode: false,
+      accountContributionEnabled: false,
       accountRunHistoryTextEnabled: true,
       accountRunHistoryHelperBaseUrl: 'http://127.0.0.1:17373',
     }),
@@ -458,7 +479,7 @@ test('contribution oauth manager starts session, opens auth url, submits callbac
   const closeCallbackCalls = [];
   let statusPollCount = 0;
   let currentState = {
-    contributionMode: true,
+    accountContributionEnabled: true,
     contributionSource: 'sub2api',
     contributionTargetGroupName: 'codex号池',
     email: 'user@example.com',
@@ -541,7 +562,7 @@ test('contribution oauth manager starts session, opens auth url, submits callbac
     },
   });
 
-  const startedState = await manager.startContributionFlow();
+  const startedState = await manager.startFlowContribution();
   assert.equal(startedState.contributionSessionId, 'session-001');
   assert.equal(startedState.contributionAuthState, 'oauth-state-001');
   assert.equal(startedState.contributionStatus, 'waiting');
@@ -577,7 +598,7 @@ test('contribution oauth manager deduplicates concurrent callback captures for t
   let submitCallCount = 0;
   let resolveSubmitRequest = null;
   let currentState = {
-    contributionMode: true,
+    accountContributionEnabled: true,
     contributionSource: 'sub2api',
     contributionTargetGroupName: 'codex号池',
     contributionSessionId: 'session-001',
@@ -664,7 +685,7 @@ test('contribution oauth manager ignores tabs.onUpdated events without a real ur
   const fetchCalls = [];
   const addedListeners = {};
   let currentState = {
-    contributionMode: true,
+    accountContributionEnabled: true,
     contributionSource: 'sub2api',
     contributionTargetGroupName: 'codex号池',
     contributionSessionId: 'session-001',
@@ -756,7 +777,7 @@ test('contribution oauth manager switches Plus contribution traffic to sub2api o
   const globalScope = {};
   const fetchCalls = [];
   let currentState = {
-    contributionMode: true,
+    accountContributionEnabled: true,
     plusModeEnabled: true,
     contributionSource: 'sub2api',
     contributionTargetGroupName: 'openai-plus',
@@ -817,7 +838,7 @@ test('contribution oauth manager switches Plus contribution traffic to sub2api o
     },
   });
 
-  await manager.startContributionFlow();
+  await manager.startFlowContribution();
 
   assert.match(String(fetchCalls[0].options.body || ''), /"source":"sub2api"/);
   assert.match(String(fetchCalls[0].options.body || ''), /"target_group_name":"openai-plus"/);
@@ -836,7 +857,7 @@ return { refreshOAuthUrlBeforeStep6 };
     calls.push({ type: 'log', message, level, options });
   };
   globalThis.contributionOAuthManager = {
-    async startContributionFlow(options) {
+    async startFlowContribution(options) {
       calls.push({ type: 'contribution', options });
       return {
         contributionAuthUrl: 'https://auth.example.com/oauth?state=oauth-state-001',
@@ -854,7 +875,7 @@ return { refreshOAuthUrlBeforeStep6 };
   globalThis.LOG_PREFIX = '[test]';
 
   const oauthUrl = await api.refreshOAuthUrlBeforeStep6({
-    contributionMode: true,
+    accountContributionEnabled: true,
     email: 'user@example.com',
   });
 
@@ -862,7 +883,7 @@ return { refreshOAuthUrlBeforeStep6 };
   assert.deepStrictEqual(calls, [
     {
       type: 'log',
-      message: 'contributionMode=true，走公开贡献接口，正在申请 OAuth 登录地址...',
+      message: '账号贡献已开启，走公开贡献接口，正在申请 OAuth 登录地址...',
       level: 'info',
       options: { step: 7, stepKey: 'oauth-login' },
     },
@@ -872,7 +893,7 @@ return { refreshOAuthUrlBeforeStep6 };
         nickname: '',
         openAuthTab: false,
         stateOverride: {
-          contributionMode: true,
+          accountContributionEnabled: true,
           email: 'user@example.com',
         },
       },
@@ -894,7 +915,7 @@ return { refreshOAuthUrlBeforeStep6 };
   delete globalThis.LOG_PREFIX;
 });
 
-test('refreshOAuthUrlBeforeStep6 logs the normal CPA/SUB2API/Codex2API path explicitly when contributionMode=false', async () => {
+test('refreshOAuthUrlBeforeStep6 logs the normal CPA/SUB2API/Codex2API path explicitly when accountContributionEnabled=false', async () => {
   const bundle = extractFunction(backgroundSource, 'refreshOAuthUrlBeforeStep6');
   const calls = [];
 
@@ -907,7 +928,7 @@ return { refreshOAuthUrlBeforeStep6 };
     calls.push({ type: 'log', message, level, options });
   };
   globalThis.contributionOAuthManager = {
-    async startContributionFlow() {
+    async startFlowContribution() {
       calls.push({ type: 'contribution' });
       return {
         contributionAuthUrl: 'https://auth.example.com/oauth?state=unexpected',
@@ -925,7 +946,7 @@ return { refreshOAuthUrlBeforeStep6 };
   globalThis.LOG_PREFIX = '[test]';
 
   const oauthUrl = await api.refreshOAuthUrlBeforeStep6({
-    contributionMode: false,
+    accountContributionEnabled: false,
     panelMode: 'sub2api',
     email: 'user@example.com',
   });
@@ -934,7 +955,7 @@ return { refreshOAuthUrlBeforeStep6 };
   assert.deepStrictEqual(calls, [
     {
       type: 'log',
-      message: 'contributionMode=false，走普通 CPA / SUB2API / Codex2API 链路（当前面板：SUB2API），正在刷新 OAuth 登录地址...',
+      message: '账号贡献未开启，走普通 CPA / SUB2API / Codex2API 链路（当前面板：SUB2API），正在刷新 OAuth 登录地址...',
       level: 'info',
       options: { step: 7, stepKey: 'oauth-login' },
     },
@@ -956,7 +977,7 @@ return { refreshOAuthUrlBeforeStep6 };
   delete globalThis.LOG_PREFIX;
 });
 
-test('executeStep10 blocks silent fallback when contributionModeExpected=true but contributionMode=false', async () => {
+test('executeStep10 blocks silent fallback when accountContributionExpected=true but accountContributionEnabled=false', async () => {
   const bundle = extractFunction(backgroundSource, 'executeStep10');
 
   const api = new Function(`
@@ -973,10 +994,10 @@ return { executeStep10 };
 
   await assert.rejects(
     () => api.executeStep10({
-      contributionModeExpected: true,
-      contributionMode: false,
+      accountContributionExpected: true,
+      accountContributionEnabled: false,
     }),
-    /步骤 10：当前自动流程预期使用贡献模式/
+    /步骤 10：当前自动流程预期使用账号贡献/
   );
 
   delete globalThis.executeContributionStep10;

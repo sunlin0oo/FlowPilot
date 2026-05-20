@@ -8,6 +8,7 @@ function createContributionContentService(options = {}) {
   const cache = new Map();
   const windowObject = {};
   let fetchCalls = 0;
+  const fetchUrls = [];
 
   const localStorage = {
     getItem(key) {
@@ -23,7 +24,7 @@ function createContributionContentService(options = {}) {
 
   if (options.cachedSnapshot) {
     cache.set(
-      'multipage-contribution-content-summary-v1',
+      options.cacheKey || 'multipage-contribution-content-summary-v2:openai:cpa',
       JSON.stringify(options.cachedSnapshot)
     );
   }
@@ -44,6 +45,7 @@ function createContributionContentService(options = {}) {
 
   const wrappedFetch = async (...args) => {
     fetchCalls += 1;
+    fetchUrls.push(String(args[0] || ''));
     return fetchImpl(...args);
   };
 
@@ -69,11 +71,14 @@ function createContributionContentService(options = {}) {
     getFetchCalls() {
       return fetchCalls;
     },
+    getFetchUrls() {
+      return fetchUrls.slice();
+    },
   };
 }
 
 test('getContentUpdateSnapshot returns a prompt version for visible contribution content updates', async () => {
-  const { api } = createContributionContentService({
+  const { api, getFetchUrls } = createContributionContentService({
     fetchImpl: async () => ({
       ok: true,
       async json() {
@@ -100,10 +105,13 @@ test('getContentUpdateSnapshot returns a prompt version for visible contribution
     }),
   });
 
-  const snapshot = await api.getContentUpdateSnapshot();
+  const snapshot = await api.getContentUpdateSnapshot({ flowId: 'kiro', targetId: 'kiro-rs' });
 
   assert.equal(snapshot.status, 'update-available');
   assert.equal(snapshot.promptVersion, 'auto_run_notice:2026-04-21T12:05:00Z');
+  assert.equal(snapshot.flowId, 'kiro');
+  assert.equal(snapshot.targetId, 'kiro-rs');
+  assert.equal(getFetchUrls()[0], 'https://flowpilot.qlhazycoder.top/api/content-summary?flow=kiro&target=kiro-rs');
   assert.equal(snapshot.hasVisibleUpdates, true);
   assert.equal(snapshot.latestUpdatedAt, '2026-04-21T12:05:00Z');
   assert.equal(snapshot.items.length, 1);
@@ -132,7 +140,7 @@ test('getContentUpdateSnapshot falls back to cached snapshot when the live reque
       },
     ],
     portalUrl: 'https://flowpilot.qlhazycoder.top',
-    apiUrl: 'https://flowpilot.qlhazycoder.top/api/content-summary',
+    apiUrl: 'https://flowpilot.qlhazycoder.top/api/content-summary?flow=openai&target=cpa',
     checkedAt: Date.now() - 1000,
   };
 
@@ -150,4 +158,36 @@ test('getContentUpdateSnapshot falls back to cached snapshot when the live reque
   assert.equal(snapshot.promptVersion, cachedSnapshot.promptVersion);
   assert.equal(snapshot.errorMessage, 'offline');
   assert.equal(snapshot.items[0].slug, 'announcement');
+});
+
+test('getContentUpdateSnapshot keeps flow caches isolated', async () => {
+  const cachedSnapshot = {
+    status: 'update-available',
+    promptVersion: 'flow:kiro|target:kiro-rs|auto_run_notice:2026-04-22T00:00:00Z',
+    hasVisibleUpdates: true,
+    latestUpdatedAt: '2026-04-22T00:00:00Z',
+    latestUpdatedAtDisplay: '2026-04-22 08:00',
+    flowId: 'kiro',
+    targetId: 'kiro-rs',
+    items: [{ slug: 'auto_run_notice', isVisible: true, text: 'Kiro 提示' }],
+    checkedAt: Date.now() - 1000,
+  };
+
+  const { api } = createContributionContentService({
+    cachedSnapshot,
+    cacheKey: 'multipage-contribution-content-summary-v2:kiro:kiro-rs',
+    fetchImpl: async () => {
+      throw new Error('offline');
+    },
+  });
+
+  const openAiSnapshot = await api.getContentUpdateSnapshot({ flowId: 'openai', targetId: 'cpa' });
+  const kiroSnapshot = await api.getContentUpdateSnapshot({ flowId: 'kiro', targetId: 'kiro-rs' });
+
+  assert.equal(openAiSnapshot.status, 'error');
+  assert.equal(openAiSnapshot.fromCache, undefined);
+  assert.equal(openAiSnapshot.flowId, 'openai');
+  assert.equal(kiroSnapshot.fromCache, true);
+  assert.equal(kiroSnapshot.flowId, 'kiro');
+  assert.equal(kiroSnapshot.promptVersion, cachedSnapshot.promptVersion);
 });

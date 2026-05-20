@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const vm = require('node:vm');
 
 const source = fs.readFileSync('content/paypal-flow.js', 'utf8');
 
@@ -307,4 +308,382 @@ test('PayPal email submit refills a prefilled email before clicking next', async
     phase: 'email_submitted',
     awaiting: 'password_page',
   });
+});
+
+function createHostedPayPalHarness(options = {}) {
+  const events = [];
+  const attrs = new Map();
+  const elementsById = new Map();
+  let elements = [];
+  let listener = null;
+  const body = { innerText: '', textContent: '' };
+  const location = {
+    href: 'https://www.paypal.com/checkoutweb/signup',
+    host: 'www.paypal.com',
+    pathname: '/checkoutweb/signup',
+  };
+
+  function createDomElement({
+    tagName = 'DIV',
+    id = '',
+    type = '',
+    name = '',
+    text = '',
+    value = '',
+    attrs: initialAttrs = {},
+    options: selectOptions = [],
+  } = {}) {
+    const attrMap = new Map(Object.entries(initialAttrs));
+    const element = {
+      nodeType: 1,
+      tagName,
+      id,
+      type,
+      name,
+      textContent: text,
+      innerText: text,
+      value,
+      checked: false,
+      disabled: false,
+      hidden: false,
+      options: selectOptions,
+      parentElement: null,
+      style: { display: 'block', visibility: 'visible', opacity: '1' },
+      getAttribute(key) {
+        if (key === 'id') return this.id;
+        if (key === 'type') return this.type;
+        if (key === 'name') return this.name;
+        if (key === 'placeholder') return attrMap.get('placeholder') || '';
+        return attrMap.has(key) ? attrMap.get(key) : null;
+      },
+      setAttribute(key, nextValue) {
+        attrMap.set(key, String(nextValue));
+      },
+      dispatchEvent() {
+        return true;
+      },
+      focus() {},
+      blur() {},
+      click() {
+        events.push({ type: 'native-click', id: this.id, text: this.textContent });
+      },
+      getBoundingClientRect() {
+        return { left: 10, top: 10, width: 180, height: 44 };
+      },
+    };
+    if (id) elementsById.set(id, element);
+    return element;
+  }
+
+  const countrySelect = createDomElement({ tagName: 'SELECT', id: 'country', value: 'US' });
+  const emailInput = createDomElement({ tagName: 'INPUT', id: 'email', type: 'email', name: 'email' });
+  const phoneInput = createDomElement({ tagName: 'INPUT', id: 'phone', type: 'tel', name: 'phone' });
+  const cardNumberInput = createDomElement({ tagName: 'INPUT', id: 'cardNumber', type: 'text' });
+  const cardExpiryInput = createDomElement({ tagName: 'INPUT', id: 'cardExpiry', type: 'text' });
+  const cardCvvInput = createDomElement({ tagName: 'INPUT', id: 'cardCvv', type: 'text' });
+  const passwordInput = createDomElement({ tagName: 'INPUT', id: 'password', type: 'password' });
+  const firstNameInput = createDomElement({ tagName: 'INPUT', id: 'firstName', type: 'text' });
+  const lastNameInput = createDomElement({ tagName: 'INPUT', id: 'lastName', type: 'text' });
+  const billingLine1Input = createDomElement({ tagName: 'INPUT', id: 'billingLine1', type: 'text' });
+  const billingCityInput = createDomElement({ tagName: 'INPUT', id: 'billingCity', type: 'text' });
+  const billingPostalCodeInput = createDomElement({ tagName: 'INPUT', id: 'billingPostalCode', type: 'text' });
+  const billingStateSelect = createDomElement({
+    tagName: 'SELECT',
+    id: 'billingState',
+    value: '',
+    options: [
+      { textContent: 'New York', label: 'New York', value: 'NY' },
+      { textContent: 'California', label: 'California', value: 'CA' },
+    ],
+  });
+  const submitButton = createDomElement({
+    tagName: 'BUTTON',
+    id: 'hostedSubmit',
+    text: 'Agree & Create Account',
+    attrs: { 'data-testid': 'submit-button' },
+  });
+  const createAccountButton = createDomElement({
+    tagName: 'BUTTON',
+    id: 'createAccountButton',
+    text: 'Agree & Create Account',
+    attrs: { 'data-testid': 'createAccountButton' },
+  });
+  const nextButton = createDomElement({
+    tagName: 'BUTTON',
+    id: 'btnNext',
+    text: '下一页',
+  });
+
+  function setElements(nextElements) {
+    elements = nextElements;
+    elementsById.clear();
+    for (const element of nextElements) {
+      if (element.id) elementsById.set(element.id, element);
+    }
+  }
+
+  function showGuestCheckout() {
+    location.href = 'https://www.paypal.com/checkoutweb/signup';
+    location.host = 'www.paypal.com';
+    location.pathname = '/checkoutweb/signup';
+    body.innerText = 'Pay with debit or credit card';
+    body.textContent = body.innerText;
+    setElements([
+      countrySelect,
+      emailInput,
+      phoneInput,
+      cardNumberInput,
+      cardExpiryInput,
+      cardCvvInput,
+      passwordInput,
+      firstNameInput,
+      lastNameInput,
+      billingLine1Input,
+      billingCityInput,
+      billingPostalCodeInput,
+      billingStateSelect,
+      submitButton,
+    ]);
+  }
+
+  function showCreateAccount() {
+    location.href = 'https://www.paypal.com/checkoutweb/create-account';
+    location.host = 'www.paypal.com';
+    location.pathname = '/checkoutweb/create-account';
+    body.innerText = 'Create your PayPal account. Agree & Create Account';
+    body.textContent = body.innerText;
+    setElements([createAccountButton]);
+  }
+
+  function showPayEmail() {
+    location.href = 'https://www.paypal.com/pay?token=demo';
+    location.host = 'www.paypal.com';
+    location.pathname = '/pay';
+    body.innerText = '请输入您的电子邮箱地址。 下一页 或 创建账户';
+    body.textContent = body.innerText;
+    setElements([emailInput, nextButton, createAccountButton]);
+  }
+
+  const context = {
+    console: { log() {}, warn() {}, error() {}, info() {} },
+    location,
+    window: {},
+    Event: class TestEvent { constructor(type) { this.type = type; } },
+    MouseEvent: class TestMouseEvent { constructor(type) { this.type = type; } },
+    PointerEvent: class TestPointerEvent { constructor(type) { this.type = type; } },
+    document: {
+      readyState: 'complete',
+      body,
+      documentElement: {
+        getAttribute(name) {
+          return attrs.get(name) || null;
+        },
+        setAttribute(name, nextValue) {
+          attrs.set(name, String(nextValue));
+        },
+      },
+      getElementById(id) {
+        return elementsById.get(id) || null;
+      },
+      querySelector(selector) {
+        const text = String(selector || '');
+        if (text.includes('createAccountButton') || text.includes('create-account-button')) {
+          return elements.includes(createAccountButton) ? createAccountButton : null;
+        }
+        if (text.includes('submit-button') || text.includes('hosted-payment-submit-button')) {
+          return elements.includes(submitButton) ? submitButton : null;
+        }
+        return null;
+      },
+      querySelectorAll(selector) {
+        const text = String(selector || '');
+        if (text === 'input') return elements.filter((element) => element.tagName === 'INPUT');
+        if (text === 'input[type="email"]') return elements.filter((element) => element.type === 'email');
+        if (text === 'input[type="password"]') return elements.filter((element) => element.type === 'password');
+        if (text.includes('button') || text.includes('[role="button"]')) {
+          return elements.filter((element) => element.tagName === 'BUTTON');
+        }
+        return [];
+      },
+    },
+    chrome: {
+      runtime: {
+        onMessage: {
+          addListener(fn) {
+            listener = fn;
+          },
+        },
+      },
+    },
+    CodexOperationDelay: {
+      async performOperationWithDelay(metadata, operation) {
+        events.push({ type: 'operation', metadata });
+        const result = await operation();
+        events.push({ type: 'delay', metadata });
+        return result;
+      },
+    },
+    resetStopState() {},
+    isStopError() { return false; },
+    throwIfStopped() {},
+    sleep() { return Promise.resolve(); },
+    fillInput(element, value) {
+      if (element === phoneInput && typeof options.renderPhone === 'function') {
+        element.value = options.renderPhone(value);
+      } else {
+        element.value = value;
+      }
+      events.push({ type: 'fill', id: element.id, value: element.value });
+    },
+    simulateClick(element) {
+      events.push({ type: 'click', id: element.id, text: element.textContent });
+    },
+  };
+  context.window = context;
+  context.window.getComputedStyle = (element) => element?.style || { display: 'block', visibility: 'visible', opacity: '1' };
+
+  vm.createContext(context);
+  vm.runInContext(source, context);
+  assert.equal(typeof listener, 'function');
+
+  async function send(message) {
+    return await new Promise((resolve) => {
+      listener(message, {}, resolve);
+    });
+  }
+
+  return {
+    events,
+    send,
+    showPayEmail,
+    showCreateAccount,
+    showGuestCheckout,
+  };
+}
+
+test('PayPal hosted guest checkout verifies configured local phone before submit', async () => {
+  const harness = createHostedPayPalHarness({
+    renderPhone: (value) => `+1 ${value}`,
+  });
+  harness.showGuestCheckout();
+
+  const result = await harness.send({
+    type: 'PAYPAL_RUN_HOSTED_CHECKOUT_STEP',
+    source: 'test',
+    payload: {
+      expectedStage: 'guest_checkout',
+      email: 'guest@example.com',
+      phone: '4155551234',
+      cardNumber: '4147200000000000',
+      cardExpiry: '12 / 29',
+      cardCvv: '123',
+      password: 'Aa1!example',
+      firstName: 'James',
+      lastName: 'Smith',
+      address: {
+        street: '1 Main St',
+        city: 'New York',
+        state: 'New York',
+        zip: '10001',
+      },
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.submitted, true);
+  assert.equal(result.phoneMatched, true);
+  assert.equal(result.payloadPhoneDigits, '4155551234');
+  assert.equal(result.renderedPhoneDigits, '14155551234');
+  assert.equal(harness.events.some((event) => event.type === 'click' && event.id === 'hostedSubmit'), true);
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(harness.events.filter((event) => event.type === 'operation').map((event) => event.metadata))),
+    [{ stepKey: 'paypal-hosted-card', kind: 'click', label: 'hosted-paypal-card-submit' }]
+  );
+});
+
+test('PayPal hosted guest checkout blocks submit when rendered phone differs from config', async () => {
+  const harness = createHostedPayPalHarness({
+    renderPhone: () => '9999999999',
+  });
+  harness.showGuestCheckout();
+
+  const result = await harness.send({
+    type: 'PAYPAL_RUN_HOSTED_CHECKOUT_STEP',
+    source: 'test',
+    payload: {
+      expectedStage: 'guest_checkout',
+      phone: '4155551234',
+      cardNumber: '4147200000000000',
+      cardExpiry: '12 / 29',
+      cardCvv: '123',
+      password: 'Aa1!example',
+      address: { street: '1 Main St', city: 'New York', state: 'New York', zip: '10001' },
+    },
+  });
+
+  assert.match(result.error, /电话不一致/);
+  assert.equal(harness.events.some((event) => event.type === 'click' && event.id === 'hostedSubmit'), false);
+});
+
+test('PayPal hosted /pay email page fills email and clicks Next instead of Create Account', async () => {
+  const harness = createHostedPayPalHarness();
+  harness.showPayEmail();
+
+  const state = await harness.send({
+    type: 'PAYPAL_HOSTED_GET_STATE',
+    source: 'test',
+    payload: {},
+  });
+  assert.equal(state.ok, true);
+  assert.equal(state.hostedStage, 'pay_login');
+  assert.equal(state.hasHostedEmailInput, true);
+
+  const result = await harness.send({
+    type: 'PAYPAL_RUN_HOSTED_CHECKOUT_STEP',
+    source: 'test',
+    payload: {
+      expectedStage: 'pay_login',
+      email: 'guest@example.com',
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.stage, 'pay_login');
+  assert.equal(result.submitted, true);
+  assert.equal(harness.events.some((event) => event.type === 'fill' && event.id === 'email' && event.value === 'guest@example.com'), true);
+  assert.equal(harness.events.some((event) => event.type === 'click' && event.id === 'btnNext'), true);
+  assert.equal(harness.events.some((event) => event.type === 'click' && event.id === 'createAccountButton'), false);
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(harness.events.filter((event) => event.type === 'operation').map((event) => event.metadata))),
+    [{ stepKey: 'paypal-hosted-email', kind: 'click', label: 'hosted-paypal-email-next' }]
+  );
+});
+
+test('PayPal hosted create account page is detected and handled as its own step', async () => {
+  const harness = createHostedPayPalHarness();
+  harness.showCreateAccount();
+
+  const state = await harness.send({
+    type: 'PAYPAL_HOSTED_GET_STATE',
+    source: 'test',
+    payload: {},
+  });
+  assert.equal(state.ok, true);
+  assert.equal(state.hostedStage, 'create_account');
+  assert.equal(state.createAccountReady, true);
+
+  const result = await harness.send({
+    type: 'PAYPAL_RUN_HOSTED_CHECKOUT_STEP',
+    source: 'test',
+    payload: { expectedStage: 'create_account' },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.stage, 'create_account');
+  assert.equal(result.submitted, true);
+  assert.equal(harness.events.some((event) => event.type === 'click' && event.id === 'createAccountButton'), true);
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(harness.events.filter((event) => event.type === 'operation').map((event) => event.metadata))),
+    [{ stepKey: 'paypal-hosted-create-account', kind: 'click', label: 'hosted-paypal-create-account' }]
+  );
 });

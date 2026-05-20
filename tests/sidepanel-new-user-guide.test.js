@@ -72,7 +72,7 @@ const localStorage = {
   },
 };
 const btnContributionMode = { disabled: false };
-let latestState = { contributionMode: false };
+let latestState = { accountContributionEnabled: false };
 ${bundle}
 return {
   shouldPromptNewUserGuide,
@@ -82,8 +82,8 @@ return {
   setButtonDisabled(value) {
     btnContributionMode.disabled = Boolean(value);
   },
-  setContributionMode(value) {
-    latestState = { contributionMode: Boolean(value) };
+  setAccountContributionMode(value) {
+    latestState = { accountContributionEnabled: Boolean(value) };
   },
 };
 `)();
@@ -98,7 +98,7 @@ return {
   assert.equal(api.shouldPromptNewUserGuide(), false);
 
   api.setButtonDisabled(false);
-  api.setContributionMode(true);
+  api.setAccountContributionMode(true);
   assert.equal(api.shouldPromptNewUserGuide(), false);
 });
 
@@ -129,7 +129,7 @@ const localStorage = {
   },
 };
 const btnContributionMode = { disabled: false };
-const latestState = { contributionMode: false };
+const latestState = { accountContributionEnabled: false };
 const contributionContentService = { portalUrl: 'https://flowpilot.qlhazycoder.top' };
 const openedUrls = [];
 let modalOptions = null;

@@ -148,6 +148,21 @@ test('sidepanel html exposes phone verification toggle and multi-provider SMS ro
   assert.doesNotMatch(html, /id="input-account-run-history-text-enabled"/);
 });
 
+test('sidepanel loads SMS country lists silently during startup fallback', () => {
+  const heroLoader = extractFunction('loadHeroSmsCountries');
+  const fiveSimLoader = extractFunction('loadFiveSimCountries');
+
+  assert.match(heroLoader, /async function loadHeroSmsCountries\(options = \{\}\)/);
+  assert.match(fiveSimLoader, /async function loadFiveSimCountries\(options = \{\}\)/);
+  assert.match(heroLoader, /const preferFallbackOnly = Boolean\(options\?\.preferFallbackOnly\)/);
+  assert.match(fiveSimLoader, /const preferFallbackOnly = Boolean\(options\?\.preferFallbackOnly\)/);
+  assert.doesNotMatch(heroLoader, /console\.(?:warn|error)\('加载 (?:5sim|HeroSMS) 国家列表失败：'/);
+  assert.doesNotMatch(fiveSimLoader, /console\.(?:warn|error)\('加载 5sim 国家列表失败：'/);
+  assert.match(sidepanelSource, /loadHeroSmsCountries\(\{ silent: true, preferFallbackOnly: true \}\)/);
+  assert.match(sidepanelSource, /loadFiveSimCountries\(\{ silent: true, preferFallbackOnly: true \}\)/);
+  assert.doesNotMatch(sidepanelSource, /console\.error\('加载 (?:HeroSMS|5sim|NexSMS) 国家列表失败：'/);
+});
+
 test('sidepanel source wires free reusable phone save and clear actions to runtime messages', () => {
   assert.match(sidepanelSource, /const inputFreePhoneReuseEnabled = document\.getElementById\('input-free-phone-reuse-enabled'\);/);
   assert.match(sidepanelSource, /const inputFreePhoneReuseAutoEnabled = document\.getElementById\('input-free-phone-reuse-auto-enabled'\);/);
@@ -233,7 +248,7 @@ const SIGNUP_METHOD_PHONE = 'phone';
 const SIGNUP_METHOD_EMAIL = 'email';
 const DEFAULT_SIGNUP_METHOD = SIGNUP_METHOD_EMAIL;
 const CPA_PHONE_SIGNUP_PROMPT_DISMISSED_STORAGE_KEY = 'multipage-cpa-phone-signup-prompt-dismissed';
-const CPA_PHONE_SIGNUP_WARNING_MESSAGE = 'CPA 未适配手机号注册模式，认证成功后无法使用。请使用 SUB2API，或者认证成功后重新登录一遍进行解决。';
+const CPA_PHONE_SIGNUP_WARNING_MESSAGE = '请确保打开手机接码设置中的“绑定后重登”开关，不然可能无法使用（有些版本无需开启）';
 const storage = new Map();
 const localStorage = {
   getItem(key) {
@@ -284,7 +299,7 @@ return {
   const firstResult = await api.confirmCpaPhoneSignupIfNeeded({ signupMethod: 'phone', panelMode: 'cpa' });
   assert.equal(firstResult, true);
   assert.equal(api.getCapturedOptions().title, 'CPA 手机号注册提醒');
-  assert.equal(api.getCapturedOptions().message, 'CPA 未适配手机号注册模式，认证成功后无法使用。请使用 SUB2API，或者认证成功后重新登录一遍进行解决。');
+  assert.equal(api.getCapturedOptions().message, '请确保打开手机接码设置中的“绑定后重登”开关，不然可能无法使用（有些版本无需开启）');
   assert.equal(api.getCapturedOptions().confirmLabel, '继续');
   assert.equal(api.getCapturedOptions().optionLabel, '不再提醒');
   assert.equal(api.getDismissed(), null);
@@ -322,7 +337,7 @@ const window = {
 };
 let latestState = {
   activeFlowId: 'site-a',
-  contributionMode: false,
+  accountContributionEnabled: false,
   panelMode: 'cpa',
 };
 const inputPhoneVerificationEnabled = { checked: true };
@@ -858,8 +873,11 @@ return {
 test('collectSettingsPayload keeps local helper sync enabled while persisting sms toggle state', () => {
   const api = new Function('normalizeIcloudTargetMailboxType', 'normalizeIcloudForwardMailProvider', `
 const window = {};
+const PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH = 'oauth';
+const PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION = 'sub2api_codex_session';
+const DEFAULT_PLUS_ACCOUNT_ACCESS_STRATEGY = PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH;
 let latestState = {
-  contributionMode: false,
+  accountContributionEnabled: false,
   mail2925UseAccountPool: false,
   currentMail2925AccountId: '',
   fiveSimCountryOrder: ['thailand', 'england'],
@@ -1010,6 +1028,7 @@ function normalizeAutoRunThreadIntervalMinutes(value) { return Number(value) || 
 function normalizeAutoDelayMinutes(value) { return Number(value) || 30; }
 function normalizeAutoStepDelaySeconds(value) { return value === '' ? null : Number(value); }
 function normalizeVerificationResendCount(value, fallback) { return Number(value) || fallback; }
+function normalizePlusAccountAccessStrategy(value = '') { return String(value || '').trim().toLowerCase() === PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION ? PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION : PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH; }
 ${extractFunction('normalizePhoneSmsProvider')}
 ${extractFunction('normalizePhoneSmsProviderValue')}
 ${extractFunction('normalizeFiveSimCountryCode')}

@@ -20,8 +20,14 @@ test('sidepanel loads reusable form dialog and paypal manager before sidepanel b
 
 test('sidepanel html contains paypal select and GoPay controls', () => {
   const html = fs.readFileSync('sidepanel/sidepanel.html', 'utf8');
+  const plusAccountAccessStrategyIndex = html.indexOf('id="row-plus-account-access-strategy"');
+  const plusPaymentMethodIndex = html.indexOf('id="row-plus-payment-method"');
 
   assert.match(html, /id="row-plus-payment-method"/);
+  assert.match(html, /id="row-plus-account-access-strategy"/);
+  assert.notEqual(plusAccountAccessStrategyIndex, -1);
+  assert.notEqual(plusPaymentMethodIndex, -1);
+  assert.ok(plusAccountAccessStrategyIndex < plusPaymentMethodIndex);
   assert.match(html, /id="select-plus-payment-method"/);
   assert.match(html, /id="row-paypal-account"/);
   assert.match(html, /id="select-paypal-account"/);
@@ -36,6 +42,14 @@ test('sidepanel html contains paypal select and GoPay controls', () => {
   assert.match(html, /id="row-gopay-pin"/);
   assert.match(html, /id="input-gopay-pin"/);
   assert.match(html, /id="shared-form-modal"/);
+});
+
+test('paypal account dialog masks the login account field for recording', () => {
+  const source = fs.readFileSync('sidepanel/paypal-manager.js', 'utf8');
+
+  assert.match(source, /label:\s*'PayPal 账号'[\s\S]*masked:\s*true/);
+  assert.match(source, /showPasswordLabel:\s*'显示 PayPal 账号'/);
+  assert.match(source, /hidePasswordLabel:\s*'隐藏 PayPal 账号'/);
 });
 
 test('paypal manager saves a paypal account and selects it immediately', async () => {

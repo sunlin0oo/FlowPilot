@@ -10,6 +10,7 @@
       ensureContentScriptReadyOnTab,
       getPanelMode,
       getTabId,
+      getStepIdByKeyForState,
       isLocalhostOAuthCallbackUrl,
       isTabAlive,
       normalizeCodex2ApiUrl,
@@ -51,11 +52,31 @@
       return visibleStep >= 10 ? visibleStep : 10;
     }
 
-    function resolveConfirmOauthStep(platformVerifyStep = 10) {
-      return Number(platformVerifyStep) >= 13 ? 12 : 9;
+    function resolveStepIdByKey(state = {}, stepKey = '') {
+      if (typeof getStepIdByKeyForState !== 'function') {
+        return null;
+      }
+      const step = Number(getStepIdByKeyForState(stepKey, state));
+      return Number.isInteger(step) && step > 0 ? step : null;
     }
 
-    function resolveAuthLoginStep(platformVerifyStep = 10) {
+    function resolveConfirmOauthStep(platformVerifyStep = 10, state = {}) {
+      const dynamicStep = resolveStepIdByKey(state, 'confirm-oauth');
+      if (dynamicStep && dynamicStep < Number(platformVerifyStep)) {
+        return dynamicStep;
+      }
+      return Math.max(1, Number(platformVerifyStep) - 1);
+    }
+
+    function resolveAuthLoginStep(platformVerifyStep = 10, state = {}) {
+      const reloginStep = resolveStepIdByKey(state, 'relogin-bound-email');
+      if (reloginStep && reloginStep < Number(platformVerifyStep)) {
+        return reloginStep;
+      }
+      const oauthLoginStep = resolveStepIdByKey(state, 'oauth-login');
+      if (oauthLoginStep && oauthLoginStep < Number(platformVerifyStep)) {
+        return oauthLoginStep;
+      }
       return Number(platformVerifyStep) >= 13 ? 10 : 7;
     }
 
@@ -63,8 +84,8 @@
       return addLog(message, level, { step, stepKey: 'platform-verify' });
     }
 
-    function parseLocalhostCallback(rawUrl, platformVerifyStep = 10) {
-      const confirmOauthStep = resolveConfirmOauthStep(platformVerifyStep);
+    function parseLocalhostCallback(rawUrl, platformVerifyStep = 10, state = {}) {
+      const confirmOauthStep = resolveConfirmOauthStep(platformVerifyStep, state);
       let parsed;
       try {
         parsed = new URL(rawUrl);
@@ -73,15 +94,15 @@
       }
 
       const code = normalizeString(parsed.searchParams.get('code'));
-      const state = normalizeString(parsed.searchParams.get('state'));
-      if (!code || !state) {
+      const oauthState = normalizeString(parsed.searchParams.get('state'));
+      if (!code || !oauthState) {
         throw new Error(`步骤 ${platformVerifyStep} 捕获到的 localhost OAuth 回调地址缺少 code 或 state，请重新执行步骤 ${confirmOauthStep}。`);
       }
 
       return {
         url: parsed.toString(),
         code,
-        state,
+        state: oauthState,
       };
     }
 
@@ -253,8 +274,8 @@
 
     async function executeCpaStep10(state) {
       const platformVerifyStep = resolvePlatformVerifyStep(state);
-      const confirmOauthStep = resolveConfirmOauthStep(platformVerifyStep);
-      const authLoginStep = resolveAuthLoginStep(platformVerifyStep);
+      const confirmOauthStep = resolveConfirmOauthStep(platformVerifyStep, state);
+      const authLoginStep = resolveAuthLoginStep(platformVerifyStep, state);
       if (state.localhostUrl && !isLocalhostOAuthCallbackUrl(state.localhostUrl)) {
         throw new Error(`步骤 ${confirmOauthStep} 捕获到的 localhost OAuth 回调地址无效，请重新执行步骤 ${confirmOauthStep}。`);
       }
@@ -275,7 +296,7 @@
         return;
       }
 
-      const callback = parseLocalhostCallback(state.localhostUrl, platformVerifyStep);
+      const callback = parseLocalhostCallback(state.localhostUrl, platformVerifyStep, state);
       const expectedState = normalizeString(state.cpaOAuthState);
       if (expectedState && expectedState !== callback.state) {
         throw new Error(`CPA 回调 state 与当前授权会话不匹配，请重新执行步骤 ${authLoginStep}。`);
@@ -314,8 +335,8 @@
 
     async function executeCodex2ApiStep10(state) {
       const platformVerifyStep = resolvePlatformVerifyStep(state);
-      const confirmOauthStep = resolveConfirmOauthStep(platformVerifyStep);
-      const authLoginStep = resolveAuthLoginStep(platformVerifyStep);
+      const confirmOauthStep = resolveConfirmOauthStep(platformVerifyStep, state);
+      const authLoginStep = resolveAuthLoginStep(platformVerifyStep, state);
       if (state.localhostUrl && !isLocalhostOAuthCallbackUrl(state.localhostUrl)) {
         throw new Error(`步骤 ${confirmOauthStep} 捕获到的 localhost OAuth 回调地址无效，请重新执行步骤 ${confirmOauthStep}。`);
       }
@@ -329,7 +350,7 @@
         throw new Error('尚未配置 Codex2API 管理密钥，请先在侧边栏填写。');
       }
 
-      const callback = parseLocalhostCallback(state.localhostUrl, platformVerifyStep);
+      const callback = parseLocalhostCallback(state.localhostUrl, platformVerifyStep, state);
       const expectedState = normalizeString(state.codex2apiOAuthState);
       if (expectedState && expectedState !== callback.state) {
         throw new Error(`Codex2API 回调 state 与当前授权会话不匹配，请重新执行步骤 ${authLoginStep}。`);
@@ -360,7 +381,7 @@
     async function executeSub2ApiStep10(state) {
       const platformVerifyStep = resolvePlatformVerifyStep(state);
       const visibleStep = platformVerifyStep;
-      const confirmOauthStep = resolveConfirmOauthStep(visibleStep);
+      const confirmOauthStep = resolveConfirmOauthStep(visibleStep, state);
       if (state.localhostUrl && !isLocalhostOAuthCallbackUrl(state.localhostUrl)) {
         throw new Error(`步骤 ${confirmOauthStep} 捕获到的 localhost OAuth 回调地址无效，请重新执行步骤 ${confirmOauthStep}。`);
       }

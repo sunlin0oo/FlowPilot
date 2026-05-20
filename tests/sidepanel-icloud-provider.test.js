@@ -84,8 +84,11 @@ test('collectSettingsPayload persists icloud target mailbox settings', () => {
   const bundle = extractFunction('collectSettingsPayload');
 
   const api = new Function(`
-let latestState = { contributionMode: false };
+let latestState = { accountContributionEnabled: false };
 const window = {};
+const PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH = 'oauth';
+const PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION = 'sub2api_codex_session';
+const DEFAULT_PLUS_ACCOUNT_ACCESS_STRATEGY = PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH;
 let cloudflareDomainEditMode = false;
 let cloudflareTempEmailDomainEditMode = false;
 const selectCfDomain = { value: '' };
@@ -220,6 +223,7 @@ function normalizeAutoRunThreadIntervalMinutes(value) { return Number(value) || 
 function normalizeAutoDelayMinutes(value) { return Number(value) || 30; }
 function normalizeAutoStepDelaySeconds(value) { return value === '' ? null : Number(value); }
 function normalizeVerificationResendCount(value, fallback) { return Number(value) || fallback; }
+function normalizePlusAccountAccessStrategy(value = '') { return String(value || '').trim().toLowerCase() === PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION ? PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION : PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH; }
 function normalizePhoneSmsProvider(value = '') { return String(value || '').trim().toLowerCase() === '5sim' ? '5sim' : 'hero-sms'; }
 function setPhoneSmsProviderSelectValue(provider) {
   const normalizedProvider = normalizePhoneSmsProvider(provider);
@@ -363,6 +367,9 @@ test('applySettingsState restores icloud forward mailbox settings before UI refr
 
   const api = new Function('calls', `
 let latestState = {};
+const PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH = 'oauth';
+const PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION = 'sub2api_codex_session';
+const DEFAULT_PLUS_ACCOUNT_ACCESS_STRATEGY = PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH;
 const inputEmail = { value: '' };
 const inputVpsUrl = { value: '' };
 const inputVpsPassword = { value: '' };
@@ -460,6 +467,7 @@ function normalizePanelMode(value = '') {
   const normalized = String(value || '').trim().toLowerCase();
   return normalized === 'sub2api' || normalized === 'codex2api' ? normalized : 'cpa';
 }
+function normalizePlusAccountAccessStrategy(value = '') { return String(value || '').trim().toLowerCase() === PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION ? PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION : PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH; }
 function isCustomMailProvider() { return false; }
 function setMail2925Mode() {}
 function normalizeIcloudFetchMode(value) { return String(value || '') === 'always_new' ? 'always_new' : 'reuse_existing'; }

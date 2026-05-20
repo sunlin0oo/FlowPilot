@@ -212,7 +212,10 @@
         {
           type: 'SUBMIT_ADD_EMAIL',
           source: 'background',
-          payload: { email: resolvedEmail },
+          payload: {
+            email: resolvedEmail,
+            nodeId: state?.nodeId || activeFetchLoginCodeStepKey || 'fetch-login-code',
+          },
         },
         {
           timeoutMs,

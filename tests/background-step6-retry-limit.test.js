@@ -588,6 +588,72 @@ test('step 7 keeps Plus email login even when phone sms runtime exists', async (
   assert.equal(events.payloads[0].accountIdentifier, 'plus.user@example.com');
 });
 
+test('step 7 keeps relogin-bound-email as the active node id', async () => {
+  const source = fs.readFileSync('background/steps/oauth-login.js', 'utf8');
+  const globalScope = {};
+  const api = new Function('self', `${source}; return self.MultiPageBackgroundStep7;`)(globalScope);
+
+  const events = {
+    completions: [],
+    messages: [],
+  };
+
+  const executor = api.createStep7Executor({
+    addLog: async () => {},
+    completeNodeFromBackground: async (step, payload) => {
+      events.completions.push({ step, payload });
+    },
+    getErrorMessage: (error) => error?.message || String(error || ''),
+    getLoginAuthStateLabel: (state) => state || 'unknown',
+    getState: async () => ({
+      email: 'bound.user@example.com',
+      password: 'secret',
+      plusModeEnabled: true,
+      signupMethod: 'phone',
+      phoneSignupReloginAfterBindEmailEnabled: true,
+    }),
+    isStep6RecoverableResult: (result) => result?.step6Outcome === 'recoverable',
+    isStep6SuccessResult: (result) => result?.step6Outcome === 'success',
+    refreshOAuthUrlBeforeStep6: async () => 'https://oauth.example/relogin',
+    reuseOrCreateTab: async () => {},
+    sendToContentScriptResilient: async (_sourceName, message) => {
+      events.messages.push(message);
+      return {
+        step6Outcome: 'success',
+        state: 'verification_page',
+        loginVerificationRequestedAt: 223344,
+      };
+    },
+    STEP6_MAX_ATTEMPTS: 3,
+    throwIfStopped: () => {},
+  });
+
+  await executor.executeStep7({
+    nodeId: 'relogin-bound-email',
+    visibleStep: 14,
+    forceLoginIdentifierType: 'email',
+    forceEmailLogin: true,
+    signupMethod: 'email',
+    resolvedSignupMethod: 'email',
+    accountIdentifierType: 'email',
+    accountIdentifier: 'bound.user@example.com',
+    email: 'bound.user@example.com',
+    password: 'secret',
+  });
+
+  assert.equal(events.messages.length, 1);
+  assert.equal(events.messages[0].nodeId, 'relogin-bound-email');
+  assert.equal(events.messages[0].payload.visibleStep, 14);
+  assert.deepStrictEqual(events.completions, [
+    {
+      step: 'relogin-bound-email',
+      payload: {
+        loginVerificationRequestedAt: 223344,
+      },
+    },
+  ]);
+});
+
 test('step 7 keeps phone login after step 8 stores an unbound email for phone signup', async () => {
   const source = fs.readFileSync('background/steps/oauth-login.js', 'utf8');
   const globalScope = {};

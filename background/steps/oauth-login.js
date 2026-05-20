@@ -59,7 +59,7 @@
       return normalizeStep7SignupMethod(state?.signupMethod) === 'phone'
         && Boolean(state?.phoneVerificationEnabled)
         && !Boolean(state?.plusModeEnabled)
-        && !Boolean(state?.contributionMode);
+        && !Boolean(state?.accountContributionEnabled);
     }
 
     function hasStep7PhoneSignupIdentity(state = {}) {
@@ -307,7 +307,7 @@
             'signup-page',
             {
               type: 'EXECUTE_NODE',
-              nodeId: 'oauth-login',
+              nodeId: state?.nodeId || 'oauth-login',
               step: 7,
               source: 'background',
               payload: {

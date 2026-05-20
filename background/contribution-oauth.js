@@ -8,8 +8,10 @@
   const CALLBACK_WAITING_STATUSES = new Set(['idle', 'waiting', 'captured', 'failed', 'submitting']);
 
   const RUNTIME_DEFAULTS = {
-    contributionMode: false,
-    contributionModeExpected: false,
+    accountContributionEnabled: false,
+    accountContributionExpected: false,
+    contributionAdapterId: '',
+    flowContributionRuntime: {},
     contributionSource: 'sub2api',
     contributionTargetGroupName: 'codex号池',
     contributionNickname: '',
@@ -265,14 +267,14 @@
       return Boolean(state?.plusModeEnabled);
     }
 
-    function normalizeContributionModeSource(value = '') {
+    function normalizeOpenAiContributionSource(value = '') {
       const normalized = normalizeString(value).toLowerCase();
       return normalized === 'sub2api' ? 'sub2api' : 'cpa';
     }
 
-    function resolveContributionModeRoutingState(state = {}) {
+    function resolveOpenAiContributionRoutingState(state = {}) {
       const currentStatus = normalizeString(state?.contributionStatus).toLowerCase();
-      const currentSource = normalizeContributionModeSource(state?.contributionSource);
+      const currentSource = normalizeOpenAiContributionSource(state?.contributionSource);
       const hasActiveSession = Boolean(
         normalizeString(state?.contributionSessionId)
         && currentStatus
@@ -533,7 +535,7 @@
 
     async function handleCapturedCallback(rawUrl, metadata = {}) {
       const currentState = await getState();
-      if (!normalizeString(currentState.contributionSessionId) || !currentState.contributionMode) {
+      if (!normalizeString(currentState.contributionSessionId) || !currentState.accountContributionEnabled) {
         return currentState;
       }
       if (!isContributionCallbackUrl(rawUrl, currentState)) {
@@ -642,10 +644,10 @@
       return nextState;
     }
 
-    async function startContributionFlow(options = {}) {
+    async function startFlowContribution(options = {}) {
       const currentState = options.stateOverride || await getState();
       const shouldOpenAuthTab = options.openAuthTab !== false;
-      if (!currentState.contributionMode) {
+      if (!currentState.accountContributionEnabled) {
         throw new Error('请先进入贡献模式。');
       }
 
@@ -662,7 +664,7 @@
         return pollContributionStatus({ reason: 'resume_existing' });
       }
 
-      const routingState = resolveContributionModeRoutingState(currentState);
+      const routingState = resolveOpenAiContributionRoutingState(currentState);
       const payload = await fetchContributionJson('/start', {
         method: 'POST',
         body: {
@@ -744,7 +746,7 @@
       isContributionCallbackUrl,
       isContributionFinalStatus,
       pollContributionStatus,
-      startContributionFlow,
+      startFlowContribution,
       submitContributionCallback,
     };
   }

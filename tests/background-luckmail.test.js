@@ -674,7 +674,7 @@ return {
 
 test('resetState preserves LuckMail session config, used map, and preserve tag cache while clearing runtime purchase state', async () => {
   const bundle = [
-    extractFunction('buildContributionModeState'),
+    extractFunction('buildAccountContributionState'),
     extractFunction('resetState'),
   ].join('\n');
 
@@ -702,7 +702,7 @@ test('resetState preserves LuckMail session config, used map, and preserve tag c
     '  email: null,',
     '};',
     'const CONTRIBUTION_RUNTIME_DEFAULTS = {',
-    '  contributionMode: false,',
+    '  accountContributionEnabled: false,',
     "  contributionSessionId: '',",
     "  contributionAuthUrl: '',",
     "  contributionAuthState: '',",

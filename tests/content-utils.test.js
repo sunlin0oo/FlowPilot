@@ -127,6 +127,35 @@ return { shouldReportReadyForFrame };
   assert.equal(api.shouldReportReadyForFrame('unknown-source', true), false);
 });
 
+test('simulateClick logs the button text captured before click side effects', () => {
+  const bundle = [extractFunction('simulateClick')].join('\n');
+  const logs = [];
+  const consoleMessages = [];
+  const api = new Function('logs', 'console', 'location', `
+function throwIfStopped() {}
+const LOG_PREFIX = '[test]';
+function log(message) { logs.push(message); }
+${bundle}
+return { simulateClick };
+`)(logs, { log: (...args) => consoleMessages.push(args.join(' ')) }, { pathname: '/checkout' });
+
+  const button = {
+    tagName: 'BUTTON',
+    textContent: '订阅',
+    getAttribute: () => '',
+    click() {
+      this.textContent = '正在处理';
+    },
+  };
+
+  api.simulateClick(button);
+
+  assert.equal(button.textContent, '正在处理');
+  assert.equal(logs.at(-1), '已点击(click) [BUTTON] "订阅"');
+  assert.match(consoleMessages.at(-1), /BUTTON 订阅/);
+  assert.doesNotMatch(logs.at(-1), /正在处理/);
+});
+
 test('getRuntimeScriptSource follows injected source overrides after utils is already loaded', () => {
   const bundle = [extractFunction('getRuntimeScriptSource')].join('\n');
   const api = new Function('window', 'SCRIPT_SOURCE', `

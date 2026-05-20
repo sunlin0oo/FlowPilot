@@ -1,8 +1,12 @@
-// background.js — Service Worker: orchestration, state, tab management, message routing
+﻿// background.js — Service Worker: orchestration, state, tab management, message routing
 
 importScripts(
+  'shared/flow-registry.js',
+  'shared/contribution-registry.js',
+  'shared/settings-schema.js',
   'shared/source-registry.js',
   'shared/flow-capabilities.js',
+  'shared/kiro-timeouts.js',
   'managed-alias-utils.js',
   'mail2925-utils.js',
   'paypal-utils.js',
@@ -18,10 +22,18 @@ importScripts(
   'background/ip-proxy-provider-711proxy.js',
   'background/ip-proxy-core.js',
   'background/sub2api-api.js',
+  'background/cpa-api.js',
   'background/panel-bridge.js',
   'background/registration-email-state.js',
   'background/workflow-engine.js',
   'background/runtime-state.js',
+  'background/kiro/state.js',
+  'background/kiro/credential-artifact.js',
+  'background/contribution/adapters/kiro-builder-id.js',
+  'background/kiro/register-runner.js',
+  'background/kiro/desktop-client.js',
+  'background/kiro/desktop-authorize-runner.js',
+  'background/kiro/publisher-kiro-rs.js',
   'background/generated-email-helpers.js',
   'background/signup-flow-helpers.js',
   'background/mail-rule-registry.js',
@@ -47,6 +59,8 @@ importScripts(
   'background/steps/paypal-approve.js',
   'background/steps/gopay-approve.js',
   'background/steps/plus-return-confirm.js',
+  'background/steps/sub2api-session-import.js',
+  'background/steps/cpa-session-import.js',
   'background/steps/oauth-login.js',
   'background/steps/fetch-login-code.js',
   'background/steps/confirm-oauth.js',
@@ -66,6 +80,9 @@ importScripts(
 );
 
 const DEFAULT_ACTIVE_FLOW_ID = 'openai';
+const PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH = 'oauth';
+const PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION = 'sub2api_codex_session';
+const PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION = 'cpa_codex_session';
 const NORMAL_STEP_DEFINITIONS = self.MultiPageStepDefinitions?.getSteps?.({
   activeFlowId: DEFAULT_ACTIVE_FLOW_ID,
   plusModeEnabled: false,
@@ -86,6 +103,18 @@ const PLUS_PAYPAL_STEP_DEFINITIONS = self.MultiPageStepDefinitions?.getSteps?.({
   plusModeEnabled: true,
   plusPaymentMethod: 'paypal',
 }) || NORMAL_STEP_DEFINITIONS;
+const PLUS_PAYPAL_SUB2API_SESSION_STEP_DEFINITIONS = self.MultiPageStepDefinitions?.getSteps?.({
+  activeFlowId: DEFAULT_ACTIVE_FLOW_ID,
+  plusModeEnabled: true,
+  plusPaymentMethod: 'paypal',
+  plusAccountAccessStrategy: PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION,
+}) || PLUS_PAYPAL_STEP_DEFINITIONS;
+const PLUS_PAYPAL_CPA_SESSION_STEP_DEFINITIONS = self.MultiPageStepDefinitions?.getSteps?.({
+  activeFlowId: DEFAULT_ACTIVE_FLOW_ID,
+  plusModeEnabled: true,
+  plusPaymentMethod: 'paypal',
+  plusAccountAccessStrategy: PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION,
+}) || PLUS_PAYPAL_STEP_DEFINITIONS;
 const PLUS_PAYPAL_PHONE_STEP_DEFINITIONS = self.MultiPageStepDefinitions?.getSteps?.({
   activeFlowId: DEFAULT_ACTIVE_FLOW_ID,
   plusModeEnabled: true,
@@ -99,11 +128,53 @@ const PLUS_PAYPAL_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS = self.MultiPageSte
   signupMethod: 'phone',
   phoneSignupReloginAfterBindEmailEnabled: true,
 }) || PLUS_PAYPAL_PHONE_STEP_DEFINITIONS;
+const PLUS_PAYPAL_HOSTED_CHECKOUT_STEP_DEFINITIONS = self.MultiPageStepDefinitions?.getSteps?.({
+  activeFlowId: DEFAULT_ACTIVE_FLOW_ID,
+  plusModeEnabled: true,
+  plusPaymentMethod: 'paypal-hosted',
+}) || PLUS_PAYPAL_STEP_DEFINITIONS;
+const PLUS_PAYPAL_HOSTED_CHECKOUT_SUB2API_SESSION_STEP_DEFINITIONS = self.MultiPageStepDefinitions?.getSteps?.({
+  activeFlowId: DEFAULT_ACTIVE_FLOW_ID,
+  plusModeEnabled: true,
+  plusPaymentMethod: 'paypal-hosted',
+  plusAccountAccessStrategy: PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION,
+}) || PLUS_PAYPAL_HOSTED_CHECKOUT_STEP_DEFINITIONS;
+const PLUS_PAYPAL_HOSTED_CHECKOUT_CPA_SESSION_STEP_DEFINITIONS = self.MultiPageStepDefinitions?.getSteps?.({
+  activeFlowId: DEFAULT_ACTIVE_FLOW_ID,
+  plusModeEnabled: true,
+  plusPaymentMethod: 'paypal-hosted',
+  plusAccountAccessStrategy: PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION,
+}) || PLUS_PAYPAL_HOSTED_CHECKOUT_STEP_DEFINITIONS;
+const PLUS_PAYPAL_HOSTED_CHECKOUT_PHONE_STEP_DEFINITIONS = self.MultiPageStepDefinitions?.getSteps?.({
+  activeFlowId: DEFAULT_ACTIVE_FLOW_ID,
+  plusModeEnabled: true,
+  plusPaymentMethod: 'paypal-hosted',
+  signupMethod: 'phone',
+}) || PLUS_PAYPAL_HOSTED_CHECKOUT_STEP_DEFINITIONS;
+const PLUS_PAYPAL_HOSTED_CHECKOUT_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS = self.MultiPageStepDefinitions?.getSteps?.({
+  activeFlowId: DEFAULT_ACTIVE_FLOW_ID,
+  plusModeEnabled: true,
+  plusPaymentMethod: 'paypal-hosted',
+  signupMethod: 'phone',
+  phoneSignupReloginAfterBindEmailEnabled: true,
+}) || PLUS_PAYPAL_HOSTED_CHECKOUT_PHONE_STEP_DEFINITIONS;
 const PLUS_GOPAY_STEP_DEFINITIONS = self.MultiPageStepDefinitions?.getSteps?.({
   activeFlowId: DEFAULT_ACTIVE_FLOW_ID,
   plusModeEnabled: true,
   plusPaymentMethod: 'gopay',
 }) || PLUS_PAYPAL_STEP_DEFINITIONS;
+const PLUS_GOPAY_SUB2API_SESSION_STEP_DEFINITIONS = self.MultiPageStepDefinitions?.getSteps?.({
+  activeFlowId: DEFAULT_ACTIVE_FLOW_ID,
+  plusModeEnabled: true,
+  plusPaymentMethod: 'gopay',
+  plusAccountAccessStrategy: PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION,
+}) || PLUS_GOPAY_STEP_DEFINITIONS;
+const PLUS_GOPAY_CPA_SESSION_STEP_DEFINITIONS = self.MultiPageStepDefinitions?.getSteps?.({
+  activeFlowId: DEFAULT_ACTIVE_FLOW_ID,
+  plusModeEnabled: true,
+  plusPaymentMethod: 'gopay',
+  plusAccountAccessStrategy: PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION,
+}) || PLUS_GOPAY_STEP_DEFINITIONS;
 const PLUS_GOPAY_PHONE_STEP_DEFINITIONS = self.MultiPageStepDefinitions?.getSteps?.({
   activeFlowId: DEFAULT_ACTIVE_FLOW_ID,
   plusModeEnabled: true,
@@ -122,6 +193,18 @@ const PLUS_GPC_STEP_DEFINITIONS = self.MultiPageStepDefinitions?.getSteps?.({
   plusModeEnabled: true,
   plusPaymentMethod: 'gpc-helper',
 }) || PLUS_GOPAY_STEP_DEFINITIONS;
+const PLUS_GPC_SUB2API_SESSION_STEP_DEFINITIONS = self.MultiPageStepDefinitions?.getSteps?.({
+  activeFlowId: DEFAULT_ACTIVE_FLOW_ID,
+  plusModeEnabled: true,
+  plusPaymentMethod: 'gpc-helper',
+  plusAccountAccessStrategy: PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION,
+}) || PLUS_GPC_STEP_DEFINITIONS;
+const PLUS_GPC_CPA_SESSION_STEP_DEFINITIONS = self.MultiPageStepDefinitions?.getSteps?.({
+  activeFlowId: DEFAULT_ACTIVE_FLOW_ID,
+  plusModeEnabled: true,
+  plusPaymentMethod: 'gpc-helper',
+  plusAccountAccessStrategy: PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION,
+}) || PLUS_GPC_STEP_DEFINITIONS;
 const PLUS_GPC_PHONE_STEP_DEFINITIONS = self.MultiPageStepDefinitions?.getSteps?.({
   activeFlowId: DEFAULT_ACTIVE_FLOW_ID,
   plusModeEnabled: true,
@@ -136,22 +219,48 @@ const PLUS_GPC_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS = self.MultiPageStepDe
   phoneSignupReloginAfterBindEmailEnabled: true,
 }) || PLUS_GPC_PHONE_STEP_DEFINITIONS;
 const PLUS_STEP_DEFINITIONS = PLUS_PAYPAL_STEP_DEFINITIONS;
-const ALL_STEP_DEFINITIONS = self.MultiPageStepDefinitions?.getAllSteps?.({
-  activeFlowId: DEFAULT_ACTIVE_FLOW_ID,
-}) || [
-  ...NORMAL_STEP_DEFINITIONS,
-  ...NORMAL_PHONE_STEP_DEFINITIONS,
-  ...NORMAL_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS,
-  ...PLUS_PAYPAL_STEP_DEFINITIONS,
-  ...PLUS_PAYPAL_PHONE_STEP_DEFINITIONS,
-  ...PLUS_PAYPAL_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS,
-  ...PLUS_GOPAY_STEP_DEFINITIONS,
-  ...PLUS_GOPAY_PHONE_STEP_DEFINITIONS,
-  ...PLUS_GOPAY_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS,
-  ...PLUS_GPC_STEP_DEFINITIONS,
-  ...PLUS_GPC_PHONE_STEP_DEFINITIONS,
-  ...PLUS_GPC_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS,
-];
+const REGISTERED_STEP_FLOW_IDS = self.MultiPageStepDefinitions?.getRegisteredFlowIds?.() || [DEFAULT_ACTIVE_FLOW_ID];
+const ALL_STEP_DEFINITIONS = (() => {
+  if (self.MultiPageStepDefinitions?.getAllSteps) {
+    const keyedDefinitions = new Map();
+    for (const flowId of REGISTERED_STEP_FLOW_IDS) {
+      const definitions = self.MultiPageStepDefinitions.getAllSteps({ activeFlowId: flowId });
+      for (const definition of Array.isArray(definitions) ? definitions : []) {
+        const key = `${flowId}:${Number(definition?.id) || 0}:${String(definition?.key || '').trim()}`;
+        keyedDefinitions.set(key, definition);
+      }
+    }
+    const allDefinitions = Array.from(keyedDefinitions.values());
+    if (allDefinitions.length) {
+      return allDefinitions;
+    }
+  }
+  return [
+    ...NORMAL_STEP_DEFINITIONS,
+    ...NORMAL_PHONE_STEP_DEFINITIONS,
+    ...NORMAL_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS,
+    ...PLUS_PAYPAL_STEP_DEFINITIONS,
+    ...PLUS_PAYPAL_SUB2API_SESSION_STEP_DEFINITIONS,
+    ...PLUS_PAYPAL_CPA_SESSION_STEP_DEFINITIONS,
+    ...PLUS_PAYPAL_PHONE_STEP_DEFINITIONS,
+    ...PLUS_PAYPAL_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS,
+    ...PLUS_PAYPAL_HOSTED_CHECKOUT_STEP_DEFINITIONS,
+    ...PLUS_PAYPAL_HOSTED_CHECKOUT_SUB2API_SESSION_STEP_DEFINITIONS,
+    ...PLUS_PAYPAL_HOSTED_CHECKOUT_CPA_SESSION_STEP_DEFINITIONS,
+    ...PLUS_PAYPAL_HOSTED_CHECKOUT_PHONE_STEP_DEFINITIONS,
+    ...PLUS_PAYPAL_HOSTED_CHECKOUT_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS,
+    ...PLUS_GOPAY_STEP_DEFINITIONS,
+    ...PLUS_GOPAY_SUB2API_SESSION_STEP_DEFINITIONS,
+    ...PLUS_GOPAY_CPA_SESSION_STEP_DEFINITIONS,
+    ...PLUS_GOPAY_PHONE_STEP_DEFINITIONS,
+    ...PLUS_GOPAY_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS,
+    ...PLUS_GPC_STEP_DEFINITIONS,
+    ...PLUS_GPC_SUB2API_SESSION_STEP_DEFINITIONS,
+    ...PLUS_GPC_CPA_SESSION_STEP_DEFINITIONS,
+    ...PLUS_GPC_PHONE_STEP_DEFINITIONS,
+    ...PLUS_GPC_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS,
+  ];
+})();
 const STEP_IDS = Array.from(new Set(ALL_STEP_DEFINITIONS
   .map((definition) => Number(definition?.id))
   .filter(Number.isFinite)))
@@ -169,6 +278,10 @@ const PLUS_PAYPAL_STEP_IDS = PLUS_PAYPAL_STEP_DEFINITIONS
   .map((definition) => Number(definition?.id))
   .filter(Number.isFinite)
   .sort((left, right) => left - right);
+const PLUS_PAYPAL_HOSTED_CHECKOUT_STEP_IDS = PLUS_PAYPAL_HOSTED_CHECKOUT_STEP_DEFINITIONS
+  .map((definition) => Number(definition?.id))
+  .filter(Number.isFinite)
+  .sort((left, right) => left - right);
 const PLUS_GOPAY_STEP_IDS = PLUS_GOPAY_STEP_DEFINITIONS
   .map((definition) => Number(definition?.id))
   .filter(Number.isFinite)
@@ -181,6 +294,7 @@ const PLUS_STEP_IDS = PLUS_PAYPAL_STEP_IDS;
 const LAST_STEP_ID = Math.max(
   NORMAL_STEP_IDS[NORMAL_STEP_IDS.length - 1] || 10,
   PLUS_PAYPAL_STEP_IDS[PLUS_PAYPAL_STEP_IDS.length - 1] || 10,
+  PLUS_PAYPAL_HOSTED_CHECKOUT_STEP_IDS[PLUS_PAYPAL_HOSTED_CHECKOUT_STEP_IDS.length - 1] || 10,
   PLUS_GOPAY_STEP_IDS[PLUS_GOPAY_STEP_IDS.length - 1] || 10,
   PLUS_GPC_STEP_IDS[PLUS_GPC_STEP_IDS.length - 1] || 10
 );
@@ -303,6 +417,7 @@ const runtimeStateHelpers = self.MultiPageBackgroundRuntimeState?.createRuntimeS
   DEFAULT_ACTIVE_FLOW_ID,
   defaultNodeStatuses: DEFAULT_NODE_STATUSES,
 }) || null;
+const kiroStateHelpers = self.MultiPageBackgroundKiroState || null;
 const DEFAULT_REGISTRATION_EMAIL_STATE = registrationEmailStateHelpers?.DEFAULT_REGISTRATION_EMAIL_STATE || {
   current: '',
   previous: '',
@@ -368,17 +483,31 @@ function getPreservedPhoneIdentity(state = {}) {
 }
 
 function buildStateViewWithRuntimeState(state = {}) {
+  let nextState = state;
   if (runtimeStateHelpers?.buildStateView) {
-    return runtimeStateHelpers.buildStateView(state);
+    nextState = runtimeStateHelpers.buildStateView(nextState);
   }
-  return state;
+  if (kiroStateHelpers?.buildStateView) {
+    nextState = kiroStateHelpers.buildStateView(nextState);
+  }
+  return nextState;
 }
 
 function buildStatePatchWithRuntimeState(currentState = {}, updates = {}) {
+  let nextPatch = updates;
   if (runtimeStateHelpers?.buildSessionStatePatch) {
-    return runtimeStateHelpers.buildSessionStatePatch(currentState, updates);
+    nextPatch = runtimeStateHelpers.buildSessionStatePatch(currentState, nextPatch);
   }
-  return updates;
+  if (kiroStateHelpers?.buildSessionStatePatch) {
+    const kiroPatch = kiroStateHelpers.buildSessionStatePatch(currentState, updates);
+    if (kiroPatch && Object.keys(kiroPatch).length > 0) {
+      nextPatch = {
+        ...nextPatch,
+        ...kiroPatch,
+      };
+    }
+  }
+  return nextPatch;
 }
 
 function statePatchHasChanges(state = {}, patch = {}) {
@@ -592,9 +721,11 @@ const HERO_SMS_COUNTRY_BY_PHONE_PREFIX = Object.freeze([
 ]);
 const FIVE_SIM_OPERATOR = DEFAULT_FIVE_SIM_OPERATOR;
 const PLUS_PAYMENT_METHOD_PAYPAL = 'paypal';
+const PLUS_PAYMENT_METHOD_PAYPAL_HOSTED = 'paypal-hosted';
 const PLUS_PAYMENT_METHOD_GOPAY = 'gopay';
 const PLUS_PAYMENT_METHOD_GPC_HELPER = 'gpc-helper';
-const DEFAULT_PLUS_PAYMENT_METHOD = PLUS_PAYMENT_METHOD_PAYPAL;
+const DEFAULT_PLUS_PAYMENT_METHOD = PLUS_PAYMENT_METHOD_PAYPAL_HOSTED;
+const DEFAULT_PLUS_HOSTED_CHECKOUT_OAUTH_DELAY_SECONDS = 3;
 const DISPLAY_TIMEZONE = 'Asia/Shanghai';
 const MICROSOFT_TOKEN_DNR_RULE_ID = 1001;
 const PERSISTENT_ALIAS_STATE_KEYS = [
@@ -608,8 +739,10 @@ const SIGNUP_METHOD_EMAIL = 'email';
 const SIGNUP_METHOD_PHONE = 'phone';
 const DEFAULT_SIGNUP_METHOD = SIGNUP_METHOD_EMAIL;
 const CONTRIBUTION_RUNTIME_DEFAULTS = self.MultiPageBackgroundContributionOAuth?.RUNTIME_DEFAULTS || {
-  contributionMode: false,
-  contributionModeExpected: false,
+  accountContributionEnabled: false,
+  accountContributionExpected: false,
+  contributionAdapterId: '',
+  flowContributionRuntime: {},
   contributionSource: CONTRIBUTION_SOURCE_SUB2API,
   contributionTargetGroupName: CONTRIBUTION_SUB2API_DEFAULT_GROUP_NAME,
   contributionNickname: '',
@@ -629,12 +762,73 @@ const CONTRIBUTION_RUNTIME_DEFAULTS = self.MultiPageBackgroundContributionOAuth?
 const CONTRIBUTION_RUNTIME_KEYS = self.MultiPageBackgroundContributionOAuth?.RUNTIME_KEYS
   || Object.keys(CONTRIBUTION_RUNTIME_DEFAULTS);
 
+function normalizeAccountContributionFlowId(value = '', fallback = DEFAULT_ACTIVE_FLOW_ID) {
+  return self.MultiPageFlowRegistry?.normalizeFlowId
+    ? self.MultiPageFlowRegistry.normalizeFlowId(value, fallback)
+    : (String(value || fallback || DEFAULT_ACTIVE_FLOW_ID).trim().toLowerCase() || DEFAULT_ACTIVE_FLOW_ID);
+}
+
+function normalizeAccountContributionAdapterId(flowId = DEFAULT_ACTIVE_FLOW_ID, adapterId = '') {
+  const normalizedFlowId = normalizeAccountContributionFlowId(flowId);
+  const contributionRegistry = self.MultiPageContributionRegistry || {};
+  if (typeof contributionRegistry.normalizeAdapterId === 'function') {
+    const normalizedAdapterId = contributionRegistry.normalizeAdapterId(adapterId);
+    if (normalizedAdapterId && contributionRegistry.hasContributionAdapter?.(normalizedFlowId, normalizedAdapterId)) {
+      return normalizedAdapterId;
+    }
+  }
+  if (typeof contributionRegistry.getDefaultContributionAdapterId === 'function') {
+    return contributionRegistry.getDefaultContributionAdapterId(normalizedFlowId) || '';
+  }
+  return normalizedFlowId === DEFAULT_ACTIVE_FLOW_ID ? 'openai-oauth' : '';
+}
+
+function assertAccountContributionAdapterAvailable(flowId = DEFAULT_ACTIVE_FLOW_ID, adapterId = '') {
+  const normalizedFlowId = normalizeAccountContributionFlowId(flowId);
+  const normalizedAdapterId = normalizeAccountContributionAdapterId(normalizedFlowId, adapterId);
+  const contributionRegistry = self.MultiPageContributionRegistry || {};
+  const hasAdapter = typeof contributionRegistry.hasContributionAdapter === 'function'
+    ? contributionRegistry.hasContributionAdapter(normalizedFlowId, normalizedAdapterId)
+    : (normalizedFlowId === DEFAULT_ACTIVE_FLOW_ID && normalizedAdapterId === 'openai-oauth');
+  if (!normalizedAdapterId || !hasAdapter) {
+    throw new Error('当前 flow 尚未接入账号贡献适配器。');
+  }
+  return normalizedAdapterId;
+}
+
+function buildFlowContributionRuntimePatch(currentRuntime = {}, flowId = DEFAULT_ACTIVE_FLOW_ID, adapterId = '', enabled = false) {
+  const normalizedFlowId = normalizeAccountContributionFlowId(flowId);
+  const normalizedAdapterId = normalizeAccountContributionAdapterId(normalizedFlowId, adapterId);
+  const current = currentRuntime && typeof currentRuntime === 'object' && !Array.isArray(currentRuntime)
+    ? currentRuntime
+    : {};
+  if (!enabled) {
+    return {};
+  }
+  return {
+    ...current,
+    [normalizedFlowId]: {
+      ...(current[normalizedFlowId] && typeof current[normalizedFlowId] === 'object' && !Array.isArray(current[normalizedFlowId])
+        ? current[normalizedFlowId]
+        : {}),
+      enabled: true,
+      adapterId: normalizedAdapterId,
+    },
+  };
+}
+
 function isPlusModeState(state = {}) {
   return Boolean(state?.plusModeEnabled);
 }
 
 function normalizePlusPaymentMethod(value = '') {
   const normalized = String(value || '').trim().toLowerCase();
+  const paypalHostedValue = typeof PLUS_PAYMENT_METHOD_PAYPAL_HOSTED !== 'undefined'
+    ? PLUS_PAYMENT_METHOD_PAYPAL_HOSTED
+    : 'paypal-hosted';
+  if (normalized === paypalHostedValue || normalized === 'paypal_direct' || normalized === 'paypal-direct') {
+    return paypalHostedValue;
+  }
   if (normalized === PLUS_PAYMENT_METHOD_GPC_HELPER) {
     return PLUS_PAYMENT_METHOD_GPC_HELPER;
   }
@@ -646,16 +840,16 @@ function normalizeGpcHelperPhoneMode(value = '') {
   return normalized === 'auto' || normalized === 'builtin' ? 'auto' : 'manual';
 }
 
-function normalizeContributionModeSource(value = '') {
+function normalizeOpenAiContributionSource(value = '') {
   const normalized = String(value || '').trim().toLowerCase();
   return normalized === CONTRIBUTION_SOURCE_SUB2API
     ? CONTRIBUTION_SOURCE_SUB2API
     : CONTRIBUTION_SOURCE_CPA;
 }
 
-function resolveContributionModeRoutingState(state = {}) {
+function resolveOpenAiContributionRoutingState(state = {}) {
   const currentStatus = String(state?.contributionStatus || '').trim().toLowerCase();
-  const currentSource = normalizeContributionModeSource(state?.contributionSource);
+  const currentSource = normalizeOpenAiContributionSource(state?.contributionSource);
   const hasActiveSession = Boolean(
     String(state?.contributionSessionId || '').trim()
     && currentStatus
@@ -684,34 +878,140 @@ function getSignupMethodForStepDefinitions(state = {}) {
   return normalizeSignupMethod(state?.resolvedSignupMethod || state?.signupMethod);
 }
 
+function buildResolvedStepDefinitionState(state = {}) {
+  const defaultFlowId = typeof DEFAULT_ACTIVE_FLOW_ID === 'string' ? DEFAULT_ACTIVE_FLOW_ID : 'openai';
+  const requestedActiveFlowId = String(state?.activeFlowId || state?.flowId || '').trim().toLowerCase() || defaultFlowId;
+  const requestedSignupMethod = getSignupMethodForStepDefinitions(state);
+  const plusModeEnabled = isPlusModeState(state);
+  const plusPaymentMethod = normalizePlusPaymentMethod(state?.plusPaymentMethod);
+  const capabilityState = typeof resolveCurrentFlowCapabilities === 'function'
+    ? resolveCurrentFlowCapabilities({
+      ...state,
+      activeFlowId: requestedActiveFlowId,
+      flowId: requestedActiveFlowId,
+      plusModeEnabled,
+      plusPaymentMethod,
+      signupMethod: requestedSignupMethod,
+    }, {
+      activeFlowId: requestedActiveFlowId,
+      panelMode: state?.panelMode,
+      signupMethod: requestedSignupMethod,
+    })
+    : null;
+  const stepDefinitionOptions = capabilityState?.stepDefinitionOptions || {};
+  const resolvedActiveFlowId = String(stepDefinitionOptions.activeFlowId || requestedActiveFlowId).trim().toLowerCase() || defaultFlowId;
+  const resolvedSignupMethod = normalizeSignupMethod(
+    stepDefinitionOptions.signupMethod
+    || capabilityState?.effectiveSignupMethod
+    || requestedSignupMethod
+  );
+
+  return {
+    ...state,
+    activeFlowId: resolvedActiveFlowId,
+    flowId: resolvedActiveFlowId,
+    panelMode: stepDefinitionOptions.panelMode || capabilityState?.effectivePanelMode || state?.panelMode,
+    targetId: stepDefinitionOptions.targetId || capabilityState?.effectiveTargetId || state?.targetId,
+    plusModeEnabled: stepDefinitionOptions.plusModeEnabled === undefined
+      ? plusModeEnabled
+      : Boolean(stepDefinitionOptions.plusModeEnabled),
+    plusPaymentMethod,
+    plusAccountAccessStrategy: normalizePlusAccountAccessStrategy(
+      stepDefinitionOptions.plusAccountAccessStrategy
+      ?? capabilityState?.effectivePlusAccountAccessStrategy
+      ?? state?.plusAccountAccessStrategy
+    ),
+    signupMethod: resolvedSignupMethod,
+    resolvedSignupMethod: resolvedSignupMethod,
+    phoneSignupReloginAfterBindEmailEnabled: Boolean(state?.phoneSignupReloginAfterBindEmailEnabled),
+  };
+}
+
 function getStepDefinitionsForState(state = {}) {
+  const resolvedState = buildResolvedStepDefinitionState(state);
   const rootScope = typeof self !== 'undefined' ? self : globalThis;
   if (rootScope.MultiPageStepDefinitions?.getSteps) {
     const defaultFlowId = typeof DEFAULT_ACTIVE_FLOW_ID === 'string' ? DEFAULT_ACTIVE_FLOW_ID : 'openai';
-    const activeFlowId = String(state?.activeFlowId || '').trim().toLowerCase() || defaultFlowId;
+    const activeFlowId = String(resolvedState?.activeFlowId || '').trim().toLowerCase() || defaultFlowId;
     const definitions = rootScope.MultiPageStepDefinitions.getSteps({
       activeFlowId,
-      plusModeEnabled: isPlusModeState(state),
-      plusPaymentMethod: normalizePlusPaymentMethod(state?.plusPaymentMethod),
-      signupMethod: getSignupMethodForStepDefinitions(state),
-      phoneSignupReloginAfterBindEmailEnabled: Boolean(state?.phoneSignupReloginAfterBindEmailEnabled),
+      plusModeEnabled: Boolean(resolvedState?.plusModeEnabled),
+      plusPaymentMethod: normalizePlusPaymentMethod(resolvedState?.plusPaymentMethod),
+      plusAccountAccessStrategy: normalizePlusAccountAccessStrategy(resolvedState?.plusAccountAccessStrategy),
+      signupMethod: getSignupMethodForStepDefinitions(resolvedState),
+      phoneSignupReloginAfterBindEmailEnabled: Boolean(resolvedState?.phoneSignupReloginAfterBindEmailEnabled),
     });
     if (Array.isArray(definitions)) {
       return definitions;
     }
   }
-  const activeFlowId = String(state?.activeFlowId || '').trim().toLowerCase();
+  const activeFlowId = String(resolvedState?.activeFlowId || '').trim().toLowerCase();
   if (activeFlowId && activeFlowId !== DEFAULT_ACTIVE_FLOW_ID) {
     return [];
   }
-  if (!isPlusModeState(state)) {
+  if (!Boolean(resolvedState?.plusModeEnabled)) {
     return NORMAL_STEP_DEFINITIONS;
   }
-  const paymentMethod = normalizePlusPaymentMethod(state?.plusPaymentMethod);
+  const paymentMethod = normalizePlusPaymentMethod(resolvedState?.plusPaymentMethod);
+  const signupMethod = getSignupMethodForStepDefinitions(resolvedState);
+  const plusAccountAccessStrategy = normalizePlusAccountAccessStrategy(resolvedState?.plusAccountAccessStrategy);
   if (paymentMethod === PLUS_PAYMENT_METHOD_GPC_HELPER) {
+    if (
+      signupMethod === SIGNUP_METHOD_EMAIL
+      && plusAccountAccessStrategy === PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION
+    ) {
+      return PLUS_GPC_SUB2API_SESSION_STEP_DEFINITIONS;
+    }
+    if (
+      signupMethod === SIGNUP_METHOD_EMAIL
+      && plusAccountAccessStrategy === PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION
+    ) {
+      return PLUS_GPC_CPA_SESSION_STEP_DEFINITIONS;
+    }
     return PLUS_GPC_STEP_DEFINITIONS;
   }
-  return paymentMethod === PLUS_PAYMENT_METHOD_GOPAY ? PLUS_GOPAY_STEP_DEFINITIONS : PLUS_PAYPAL_STEP_DEFINITIONS;
+  if (paymentMethod === PLUS_PAYMENT_METHOD_GOPAY) {
+    if (
+      signupMethod === SIGNUP_METHOD_EMAIL
+      && plusAccountAccessStrategy === PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION
+    ) {
+      return PLUS_GOPAY_SUB2API_SESSION_STEP_DEFINITIONS;
+    }
+    if (
+      signupMethod === SIGNUP_METHOD_EMAIL
+      && plusAccountAccessStrategy === PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION
+    ) {
+      return PLUS_GOPAY_CPA_SESSION_STEP_DEFINITIONS;
+    }
+    return PLUS_GOPAY_STEP_DEFINITIONS;
+  }
+  if (paymentMethod === PLUS_PAYMENT_METHOD_PAYPAL_HOSTED) {
+    if (signupMethod === SIGNUP_METHOD_PHONE) {
+      return Boolean(resolvedState?.phoneSignupReloginAfterBindEmailEnabled)
+        ? PLUS_PAYPAL_HOSTED_CHECKOUT_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS
+        : PLUS_PAYPAL_HOSTED_CHECKOUT_PHONE_STEP_DEFINITIONS;
+    }
+    if (plusAccountAccessStrategy === PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION) {
+      return PLUS_PAYPAL_HOSTED_CHECKOUT_SUB2API_SESSION_STEP_DEFINITIONS;
+    }
+    if (plusAccountAccessStrategy === PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION) {
+      return PLUS_PAYPAL_HOSTED_CHECKOUT_CPA_SESSION_STEP_DEFINITIONS;
+    }
+    return PLUS_PAYPAL_HOSTED_CHECKOUT_STEP_DEFINITIONS;
+  }
+  if (
+    signupMethod === SIGNUP_METHOD_EMAIL
+    && plusAccountAccessStrategy === PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION
+  ) {
+    return PLUS_PAYPAL_SUB2API_SESSION_STEP_DEFINITIONS;
+  }
+  if (
+    signupMethod === SIGNUP_METHOD_EMAIL
+    && plusAccountAccessStrategy === PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION
+  ) {
+    return PLUS_PAYPAL_CPA_SESSION_STEP_DEFINITIONS;
+  }
+  return PLUS_PAYPAL_STEP_DEFINITIONS;
 }
 
 function getStepIdsForState(state = {}) {
@@ -728,6 +1028,9 @@ function getStepIdsForState(state = {}) {
   const paymentMethod = normalizePlusPaymentMethod(state?.plusPaymentMethod);
   if (paymentMethod === PLUS_PAYMENT_METHOD_GPC_HELPER) {
     return PLUS_GPC_STEP_IDS;
+  }
+  if (paymentMethod === PLUS_PAYMENT_METHOD_PAYPAL_HOSTED) {
+    return PLUS_PAYPAL_HOSTED_CHECKOUT_STEP_IDS;
   }
   return paymentMethod === PLUS_PAYMENT_METHOD_GOPAY ? PLUS_GOPAY_STEP_IDS : PLUS_PAYPAL_STEP_IDS;
 }
@@ -768,21 +1071,21 @@ function getStepIdByKeyForState(stepKey, state = {}) {
 }
 
 function getNodeDefinitionsForState(state = {}) {
+  const resolvedState = buildResolvedStepDefinitionState(state);
   if (workflowEngine?.getNodesForState) {
-    return workflowEngine.getNodesForState(state);
+    return workflowEngine.getNodesForState(resolvedState);
   }
   if (self.MultiPageStepDefinitions?.getNodes) {
     return self.MultiPageStepDefinitions.getNodes({
-      ...state,
-      activeFlowId: state?.activeFlowId || state?.flowId || DEFAULT_ACTIVE_FLOW_ID,
-      flowId: state?.flowId || state?.activeFlowId || DEFAULT_ACTIVE_FLOW_ID,
+      ...resolvedState,
+      activeFlowId: resolvedState?.activeFlowId || resolvedState?.flowId || DEFAULT_ACTIVE_FLOW_ID,
+      flowId: resolvedState?.flowId || resolvedState?.activeFlowId || DEFAULT_ACTIVE_FLOW_ID,
     });
   }
-  return getStepDefinitionsForState(state)
+  return getStepDefinitionsForState(resolvedState)
     .map((definition) => ({
-      legacyStepId: Number(definition?.id),
       nodeId: String(definition?.key || '').trim(),
-      displayOrder: Number.isFinite(Number(definition?.order)) ? Number(definition.order) : Number(definition?.id),
+      displayOrder: Number.isFinite(Number(definition?.id)) ? Number(definition.id) : Number(definition?.order),
       title: String(definition?.title || '').trim(),
       executeKey: String(definition?.key || '').trim(),
     }))
@@ -790,19 +1093,21 @@ function getNodeDefinitionsForState(state = {}) {
 }
 
 function getNodeIdsForState(state = {}) {
+  const resolvedState = buildResolvedStepDefinitionState(state);
   if (workflowEngine?.getNodeIdsForState) {
-    return workflowEngine.getNodeIdsForState(state);
+    return workflowEngine.getNodeIdsForState(resolvedState);
   }
-  return getNodeDefinitionsForState(state).map((definition) => definition.nodeId).filter(Boolean);
+  return getNodeDefinitionsForState(resolvedState).map((definition) => definition.nodeId).filter(Boolean);
 }
 
 function getNodeDefinitionForState(nodeId, state = {}) {
   const normalizedNodeId = String(nodeId || '').trim();
   if (!normalizedNodeId) return null;
+  const resolvedState = buildResolvedStepDefinitionState(state);
   if (workflowEngine?.getNodeById) {
-    return workflowEngine.getNodeById(normalizedNodeId, state);
+    return workflowEngine.getNodeById(normalizedNodeId, resolvedState);
   }
-  return getNodeDefinitionsForState(state).find((definition) => definition.nodeId === normalizedNodeId) || null;
+  return getNodeDefinitionsForState(resolvedState).find((definition) => definition.nodeId === normalizedNodeId) || null;
 }
 
 function getLastNodeIdForState(state = {}) {
@@ -811,17 +1116,21 @@ function getLastNodeIdForState(state = {}) {
 }
 
 function getNodeIdByStepForState(step, state = {}) {
-  const definition = getStepDefinitionForState(step, state);
-  return String(definition?.key || '').trim();
+  const numericStep = Number(step);
+  if (!Number.isInteger(numericStep) || numericStep <= 0) {
+    return '';
+  }
+  const node = getNodeDefinitionsForState(state).find((definition) => Number(definition?.displayOrder) === numericStep);
+  return String(node?.nodeId || '').trim();
 }
 
 function getStepIdByNodeIdForState(nodeId, state = {}) {
   const normalizedNodeId = String(nodeId || '').trim();
   if (!normalizedNodeId) return null;
   const node = getNodeDefinitionForState(normalizedNodeId, state);
-  const legacyStepId = Number(node?.legacyStepId);
-  if (Number.isInteger(legacyStepId) && legacyStepId > 0) {
-    return legacyStepId;
+  const displayOrder = Number(node?.displayOrder);
+  if (Number.isInteger(displayOrder) && displayOrder > 0) {
+    return displayOrder;
   }
   return getStepIdByKeyForState(normalizedNodeId, state);
 }
@@ -870,6 +1179,10 @@ function setupDeclarativeNetRequestRules() {
 
 const PERSISTED_SETTING_DEFAULTS = {
   panelMode: 'cpa',
+  activeFlowId: DEFAULT_ACTIVE_FLOW_ID,
+  kiroTargetId: 'kiro-rs',
+  kiroRsUrl: String(self.MultiPageFlowRegistry?.DEFAULT_KIRO_RS_URL || '').trim(),
+  kiroRsKey: '',
   vpsUrl: '',
   vpsPassword: '',
   localCpaStep9Mode: DEFAULT_LOCAL_CPA_STEP9_MODE,
@@ -902,6 +1215,10 @@ const PERSISTED_SETTING_DEFAULTS = {
   customPassword: '',
   plusModeEnabled: false,
   plusPaymentMethod: DEFAULT_PLUS_PAYMENT_METHOD,
+  plusAccountAccessStrategy: 'oauth',
+  hostedCheckoutVerificationUrl: '',
+  hostedCheckoutPhoneNumber: '',
+  plusHostedCheckoutOauthDelaySeconds: DEFAULT_PLUS_HOSTED_CHECKOUT_OAUTH_DELAY_SECONDS,
   paypalEmail: '',
   paypalPassword: '',
   currentPayPalAccountId: '',
@@ -1051,6 +1368,43 @@ const PERSISTED_SETTING_DEFAULTS = {
 };
 
 const PERSISTED_SETTING_KEYS = Object.keys(PERSISTED_SETTING_DEFAULTS);
+const PERSISTED_SETTINGS_SCHEMA_KEYS = ['settingsSchemaVersion', 'settingsState'];
+const SETTINGS_SCHEMA_VIEW_KEYS = Object.freeze([
+  'activeFlowId',
+  'openaiIntegrationTargetId',
+  'panelMode',
+  'kiroTargetId',
+  'vpsUrl',
+  'vpsPassword',
+  'localCpaStep9Mode',
+  'sub2apiUrl',
+  'sub2apiEmail',
+  'sub2apiPassword',
+  'sub2apiGroupName',
+  'sub2apiGroupNames',
+  'sub2apiAccountPriority',
+  'sub2apiDefaultProxyName',
+  'codex2apiUrl',
+  'codex2apiAdminKey',
+  'customPassword',
+  'signupMethod',
+  'phoneVerificationEnabled',
+  'phoneSignupReloginAfterBindEmailEnabled',
+  'plusModeEnabled',
+  'plusPaymentMethod',
+  'plusAccountAccessStrategy',
+  'hostedCheckoutVerificationUrl',
+  'hostedCheckoutPhoneNumber',
+  'plusHostedCheckoutOauthDelaySeconds',
+  'mailProvider',
+  'ipProxyEnabled',
+  'ipProxyService',
+  'ipProxyMode',
+  'kiroRsUrl',
+  'kiroRsKey',
+  'stepExecutionRangeByFlow',
+]);
+const SETTINGS_SCHEMA_VIEW_KEY_SET = new Set(SETTINGS_SCHEMA_VIEW_KEYS);
 const SETTINGS_EXPORT_SCHEMA_VERSION = 1;
 const SETTINGS_EXPORT_FILENAME_PREFIX = 'multipage-settings';
 const STEP6_REGISTRATION_SUCCESS_WAIT_MS = 20000;
@@ -1063,93 +1417,17 @@ const DEFAULT_STATE = {
   currentNodeId: '',
   nodeStatuses: { ...DEFAULT_NODE_STATUSES },
   runtimeState: runtimeStateHelpers?.buildDefaultRuntimeState?.() || null,
+  kiroRuntime: kiroStateHelpers?.buildDefaultRuntimeState?.() || null,
   ...CONTRIBUTION_RUNTIME_DEFAULTS,
-  oauthUrl: null, // 运行时抓取到的 OAuth 地址，不要手动预填。
-  resolvedSignupMethod: null, // 当前自动轮次冻结后的实际注册方式。
-  accountIdentifierType: null,
-  accountIdentifier: '',
-  registrationEmailState: { ...DEFAULT_REGISTRATION_EMAIL_STATE },
   registrationEmailPool: [],
-  email: null, // 运行时邮箱，由程序自动获取并写入，不能手动预填。
-  password: null, // 运行时实际密码，由 customPassword 或程序自动生成后写入。
   accounts: [], // 已生成账号记录：{ email, password, createdAt }。
   accountRunHistory: [], // 账号运行历史快照，实际持久化在 chrome.storage.local。
   manualAliasUsage: {},
   preservedAliases: {},
   icloudAliasCache: [],
   icloudAliasCacheAt: 0,
-  lastEmailTimestamp: null, // 最近一次获取到邮箱数据的运行时时间戳。
-  lastSignupCode: null, // 注册验证码，运行时由程序自动读取并写入。
-  lastLoginCode: null, // 登录验证码，运行时由程序自动读取并写入。
-  localhostUrl: null, // 运行时捕获到的 localhost 回调地址，不要手动预填。
-  cpaOAuthState: null, // CPA OAuth state。
-  cpaManagementOrigin: null, // CPA 管理接口 origin。
-  sub2apiSessionId: null, // SUB2API OpenAI Auth 会话 ID。
-  sub2apiOAuthState: null, // SUB2API OpenAI Auth state。
-  sub2apiGroupId: null, // SUB2API 目标分组 ID。
-  sub2apiGroupIds: [], // SUB2API 多目标分组 ID。
-  sub2apiDraftName: null, // SUB2API 本轮预生成的账号名称。
-  sub2apiProxyId: null, // SUB2API 本轮使用的代理 ID。
-  codex2apiSessionId: null, // Codex2API OAuth 会话 ID。
-  codex2apiOAuthState: null, // Codex2API OAuth state。
-  plusCheckoutTabId: null, // Plus checkout / PayPal 标签页 ID。
-  automationWindowId: null, // 当前任务锁定的浏览器窗口 ID，避免新标签页跑到其它窗口。
-  plusCheckoutUrl: null, // Plus checkout 运行时短链，不写入持久配置。
-  plusCheckoutCountry: 'DE',
-  plusCheckoutCurrency: 'EUR',
-  plusCheckoutSource: '',
-  plusBillingCountryText: '',
-  plusBillingAddress: null,
-  plusPaypalApprovedAt: null,
-  plusGoPayApprovedAt: null,
-  plusReturnUrl: '',
-  plusManualConfirmationPending: false,
-  plusManualConfirmationRequestId: '',
-  plusManualConfirmationStep: 0,
-  plusManualConfirmationMethod: '',
-  plusManualConfirmationTitle: '',
-  plusManualConfirmationMessage: '',
-  gopayHelperReferenceId: '',
-  gopayHelperGoPayGuid: '',
-  gopayHelperRedirectUrl: '',
-  gopayHelperNextAction: '',
-  gopayHelperFlowId: '',
-  gopayHelperChallengeId: '',
-  gopayHelperStartPayload: null,
-  gopayHelperTaskId: '',
-  gopayHelperTaskStatus: '',
-  gopayHelperStatusText: '',
-  gopayHelperRemoteStage: '',
-  gopayHelperApiWaitingFor: '',
-  gopayHelperApiInputDeadlineAt: '',
-  gopayHelperApiInputWaitSeconds: 0,
-  gopayHelperLastInputError: '',
-  gopayHelperOtpInvalidCount: 0,
-  gopayHelperFailureStage: '',
-  gopayHelperFailureDetail: '',
-  gopayHelperTaskPayload: null,
-  gopayHelperOrderCreatedAt: 0,
-  gopayHelperTaskProgressSignature: '',
-  gopayHelperTaskProgressAt: 0,
-  gopayHelperTaskProgressTaskId: '',
-  gopayHelperPinPayload: null,
-  gopayHelperResolvedOtp: '',
-  gopayHelperOtpRequestId: '',
-  gopayHelperOtpReferenceId: '',
-  flowStartTime: null, // 当前流程开始时间。
-  tabRegistry: {}, // 程序维护的标签页注册表。
-  sourceLastUrls: {}, // 各来源页面最近一次打开的地址记录。
   logs: [], // 侧边栏展示的运行日志。
   ...PERSISTED_SETTING_DEFAULTS, // 合并 chrome.storage.local 中持久化保存的用户配置。
-  ipProxyApiPool: [],
-  ipProxyApiCurrentIndex: 0,
-  ipProxyApiCurrent: null,
-  ipProxyAccountPool: [],
-  ipProxyAccountCurrentIndex: 0,
-  ipProxyAccountCurrent: null,
-  ipProxyPool: [],
-  ipProxyCurrentIndex: 0,
-  ipProxyCurrent: null,
   luckmailApiKey: '',
   luckmailBaseUrl: DEFAULT_LUCKMAIL_BASE_URL,
   luckmailEmailType: DEFAULT_LUCKMAIL_EMAIL_TYPE,
@@ -1157,23 +1435,6 @@ const DEFAULT_STATE = {
   luckmailUsedPurchases: {},
   luckmailPreserveTagId: 0,
   luckmailPreserveTagName: DEFAULT_LUCKMAIL_PRESERVE_TAG_NAME,
-  currentLuckmailPurchase: null,
-  currentLuckmailMailCursor: null,
-  currentYydsMailInbox: null,
-  currentPhoneActivation: null,
-  phoneNumber: '',
-  currentPhoneVerificationCode: '',
-  currentPhoneVerificationCountdownEndsAt: 0,
-  currentPhoneVerificationCountdownWindowIndex: 0,
-  currentPhoneVerificationCountdownWindowTotal: 0,
-  reusablePhoneActivation: null,
-  freeReusablePhoneActivation: null,
-  phoneReusableActivationPool: [],
-  signupPhoneNumber: '',
-  signupPhoneActivation: null,
-  signupPhoneCompletedActivation: null,
-  signupPhoneVerificationRequestedAt: null,
-  signupPhoneVerificationPurpose: '',
   heroSmsLastPriceTiers: [],
   heroSmsLastPriceCountryId: 0,
   heroSmsLastPriceCountryLabel: '',
@@ -1619,7 +1880,7 @@ function canUsePhoneSignup(state = {}) {
   }
   return Boolean(state?.phoneVerificationEnabled)
     && !Boolean(state?.plusModeEnabled)
-    && !Boolean(state?.contributionMode);
+    && !Boolean(state?.accountContributionEnabled);
 }
 
 function resolveSignupMethod(state = {}) {
@@ -1703,10 +1964,27 @@ function normalizePlusPaymentMethod(value = '') {
     return rootScope.GoPayUtils.normalizePlusPaymentMethod(value);
   }
   const normalized = String(value || '').trim().toLowerCase();
+  const paypalHostedValue = typeof PLUS_PAYMENT_METHOD_PAYPAL_HOSTED !== 'undefined'
+    ? PLUS_PAYMENT_METHOD_PAYPAL_HOSTED
+    : 'paypal-hosted';
+  if (normalized === paypalHostedValue || normalized === 'paypal_direct' || normalized === 'paypal-direct') {
+    return paypalHostedValue;
+  }
   if (normalized === PLUS_PAYMENT_METHOD_GPC_HELPER) {
     return PLUS_PAYMENT_METHOD_GPC_HELPER;
   }
   return normalized === PLUS_PAYMENT_METHOD_GOPAY ? PLUS_PAYMENT_METHOD_GOPAY : PLUS_PAYMENT_METHOD_PAYPAL;
+}
+
+function normalizePlusAccountAccessStrategy(value = '') {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION) {
+    return PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION;
+  }
+  if (normalized === PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION) {
+    return PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION;
+  }
+  return PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH;
 }
 
 function normalizeFiveSimCountryId(value, fallback = FIVE_SIM_COUNTRY_ID) {
@@ -2801,6 +3079,20 @@ function normalizePersistentSettingValue(key, value) {
   switch (key) {
     case 'panelMode':
       return normalizePanelMode(value);
+    case 'activeFlowId':
+      if (typeof self.MultiPageFlowRegistry?.normalizeFlowId === 'function') {
+        return self.MultiPageFlowRegistry.normalizeFlowId(value, DEFAULT_ACTIVE_FLOW_ID);
+      }
+      return String(value || '').trim().toLowerCase() === 'kiro' ? 'kiro' : DEFAULT_ACTIVE_FLOW_ID;
+    case 'kiroTargetId':
+      if (typeof self.MultiPageFlowRegistry?.normalizeTargetId === 'function') {
+        return self.MultiPageFlowRegistry.normalizeTargetId('kiro', value, 'kiro-rs');
+      }
+      return String(value || '').trim().toLowerCase() === 'kiro-rs' ? 'kiro-rs' : 'kiro-rs';
+    case 'kiroRsUrl':
+      return String(value || '').trim();
+    case 'kiroRsKey':
+      return String(value || '').trim();
     case 'vpsUrl':
       return String(value || '').trim();
     case 'vpsPassword':
@@ -2895,6 +3187,16 @@ function normalizePersistentSettingValue(key, value) {
       return normalizeSignupMethod(value);
     case 'plusPaymentMethod':
       return normalizePlusPaymentMethod(value);
+    case 'plusAccountAccessStrategy':
+      return normalizePlusAccountAccessStrategy(value);
+    case 'hostedCheckoutVerificationUrl':
+      return String(value || '').trim();
+    case 'hostedCheckoutPhoneNumber':
+      return String(value || '').trim();
+    case 'plusHostedCheckoutOauthDelaySeconds': {
+      const numeric = Number(value);
+      return Math.min(120, Math.max(0, Math.floor(Number.isFinite(numeric) ? numeric : DEFAULT_PLUS_HOSTED_CHECKOUT_OAUTH_DELAY_SECONDS)));
+    }
     case 'paypalEmail':
       return String(value || '').trim();
     case 'paypalPassword':
@@ -3013,7 +3315,7 @@ function normalizePersistentSettingValue(key, value) {
     case 'autoRunDelayEnabled':
       return Boolean(value);
     case 'operationDelayEnabled':
-      return typeof value === 'boolean' ? value : true;
+      return true;
     case 'step6CookieCleanupEnabled':
       return Boolean(value);
     case 'stepExecutionRangeByFlow':
@@ -3226,6 +3528,11 @@ function buildPersistentSettingsPayload(input = {}, options = {}) {
     }
   }
 
+  const isPlainObjectForSettingsSchema = typeof isPlainObjectValue === 'function'
+    ? isPlainObjectValue
+    : ((value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value));
+  const hasExplicitSettingsState = isPlainObjectForSettingsSchema(normalizedInput.settingsState);
+
   const payload = {};
   let matchedKeyCount = 0;
   for (const key of persistedSettingKeys) {
@@ -3248,10 +3555,10 @@ function buildPersistentSettingsPayload(input = {}, options = {}) {
         : normalizedInput.fiveSimReuseEnabled);
     const normalizedReuseEnabled = normalizePersistentSettingValue('phoneSmsReuseEnabled', reuseSource);
     payload.phoneSmsReuseEnabled = normalizedReuseEnabled;
-    payload.heroSmsReuseEnabled = normalizedReuseEnabled;
+      payload.heroSmsReuseEnabled = normalizedReuseEnabled;
   }
 
-  if (requireKnownKeys && matchedKeyCount === 0) {
+  if (requireKnownKeys && matchedKeyCount === 0 && !hasExplicitSettingsState) {
     throw new Error('\u914d\u7f6e\u6587\u4ef6\u4e2d\u6ca1\u6709\u53ef\u8bc6\u522b\u7684\u914d\u7f6e\u5185\u5bb9\u3002');
   }
 
@@ -3329,16 +3636,331 @@ function buildPersistentSettingsPayload(input = {}, options = {}) {
     payload.ipProxyRegion = String(activeProfile?.region || payload.ipProxyRegion || '').trim();
   }
 
+  const hasExplicitSettingsSchema = hasExplicitSettingsState
+    || Object.prototype.hasOwnProperty.call(normalizedInput, 'settingsSchemaVersion');
+  if (fillDefaults || hasExplicitSettingsSchema) {
+    const settingsSchemaApi = typeof getSettingsSchemaApi === 'function'
+      ? getSettingsSchemaApi()
+      : null;
+    if (settingsSchemaApi?.normalizeSettingsState && settingsSchemaApi?.buildSettingsView) {
+      const settingsSchemaInput = {};
+      for (const key of persistedSettingKeys) {
+        if (normalizedInput[key] !== undefined) {
+          settingsSchemaInput[key] = payload[key];
+        }
+      }
+      Object.assign(payload, projectSettingsSchemaView(settingsSchemaApi, {
+        ...settingsSchemaInput,
+        ...(isPlainObjectForSettingsSchema(normalizedInput.settingsState)
+          ? { settingsState: normalizedInput.settingsState }
+          : {}),
+        ...(Object.prototype.hasOwnProperty.call(normalizedInput, 'settingsSchemaVersion')
+          ? { settingsSchemaVersion: normalizedInput.settingsSchemaVersion }
+          : {}),
+      }, payload));
+    }
+  }
+
   return payload;
+}
+
+function getSettingsSchemaApi() {
+  if (typeof self.MultiPageSettingsSchema?.createSettingsSchema !== 'function') {
+    return null;
+  }
+  return self.MultiPageSettingsSchema.createSettingsSchema({
+    flowRegistry: self.MultiPageFlowRegistry,
+    defaultFlowId: DEFAULT_ACTIVE_FLOW_ID,
+  });
+}
+
+function projectSettingsSchemaView(settingsSchemaApi, normalizedInput = {}, payload = {}) {
+  if (
+    !settingsSchemaApi?.normalizeSettingsState
+    || !settingsSchemaApi?.buildSettingsView
+  ) {
+    return payload;
+  }
+  const normalizedSettingsState = settingsSchemaApi.normalizeSettingsState(normalizedInput, {
+    activeFlowId: normalizedInput?.activeFlowId || DEFAULT_ACTIVE_FLOW_ID,
+  });
+  return settingsSchemaApi.buildSettingsView(normalizedSettingsState, payload);
+}
+
+function setSettingsStatePatchValue(patch, path, value) {
+  let cursor = patch;
+  for (let index = 0; index < path.length - 1; index += 1) {
+    const key = path[index];
+    if (!isPlainObjectValue(cursor[key])) {
+      cursor[key] = {};
+    }
+    cursor = cursor[key];
+  }
+  cursor[path[path.length - 1]] = value;
+}
+
+function mergeSettingsStatePatch(baseValue = {}, patchValue = {}) {
+  if (!isPlainObjectValue(patchValue)) {
+    return isPlainObjectValue(baseValue) ? { ...baseValue } : {};
+  }
+  const next = {
+    ...(isPlainObjectValue(baseValue) ? baseValue : {}),
+  };
+  Object.entries(patchValue).forEach(([key, value]) => {
+    next[key] = isPlainObjectValue(value)
+      ? mergeSettingsStatePatch(next[key], value)
+      : value;
+  });
+  return next;
+}
+
+function buildSettingsStatePatchFromFlatUpdates(updates = {}) {
+  const patch = {};
+  const hasUpdate = (key) => Object.prototype.hasOwnProperty.call(updates, key);
+  const assignIfUpdated = (key, path) => {
+    if (hasUpdate(key)) {
+      setSettingsStatePatchValue(patch, path, updates[key]);
+    }
+  };
+
+  assignIfUpdated('activeFlowId', ['activeFlowId']);
+  if (hasUpdate('openaiIntegrationTargetId') || hasUpdate('panelMode')) {
+    setSettingsStatePatchValue(
+      patch,
+      ['flows', 'openai', 'integrationTargetId'],
+      hasUpdate('openaiIntegrationTargetId') ? updates.openaiIntegrationTargetId : updates.panelMode
+    );
+  }
+  assignIfUpdated('kiroTargetId', ['flows', 'kiro', 'targetId']);
+  assignIfUpdated('vpsUrl', ['flows', 'openai', 'integrationTargets', 'cpa', 'vpsUrl']);
+  assignIfUpdated('vpsPassword', ['flows', 'openai', 'integrationTargets', 'cpa', 'vpsPassword']);
+  assignIfUpdated('localCpaStep9Mode', ['flows', 'openai', 'integrationTargets', 'cpa', 'localCpaStep9Mode']);
+  assignIfUpdated('sub2apiUrl', ['flows', 'openai', 'integrationTargets', 'sub2api', 'sub2apiUrl']);
+  assignIfUpdated('sub2apiEmail', ['flows', 'openai', 'integrationTargets', 'sub2api', 'sub2apiEmail']);
+  assignIfUpdated('sub2apiPassword', ['flows', 'openai', 'integrationTargets', 'sub2api', 'sub2apiPassword']);
+  assignIfUpdated('sub2apiGroupName', ['flows', 'openai', 'integrationTargets', 'sub2api', 'sub2apiGroupName']);
+  assignIfUpdated('sub2apiGroupNames', ['flows', 'openai', 'integrationTargets', 'sub2api', 'sub2apiGroupNames']);
+  assignIfUpdated('sub2apiAccountPriority', ['flows', 'openai', 'integrationTargets', 'sub2api', 'sub2apiAccountPriority']);
+  assignIfUpdated('sub2apiDefaultProxyName', ['flows', 'openai', 'integrationTargets', 'sub2api', 'sub2apiDefaultProxyName']);
+  assignIfUpdated('codex2apiUrl', ['flows', 'openai', 'integrationTargets', 'codex2api', 'codex2apiUrl']);
+  assignIfUpdated('codex2apiAdminKey', ['flows', 'openai', 'integrationTargets', 'codex2api', 'codex2apiAdminKey']);
+  assignIfUpdated('customPassword', ['services', 'account', 'customPassword']);
+  assignIfUpdated('signupMethod', ['flows', 'openai', 'signup', 'signupMethod']);
+  assignIfUpdated('phoneVerificationEnabled', ['flows', 'openai', 'signup', 'phoneVerificationEnabled']);
+  assignIfUpdated('phoneSignupReloginAfterBindEmailEnabled', ['flows', 'openai', 'signup', 'phoneSignupReloginAfterBindEmailEnabled']);
+  assignIfUpdated('plusModeEnabled', ['flows', 'openai', 'plus', 'plusModeEnabled']);
+  assignIfUpdated('plusPaymentMethod', ['flows', 'openai', 'plus', 'plusPaymentMethod']);
+  assignIfUpdated('plusAccountAccessStrategy', ['flows', 'openai', 'plus', 'plusAccountAccessStrategy']);
+  assignIfUpdated('mailProvider', ['services', 'email', 'provider']);
+  assignIfUpdated('ipProxyEnabled', ['services', 'proxy', 'enabled']);
+  assignIfUpdated('ipProxyService', ['services', 'proxy', 'provider']);
+  assignIfUpdated('ipProxyMode', ['services', 'proxy', 'mode']);
+  assignIfUpdated('kiroRsUrl', ['flows', 'kiro', 'targets', 'kiro-rs', 'baseUrl']);
+  assignIfUpdated('kiroRsKey', ['flows', 'kiro', 'targets', 'kiro-rs', 'apiKey']);
+
+  if (hasUpdate('stepExecutionRangeByFlow') && isPlainObjectValue(updates.stepExecutionRangeByFlow)) {
+    if (isPlainObjectValue(updates.stepExecutionRangeByFlow.openai)) {
+      setSettingsStatePatchValue(
+        patch,
+        ['flows', 'openai', 'autoRun', 'stepExecutionRange'],
+        updates.stepExecutionRangeByFlow.openai
+      );
+    }
+    if (isPlainObjectValue(updates.stepExecutionRangeByFlow.kiro)) {
+      setSettingsStatePatchValue(
+        patch,
+        ['flows', 'kiro', 'autoRun', 'stepExecutionRange'],
+        updates.stepExecutionRangeByFlow.kiro
+      );
+    }
+  }
+
+  return patch;
+}
+
+function buildPersistedSettingsStoragePayload(payload = {}) {
+  const storagePayload = {};
+  Object.entries(payload || {}).forEach(([key, value]) => {
+    if (SETTINGS_SCHEMA_VIEW_KEY_SET.has(key)) {
+      return;
+    }
+    storagePayload[key] = value;
+  });
+  storagePayload.settingsSchemaVersion = Number(payload?.settingsSchemaVersion) || 0;
+  storagePayload.settingsState = payload?.settingsState;
+  return storagePayload;
 }
 
 async function getPersistedSettings() {
   const stored = await chrome.storage.local.get([
     ...PERSISTED_SETTING_KEYS,
+    ...PERSISTED_SETTINGS_SCHEMA_KEYS,
     ...LEGACY_AUTO_STEP_DELAY_KEYS,
     ...LEGACY_VERIFICATION_RESEND_COUNT_KEYS,
   ]);
   return buildPersistentSettingsPayload(stored, { fillDefaults: true });
+}
+
+function cloneAutoRunKeepStateValue(value) {
+  if (Array.isArray(value)) {
+    return value.map((entry) => cloneAutoRunKeepStateValue(entry));
+  }
+  if (isPlainObjectValue(value)) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entryValue]) => [key, cloneAutoRunKeepStateValue(entryValue)])
+    );
+  }
+  return value;
+}
+
+function mergeAutoRunKeepStateValue(baseValue, patchValue) {
+  if (Array.isArray(patchValue)) {
+    return patchValue.map((entry) => cloneAutoRunKeepStateValue(entry));
+  }
+  if (!isPlainObjectValue(patchValue)) {
+    return patchValue === undefined ? cloneAutoRunKeepStateValue(baseValue) : patchValue;
+  }
+
+  const baseObject = isPlainObjectValue(baseValue) ? baseValue : {};
+  const nextObject = {
+    ...cloneAutoRunKeepStateValue(baseObject),
+  };
+  for (const [key, entryValue] of Object.entries(patchValue)) {
+    nextObject[key] = mergeAutoRunKeepStateValue(baseObject[key], entryValue);
+  }
+  return nextObject;
+}
+
+function collectAutoRunFreshResetRuntimeSettingKeys() {
+  const keySet = new Set();
+  const flowFieldGroups = isPlainObjectValue(runtimeStateHelpers?.FLOW_FIELD_GROUPS)
+    ? runtimeStateHelpers.FLOW_FIELD_GROUPS
+    : {};
+
+  for (const groups of Object.values(flowFieldGroups)) {
+    if (!isPlainObjectValue(groups)) {
+      continue;
+    }
+    for (const fields of Object.values(groups)) {
+      if (!Array.isArray(fields)) {
+        continue;
+      }
+      for (const field of fields) {
+        const normalizedField = String(field || '').trim();
+        if (normalizedField) {
+          keySet.add(normalizedField);
+        }
+      }
+    }
+  }
+
+  const sharedRuntimeFieldGroups = [
+    runtimeStateHelpers?.RUNTIME_SHARED_FIELDS,
+    runtimeStateHelpers?.RUNTIME_PROXY_FIELDS,
+    kiroStateHelpers?.FLAT_FIELD_KEYS,
+  ];
+  for (const fields of sharedRuntimeFieldGroups) {
+    if (!Array.isArray(fields)) {
+      continue;
+    }
+    for (const field of fields) {
+      const normalizedField = String(field || '').trim();
+      if (normalizedField) {
+        keySet.add(normalizedField);
+      }
+    }
+  }
+
+  return keySet;
+}
+
+function buildAutoRunFreshResetSettingsState(prevState = {}, activeFlowId = DEFAULT_ACTIVE_FLOW_ID) {
+  const currentSettingsState = isPlainObjectValue(prevState?.settingsState)
+    ? prevState.settingsState
+    : {};
+  const normalizedStepExecutionRangeByFlow = normalizeStepExecutionRangeByFlow(prevState?.stepExecutionRangeByFlow || {});
+  const nextSettingsStatePatch = {
+    activeFlowId,
+    services: {
+      account: {
+        customPassword: prevState?.customPassword,
+      },
+      email: {
+        provider: prevState?.mailProvider,
+      },
+      proxy: {
+        enabled: prevState?.ipProxyEnabled,
+        provider: prevState?.ipProxyService,
+        mode: prevState?.ipProxyMode,
+      },
+    },
+    flows: {
+      openai: {
+        integrationTargetId: prevState?.openaiIntegrationTargetId || prevState?.panelMode,
+        autoRun: normalizedStepExecutionRangeByFlow.openai
+          ? {
+            stepExecutionRange: normalizedStepExecutionRangeByFlow.openai,
+          }
+          : undefined,
+      },
+      kiro: {
+        targetId: prevState?.kiroTargetId,
+        autoRun: normalizedStepExecutionRangeByFlow.kiro
+          ? {
+            stepExecutionRange: normalizedStepExecutionRangeByFlow.kiro,
+          }
+          : undefined,
+      },
+    },
+  };
+
+  return mergeAutoRunKeepStateValue(currentSettingsState, nextSettingsStatePatch);
+}
+
+function buildFreshAutoRunKeepState(prevState = {}) {
+  const sourceState = isPlainObjectValue(prevState) ? prevState : {};
+  const activeFlowId = self.MultiPageFlowRegistry?.normalizeFlowId
+    ? self.MultiPageFlowRegistry.normalizeFlowId(
+      sourceState.activeFlowId || sourceState.flowId,
+      DEFAULT_ACTIVE_FLOW_ID
+    )
+    : (String(sourceState.activeFlowId || sourceState.flowId || DEFAULT_ACTIVE_FLOW_ID).trim().toLowerCase()
+      || DEFAULT_ACTIVE_FLOW_ID);
+  const settingsState = buildAutoRunFreshResetSettingsState(sourceState, activeFlowId);
+  const persistedSnapshot = buildPersistentSettingsPayload({
+    ...sourceState,
+    activeFlowId,
+    settingsState,
+  }, {
+    fillDefaults: false,
+  });
+  const runtimeOnlyKeys = collectAutoRunFreshResetRuntimeSettingKeys();
+  const keepState = {};
+
+  for (const [key, value] of Object.entries(persistedSnapshot)) {
+    if (runtimeOnlyKeys.has(key)) {
+      continue;
+    }
+    keepState[key] = value;
+  }
+
+  keepState.activeFlowId = activeFlowId;
+  keepState.flowId = activeFlowId;
+  if (Object.prototype.hasOwnProperty.call(sourceState, 'panelMode')) {
+    keepState.panelMode = normalizePanelMode(sourceState.panelMode);
+  }
+  if (typeof kiroStateHelpers?.buildFreshKeepState === 'function') {
+    Object.assign(keepState, kiroStateHelpers.buildFreshKeepState(sourceState));
+  } else if (Object.prototype.hasOwnProperty.call(sourceState, 'kiroTargetId')) {
+    keepState.kiroTargetId = self.MultiPageFlowRegistry?.normalizeTargetId
+      ? self.MultiPageFlowRegistry.normalizeTargetId('kiro', sourceState.kiroTargetId, 'kiro-rs')
+      : String(sourceState.kiroTargetId || 'kiro-rs').trim().toLowerCase();
+  }
+  if (Object.prototype.hasOwnProperty.call(sourceState, 'settingsSchemaVersion')) {
+    keepState.settingsSchemaVersion = Number(sourceState.settingsSchemaVersion) || 0;
+  }
+  keepState.settingsState = settingsState;
+  return keepState;
 }
 
 async function getPersistedAliasState() {
@@ -3395,6 +4017,56 @@ async function initializeSessionStorageAccess() {
   }
 }
 
+async function migrateLegacyAccountContributionState() {
+  const legacyKeys = ['contributionMode', 'contributionModeExpected'];
+  const sessionKeys = [
+    ...legacyKeys,
+    'accountContributionEnabled',
+    'accountContributionExpected',
+    'contributionAdapterId',
+    'flowContributionRuntime',
+    'activeFlowId',
+    'flowId',
+  ];
+  const legacySessionState = await chrome.storage.session.get(sessionKeys).catch(() => ({}));
+  const updates = {};
+  const shouldEnable = legacySessionState.accountContributionEnabled === undefined
+    && legacySessionState.contributionMode === true;
+  if (shouldEnable) {
+    const flowId = normalizeAccountContributionFlowId(legacySessionState.activeFlowId || legacySessionState.flowId);
+    const adapterId = normalizeAccountContributionAdapterId(flowId, legacySessionState.contributionAdapterId);
+    updates.accountContributionEnabled = true;
+    updates.accountContributionExpected = legacySessionState.accountContributionExpected !== undefined
+      ? Boolean(legacySessionState.accountContributionExpected)
+      : Boolean(legacySessionState.contributionModeExpected);
+    updates.contributionAdapterId = adapterId;
+    updates.flowContributionRuntime = buildFlowContributionRuntimePatch(
+      legacySessionState.flowContributionRuntime,
+      flowId,
+      adapterId,
+      true
+    );
+  } else if (
+    legacySessionState.contributionMode !== undefined
+    && legacySessionState.accountContributionEnabled === undefined
+  ) {
+    updates.accountContributionEnabled = false;
+    updates.accountContributionExpected = false;
+  } else if (
+    legacySessionState.contributionModeExpected !== undefined
+    && legacySessionState.accountContributionExpected === undefined
+  ) {
+    updates.accountContributionExpected = Boolean(legacySessionState.contributionModeExpected);
+  }
+  if (Object.keys(updates).length > 0) {
+    await chrome.storage.session.set(updates);
+  }
+  await Promise.all([
+    chrome.storage.session.remove?.(legacyKeys),
+    chrome.storage.local.remove?.(legacyKeys),
+  ].filter(Boolean)).catch(() => {});
+}
+
 async function setState(updates) {
   console.log(LOG_PREFIX, 'storage.set:', JSON.stringify(updates).slice(0, 200));
   if (Object.keys(updates || {}).length > 0) {
@@ -3424,11 +4096,71 @@ async function setState(updates) {
 }
 
 async function setPersistentSettings(updates) {
-  const persistedUpdates = buildPersistentSettingsPayload(updates);
+  const currentSettings = await getPersistedSettings();
+  const nextUpdates = updates && typeof updates === 'object' && !Array.isArray(updates)
+    ? updates
+    : {};
+  const settingsSchemaApi = typeof getSettingsSchemaApi === 'function'
+    ? getSettingsSchemaApi()
+    : null;
+  const hasSchemaApi = Boolean(
+    settingsSchemaApi?.normalizeSettingsState
+    && settingsSchemaApi?.buildSettingsView
+  );
+  const explicitFlatUpdates = {
+    ...nextUpdates,
+  };
+  delete explicitFlatUpdates.settingsSchemaVersion;
+  delete explicitFlatUpdates.settingsState;
+
+  let mergedSettingsState = nextUpdates.settingsState ?? currentSettings.settingsState;
+  if (hasSchemaApi) {
+    const currentSettingsState = settingsSchemaApi.normalizeSettingsState(
+      isPlainObjectValue(currentSettings?.settingsState)
+        ? { settingsState: currentSettings.settingsState }
+        : currentSettings,
+      {
+        activeFlowId: currentSettings?.activeFlowId || DEFAULT_ACTIVE_FLOW_ID,
+      }
+    );
+    mergedSettingsState = isPlainObjectValue(nextUpdates.settingsState)
+      ? (typeof settingsSchemaApi.mergeSettingsState === 'function'
+        ? settingsSchemaApi.mergeSettingsState(currentSettingsState, nextUpdates.settingsState)
+        : nextUpdates.settingsState)
+      : currentSettingsState;
+    mergedSettingsState = mergeSettingsStatePatch(
+      mergedSettingsState,
+      buildSettingsStatePatchFromFlatUpdates(explicitFlatUpdates)
+    );
+  }
+
+  const nextPayloadInput = {
+    ...currentSettings,
+    ...explicitFlatUpdates,
+    settingsSchemaVersion: nextUpdates.settingsSchemaVersion ?? currentSettings.settingsSchemaVersion,
+    settingsState: mergedSettingsState,
+  };
+  if (hasSchemaApi && isPlainObjectValue(nextUpdates.settingsState)) {
+    for (const key of SETTINGS_SCHEMA_VIEW_KEYS) {
+      delete nextPayloadInput[key];
+    }
+    Object.assign(nextPayloadInput, explicitFlatUpdates);
+  }
+
+  const persistedUpdates = buildPersistentSettingsPayload(nextPayloadInput, {
+    fillDefaults: true,
+  });
 
   if (Object.keys(persistedUpdates).length > 0) {
-    await chrome.storage.local.set(persistedUpdates);
+    const storagePayload = hasSchemaApi
+      ? buildPersistedSettingsStoragePayload(persistedUpdates)
+      : persistedUpdates;
+    if (hasSchemaApi && chrome.storage?.local?.remove) {
+      await chrome.storage.local.remove(SETTINGS_SCHEMA_VIEW_KEYS);
+    }
+    await chrome.storage.local.set(storagePayload);
   }
+  return persistedUpdates;
 }
 
 function buildSettingsExportFilename(date = new Date()) {
@@ -3488,7 +4220,7 @@ async function importSettingsBundle(configBundle) {
     || Object.prototype.hasOwnProperty.call(importedSettings, 'signupMethod')
     || Object.prototype.hasOwnProperty.call(importedSettings, 'panelMode')
     || Object.prototype.hasOwnProperty.call(importedSettings, 'activeFlowId')
-    || Object.prototype.hasOwnProperty.call(importedSettings, 'contributionMode')
+    || Object.prototype.hasOwnProperty.call(importedSettings, 'accountContributionEnabled')
   ) {
     importedSettings.signupMethod = resolveSignupMethod({
       ...state,
@@ -3497,10 +4229,10 @@ async function importSettingsBundle(configBundle) {
     });
   }
 
-  await setPersistentSettings(importedSettings);
+  const persistedSettings = await setPersistentSettings(importedSettings) || importedSettings;
 
   const sessionUpdates = {
-    ...importedSettings,
+    ...persistedSettings,
     currentHotmailAccountId: null,
     email: null,
     registrationEmailState: { ...DEFAULT_REGISTRATION_EMAIL_STATE },
@@ -3508,7 +4240,7 @@ async function importSettingsBundle(configBundle) {
 
   await setState(sessionUpdates);
   broadcastDataUpdate({
-    ...importedSettings,
+    ...persistedSettings,
     currentHotmailAccountId: null,
     ...(sessionUpdates.email !== undefined ? { email: sessionUpdates.email } : {}),
     registrationEmailState: sessionUpdates.registrationEmailState,
@@ -3698,27 +4430,42 @@ async function setPasswordState(password) {
   broadcastDataUpdate({ password });
 }
 
-function buildContributionModeState(enabled, persistedSettings = {}, currentState = {}) {
+function buildAccountContributionState(enabled, persistedSettings = {}, currentState = {}, options = {}) {
   const currentContributionState = {};
   for (const key of CONTRIBUTION_RUNTIME_KEYS) {
     currentContributionState[key] = currentState[key] !== undefined
       ? currentState[key]
       : CONTRIBUTION_RUNTIME_DEFAULTS[key];
   }
-
   if (enabled) {
-    const routing = resolveContributionModeRoutingState({
+    const activeFlowId = normalizeAccountContributionFlowId(
+      options.flowId
+      || currentState.activeFlowId
+      || currentState.flowId
+      || persistedSettings.activeFlowId
+      || persistedSettings.flowId
+      || DEFAULT_ACTIVE_FLOW_ID
+    );
+    const adapterId = assertAccountContributionAdapterAvailable(
+      activeFlowId,
+      options.adapterId || currentState.contributionAdapterId
+    );
+    const routing = activeFlowId === DEFAULT_ACTIVE_FLOW_ID ? resolveOpenAiContributionRoutingState({
       ...persistedSettings,
       ...currentState,
       ...currentContributionState,
-    });
+    }) : null;
     return {
       ...currentContributionState,
-      contributionMode: true,
-      contributionModeExpected: true,
-      contributionSource: routing.source,
-      contributionTargetGroupName: routing.targetGroupName,
-      panelMode: routing.source,
+      accountContributionEnabled: true,
+      accountContributionExpected: true,
+      contributionAdapterId: adapterId,
+      flowContributionRuntime: buildFlowContributionRuntimePatch(currentContributionState.flowContributionRuntime, activeFlowId, adapterId, true),
+      ...(routing ? {
+        contributionSource: routing.source,
+        contributionTargetGroupName: routing.targetGroupName,
+        panelMode: routing.source,
+      } : {}),
       customPassword: '',
       accountRunHistoryTextEnabled: false,
     };
@@ -3726,22 +4473,24 @@ function buildContributionModeState(enabled, persistedSettings = {}, currentStat
 
   return {
     ...CONTRIBUTION_RUNTIME_DEFAULTS,
-    contributionMode: false,
-    contributionModeExpected: false,
+    accountContributionEnabled: false,
+    accountContributionExpected: false,
+    contributionAdapterId: '',
+    flowContributionRuntime: {},
     panelMode: persistedSettings.panelMode || DEFAULT_STATE.panelMode,
     customPassword: persistedSettings.customPassword || '',
     accountRunHistoryTextEnabled: Boolean(persistedSettings.accountRunHistoryTextEnabled),
   };
 }
 
-async function setContributionMode(enabled) {
+async function setAccountContributionMode(enabled, options = {}) {
   const normalizedEnabled = Boolean(enabled);
   const [persistedSettings, currentState] = await Promise.all([
     getPersistedSettings(),
     getState(),
   ]);
 
-  const updates = buildContributionModeState(normalizedEnabled, persistedSettings, currentState);
+  const updates = buildAccountContributionState(normalizedEnabled, persistedSettings, currentState, options);
 
   await setState(updates);
   const nextState = await getState();
@@ -3996,7 +4745,10 @@ async function resetState() {
     getPersistedSettings(),
     getPersistedAliasState(),
   ]);
-  const contributionModeState = buildContributionModeState(Boolean(prev.contributionMode), persistedSettings, prev);
+  const accountContributionState = buildAccountContributionState(Boolean(prev.accountContributionEnabled), persistedSettings, prev, {
+    adapterId: prev.contributionAdapterId,
+    flowId: prev.activeFlowId || prev.flowId,
+  });
   const reusablePhoneActivation = (
     prev.reusablePhoneActivation
     && typeof prev.reusablePhoneActivation === 'object'
@@ -4039,7 +4791,7 @@ async function resetState() {
     ...DEFAULT_STATE,
     ...persistedSettings,
     ...persistedAliasState,
-    ...contributionModeState,
+    ...accountContributionState,
     seenCodes: prev.seenCodes || [],
     seenInbucketMailIds: prev.seenInbucketMailIds || [],
     accounts: prev.accounts || [],
@@ -4072,29 +4824,32 @@ async function resetState() {
 }
 
 /**
- * Generate a random password: 14 chars, mix of uppercase, lowercase, digits, symbols.
+ * Generate a shared account password that satisfies the common policy:
+ * 8 to 64 chars, including uppercase, lowercase, digits, and symbols.
  */
 function generatePassword() {
+  const minLength = 8;
+  const maxLength = 64;
+  const targetLength = 14;
   const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
   const lower = 'abcdefghjkmnpqrstuvwxyz';
   const digits = '23456789';
-  const symbols = '!@#$%&*?';
-  const all = upper + lower + digits + symbols;
+  const symbols = '!@#$%^&*?_-+=';
+  const groups = [upper, lower, digits, symbols];
+  const all = groups.join('');
+  const length = Math.min(maxLength, Math.max(minLength, targetLength));
+  const passwordChars = groups.map((group) => group[Math.floor(Math.random() * group.length)]);
 
-  // Ensure at least one of each type
-  let pw = '';
-  pw += upper[Math.floor(Math.random() * upper.length)];
-  pw += lower[Math.floor(Math.random() * lower.length)];
-  pw += digits[Math.floor(Math.random() * digits.length)];
-  pw += symbols[Math.floor(Math.random() * symbols.length)];
-
-  // Fill remaining 10 chars
-  for (let i = 0; i < 10; i++) {
-    pw += all[Math.floor(Math.random() * all.length)];
+  while (passwordChars.length < length) {
+    passwordChars.push(all[Math.floor(Math.random() * all.length)]);
   }
 
-  // Shuffle
-  return pw.split('').sort(() => Math.random() - 0.5).join('');
+  for (let i = passwordChars.length - 1; i > 0; i -= 1) {
+    const swapIndex = Math.floor(Math.random() * (i + 1));
+    [passwordChars[i], passwordChars[swapIndex]] = [passwordChars[swapIndex], passwordChars[i]];
+  }
+
+  return passwordChars.join('');
 }
 
 function normalizePayPalAccount(account = {}) {
@@ -8584,6 +9339,14 @@ function isSignupUserAlreadyExistsFailure(error) {
   return /SIGNUP_USER_ALREADY_EXISTS::|user_already_exists/i.test(message);
 }
 
+function isKiroProxyFailure(error) {
+  if (typeof loggingStatus !== 'undefined' && loggingStatus?.isKiroProxyFailure) {
+    return loggingStatus.isKiroProxyFailure(error);
+  }
+  const message = getErrorMessage(error);
+  return /Kiro\s*(?:注册页|桌面授权页).*(?:CloudFront\s*拒绝请求|AWS\s*请求异常)|(?:当前代理\s*IP|出口区域异常).*(?:切换代理|更换代理)|AWS\s*风控.*(?:切换代理|更换代理)/i.test(message);
+}
+
 function isStep4Route405RecoveryLimitFailure(error) {
   const message = getErrorMessage(error);
   return /STEP4_405_RECOVERY_LIMIT::|步骤\s*4：检测到\s*405\s*错误页面，已连续点击“重试”恢复/i.test(message);
@@ -8755,6 +9518,17 @@ function hasSavedProgress(statuses = {}, stateOverride = null) {
 
 function getDownstreamStateResets(step, state = {}) {
   const stepKey = getStepExecutionKeyForState(step, state);
+  if (String(stepKey || '').trim().toLowerCase().startsWith('kiro-')) {
+    const kiroResets = typeof kiroStateHelpers?.buildDownstreamResetPatch === 'function'
+      ? kiroStateHelpers.buildDownstreamResetPatch(stepKey, state)
+      : {};
+    if (Object.keys(kiroResets).length > 0) {
+      return {
+        ...(stepKey === 'kiro-open-register-page' ? { flowStartTime: null } : {}),
+        ...kiroResets,
+      };
+    }
+  }
   const plusRuntimeResets = {
     plusCheckoutTabId: null,
     plusCheckoutUrl: null,
@@ -9622,10 +10396,15 @@ async function skipNode(nodeId) {
   await setNodeStatus(normalizedNodeId, 'skipped');
   await addLog(`节点 ${normalizedNodeId} 已跳过`, 'warn');
 
-  if (normalizedNodeId === 'open-chatgpt') {
+  const linkedSkipNodeIdsByRoot = {
+    'open-chatgpt': ['submit-signup-email', 'fill-password', 'fetch-signup-code', 'fill-profile', 'wait-registration-success'],
+    'kiro-open-register-page': ['kiro-submit-email', 'kiro-submit-name', 'kiro-submit-verification-code', 'kiro-submit-password', 'kiro-complete-register-consent'],
+  };
+  const linkedSkipNodeIds = linkedSkipNodeIdsByRoot[normalizedNodeId] || [];
+  if (linkedSkipNodeIds.length) {
     const latestState = await getState();
     const skippedNodes = [];
-    for (const linkedNodeId of ['submit-signup-email', 'fill-password', 'fetch-signup-code', 'fill-profile', 'wait-registration-success']) {
+    for (const linkedNodeId of linkedSkipNodeIds) {
       const linkedStatus = latestState.nodeStatuses?.[linkedNodeId];
       const linkedNodeAllowed = typeof isNodeExecutionAllowedForState === 'function'
         ? isNodeExecutionAllowedForState(linkedNodeId, latestState)
@@ -9636,7 +10415,7 @@ async function skipNode(nodeId) {
       }
     }
     if (skippedNodes.length) {
-      await addLog(`节点 open-chatgpt 已跳过，节点 ${skippedNodes.join('、')} 也已同时跳过。`, 'warn');
+      await addLog(`节点 ${normalizedNodeId} 已跳过，节点 ${skippedNodes.join('、')} 也已同时跳过。`, 'warn');
     }
   }
 
@@ -9920,6 +10699,17 @@ async function handleStepData(step, payload) {
 
 async function handleNodeData(nodeId, payload) {
   const state = await getState();
+  const nodeDefinition = getNodeDefinitionForState(nodeId, state);
+  if (String(nodeDefinition?.flowId || '').trim().toLowerCase() === 'kiro') {
+    const updates = typeof kiroStateHelpers?.applyNodeCompletionPayload === 'function'
+      ? kiroStateHelpers.applyNodeCompletionPayload(state, payload || {})
+      : {};
+    if (Object.keys(updates).length > 0) {
+      await setState(updates);
+      broadcastDataUpdate(updates);
+    }
+    return;
+  }
   const step = getStepIdByNodeIdForState(nodeId, state);
   if (!Number.isInteger(step) || step <= 0) {
     return;
@@ -9949,9 +10739,16 @@ const AUTO_RUN_BACKGROUND_COMPLETED_STEP_KEYS = new Set([
   'fetch-signup-code',
   'wait-registration-success',
   'plus-checkout-create',
+  'paypal-hosted-openai-checkout',
+  'paypal-hosted-email',
+  'paypal-hosted-card',
+  'paypal-hosted-create-account',
+  'paypal-hosted-review',
   'plus-checkout-billing',
   'paypal-approve',
   'plus-checkout-return',
+  'sub2api-session-import',
+  'cpa-session-import',
   'oauth-login',
   'fetch-login-code',
   'post-login-phone-verification',
@@ -9961,6 +10758,15 @@ const AUTO_RUN_BACKGROUND_COMPLETED_STEP_KEYS = new Set([
   'fetch-bound-email-login-code',
   'post-bound-email-phone-verification',
   'confirm-oauth',
+  'kiro-open-register-page',
+  'kiro-submit-email',
+  'kiro-submit-name',
+  'kiro-submit-verification-code',
+  'kiro-submit-password',
+  'kiro-complete-register-consent',
+  'kiro-start-desktop-authorize',
+  'kiro-complete-desktop-authorize',
+  'kiro-upload-credential',
 ]);
 const STEP_COMPLETION_SIGNAL_STEP_KEYS = new Set([
   'fill-password',
@@ -10639,7 +11445,10 @@ async function executeNode(nodeId, options = {}) {
       state = await getState();
 
       // Set flow start time on first step
-      if (normalizedNodeId === 'open-chatgpt' && !state.flowStartTime) {
+      const firstNodeIdForFlow = typeof getNodeIdsForState === 'function'
+        ? String(getNodeIdsForState(state)?.[0] || '').trim()
+        : '';
+      if (normalizedNodeId === firstNodeIdForFlow && !state.flowStartTime) {
         await setState({ flowStartTime: Date.now() });
       }
 
@@ -11034,10 +11843,17 @@ const AUTO_RUN_NODE_DELAYS = Object.freeze({
   'fill-profile': 0,
   'wait-registration-success': 3000,
   'plus-checkout-create': 3000,
+  'paypal-hosted-openai-checkout': 2000,
+  'paypal-hosted-email': 2000,
+  'paypal-hosted-card': 2000,
+  'paypal-hosted-create-account': 2000,
+  'paypal-hosted-review': 2000,
   'plus-checkout-billing': 2000,
   'gopay-subscription-confirm': 2000,
   'paypal-approve': 2000,
   'plus-checkout-return': 1000,
+  'sub2api-session-import': 0,
+  'cpa-session-import': 0,
   'oauth-login': 2000,
   'fetch-login-code': 2000,
   'confirm-oauth': 1000,
@@ -11438,6 +12254,7 @@ const autoRunController = self.MultiPageBackgroundAutoRunController?.createAutoR
   AUTO_RUN_TIMER_KIND_BETWEEN_ROUNDS,
   broadcastAutoRunStatus,
   broadcastStopToContentScripts,
+  buildFreshAutoRunKeepState,
   cancelPendingCommands,
   clearStopRequest: () => clearStopRequest(),
   createAutoRunSessionId: () => createAutoRunSessionId(),
@@ -11454,6 +12271,7 @@ const autoRunController = self.MultiPageBackgroundAutoRunController?.createAutoR
   isPhoneSmsPlatformRateLimitFailure,
   isPlusCheckoutNonFreeTrialFailure,
   isGpcTaskEndedFailure,
+  isKiroProxyFailure,
   isRestartCurrentAttemptError,
   isStep4Route405RecoveryLimitFailure,
   isSignupUserAlreadyExistsFailure,
@@ -12027,6 +12845,76 @@ async function runAutoSequenceFromNodeGraph(startNodeId, context = {}) {
     setRestartNode(nodeId);
     return true;
   };
+  const defaultActiveFlowId = typeof DEFAULT_ACTIVE_FLOW_ID === 'string' ? DEFAULT_ACTIVE_FLOW_ID : 'openai';
+  const flowRegistry = typeof self !== 'undefined' ? self.MultiPageFlowRegistry : null;
+  const initialFlowState = await getState();
+  const activeFlowId = String(initialFlowState?.activeFlowId || initialFlowState?.flowId || defaultActiveFlowId).trim().toLowerCase() || defaultActiveFlowId;
+  const activeFlowLabel = String(
+    flowRegistry?.getFlowLabel?.(activeFlowId)
+    || activeFlowId
+  ).trim() || activeFlowId;
+
+  if (activeFlowId !== defaultActiveFlowId) {
+    await broadcastAutoRunStatus('running', {
+      currentRun: targetRun,
+      totalRuns,
+      attemptRun: attemptRuns,
+    });
+
+    while (true) {
+      if (continueCurrentAttempt) {
+        await addLog(`=== 目标 ${targetRun}/${totalRuns} 轮：继续当前进度，从节点 ${currentStartNodeId} 开始（第 ${attemptRuns} 次尝试）===`, 'info');
+      } else {
+        await addLog(`=== 目标 ${targetRun}/${totalRuns} 轮：第 ${attemptRuns} 次尝试，开始执行 ${activeFlowLabel} 流程 ===`, 'info');
+      }
+
+      let latestState = await getState();
+      let nodeIds = getAutoRunWorkflowNodeIds(latestState);
+      let nodeIndex = Math.max(0, getNodeIndex(latestState, currentStartNodeId));
+
+      while (nodeIndex < nodeIds.length) {
+        latestState = await getState();
+        nodeIds = getAutoRunWorkflowNodeIds(latestState);
+        const nodeId = nodeIds[nodeIndex];
+        if (!nodeId) {
+          nodeIndex += 1;
+          continue;
+        }
+        if (typeof isNodeExecutionAllowedForState === 'function' && !isNodeExecutionAllowedForState(nodeId, latestState)) {
+          nodeIndex += 1;
+          continue;
+        }
+
+        const currentStatus = getNodeStatusForNode(latestState, nodeId);
+        if (isStepDoneStatus(currentStatus)) {
+          await addLog(`自动运行：节点 ${nodeId} 当前状态为 ${currentStatus}，将直接继续后续流程。`, 'info');
+          nodeIndex += 1;
+          continue;
+        }
+
+        try {
+          await executeNodeAndWaitWithAutoRunIdleLogWatchdog(nodeId, getAutoRunNodeDelayMs(nodeId));
+          nodeIndex += 1;
+        } catch (err) {
+          attachFailedNode(err, nodeId, latestState);
+          if (isStopError(err)) {
+            throw err;
+          }
+          if (await restartCurrentNodeAfterIdle(nodeId, err)) {
+            latestState = await getState();
+            nodeIds = getAutoRunWorkflowNodeIds(latestState);
+            nodeIndex = Math.max(0, getNodeIndex(latestState, currentStartNodeId));
+            continue;
+          }
+          throw err;
+        }
+      }
+
+      break;
+    }
+
+    return;
+  }
 
   while (true) {
 
@@ -12399,6 +13287,8 @@ async function resumeAutoRun() {
 
 const SIGNUP_ENTRY_URL = 'https://chatgpt.com/';
 const SIGNUP_PAGE_INJECT_FILES = ['content/utils.js', 'content/operation-delay.js', 'content/auth-page-recovery.js', 'content/phone-country-utils.js', 'content/phone-auth.js', 'content/signup-page.js'];
+const KIRO_REGISTER_INJECT_FILES = ['shared/source-registry.js', 'shared/kiro-timeouts.js', 'content/utils.js', 'content/kiro/register-page.js'];
+const KIRO_DESKTOP_AUTHORIZE_INJECT_FILES = ['shared/source-registry.js', 'shared/kiro-timeouts.js', 'content/utils.js', 'content/kiro/desktop-authorize-page.js'];
 const panelBridge = self.MultiPageBackgroundPanelBridge?.createPanelBridge({
   chrome,
   addLog,
@@ -12708,13 +13598,18 @@ const plusCheckoutCreateExecutor = self.MultiPageBackgroundPlusCheckoutCreate?.c
   createAutomationTab,
   ensureContentScriptReadyOnTabUntilStopped,
   fetch: typeof fetch === 'function' ? fetch.bind(globalThis) : null,
+  getTabId,
+  getState,
+  isTabAlive,
   markCurrentRegistrationAccountUsed,
+  queryTabsInAutomationWindow,
   registerTab,
   sendTabMessageUntilStopped,
   setState,
   sleepWithStop,
   throwIfStopped,
   waitForTabCompleteUntilStopped,
+  waitForTabUrlMatchUntilStopped,
 });
 const plusCheckoutBillingExecutor = self.MultiPageBackgroundPlusCheckoutBilling?.createPlusCheckoutBillingExecutor({
   addLog,
@@ -12743,6 +13638,7 @@ const goPayManualConfirmExecutor = self.MultiPageBackgroundGoPayManualConfirm?.c
   broadcastDataUpdate,
   chrome,
   getTabId,
+  getNodeIdsForState,
   isTabAlive,
   registerTab,
   createAutomationTab,
@@ -12790,6 +13686,143 @@ const plusReturnConfirmExecutor = self.MultiPageBackgroundPlusReturnConfirm?.cre
   sleepWithStop,
   waitForTabUrlMatchUntilStopped,
 });
+const sub2ApiSessionImportExecutor = self.MultiPageBackgroundSub2ApiSessionImport?.createSub2ApiSessionImportExecutor({
+  addLog,
+  chrome,
+  completeNodeFromBackground,
+  ensureContentScriptReadyOnTabUntilStopped,
+  getTabId,
+  isTabAlive,
+  normalizeSub2ApiUrl,
+  registerTab,
+  sendTabMessageUntilStopped,
+  sleepWithStop,
+  throwIfStopped,
+  waitForTabCompleteUntilStopped,
+  DEFAULT_SUB2API_GROUP_NAME,
+});
+const cpaSessionImportExecutor = self.MultiPageBackgroundCpaSessionImport?.createCpaSessionImportExecutor({
+  addLog,
+  chrome,
+  completeNodeFromBackground,
+  ensureContentScriptReadyOnTabUntilStopped,
+  getTabId,
+  isTabAlive,
+  registerTab,
+  sendTabMessageUntilStopped,
+  sleepWithStop,
+  throwIfStopped,
+  waitForTabCompleteUntilStopped,
+});
+const kiroRegisterRunner = self.MultiPageBackgroundKiroRegisterRunner?.createKiroRegisterRunner({
+  addLog,
+  chrome,
+  ensureContentScriptReadyOnTab,
+  completeNodeFromBackground,
+  ensureIcloudMailSession: ensureIcloudMailSessionForVerification,
+  ensureMail2925MailboxSession,
+  fetchImpl: typeof fetch === 'function' ? fetch.bind(globalThis) : null,
+  generatePassword,
+  generateRandomName,
+  getMailConfig,
+  getTabId,
+  getState,
+  HOTMAIL_PROVIDER,
+  isTabAlive,
+  LUCKMAIL_PROVIDER,
+  CLOUDFLARE_TEMP_EMAIL_PROVIDER,
+  CLOUD_MAIL_PROVIDER,
+  YYDS_MAIL_PROVIDER,
+  MAIL_2925_VERIFICATION_INTERVAL_MS,
+  MAIL_2925_VERIFICATION_MAX_ATTEMPTS,
+  isRetryableContentScriptTransportError,
+  pollCloudflareTempEmailVerificationCode,
+  pollCloudMailVerificationCode,
+  pollHotmailVerificationCode,
+  pollLuckmailVerificationCode,
+  pollYydsMailVerificationCode,
+  registerTab,
+  resolveSignupEmailForFlow,
+  reuseOrCreateTab,
+  sendToContentScriptResilient,
+  sendToMailContentScriptResilient,
+  setPasswordState,
+  setState,
+  sleepWithStop,
+  throwIfStopped,
+  waitForTabStableComplete,
+  KIRO_REGISTER_INJECT_FILES,
+});
+const kiroBuilderIdContributionAdapter = self.MultiPageBackgroundKiroBuilderIdContributionAdapter?.createKiroBuilderIdContributionAdapter?.({
+  addLog,
+  fetchImpl: typeof fetch === 'function' ? fetch.bind(globalThis) : null,
+  getState,
+  setState,
+});
+async function maybeSubmitFlowContribution(state = {}, options = {}) {
+  const currentState = state && typeof state === 'object' && !Array.isArray(state) && Object.keys(state).length
+    ? state
+    : await getState();
+  const activeFlowId = normalizeAccountContributionFlowId(currentState.activeFlowId || currentState.flowId);
+  const adapterId = normalizeAccountContributionAdapterId(activeFlowId, currentState.contributionAdapterId);
+  if (!currentState.accountContributionEnabled) {
+    return { ok: true, skipped: true, reason: 'account_contribution_disabled' };
+  }
+  if (activeFlowId === 'kiro' && adapterId === 'kiro-builder-id') {
+    if (!kiroBuilderIdContributionAdapter?.maybeSubmitFlowContribution) {
+      return { ok: false, skipped: true, reason: 'kiro_builder_id_adapter_missing' };
+    }
+    return kiroBuilderIdContributionAdapter.maybeSubmitFlowContribution({
+      ...currentState,
+      contributionAdapterId: adapterId,
+    }, options);
+  }
+  return { ok: true, skipped: true, reason: 'adapter_not_handled_by_flow_submission' };
+}
+const kiroDesktopAuthorizeRunner = self.MultiPageBackgroundKiroDesktopAuthorizeRunner?.createKiroDesktopAuthorizeRunner({
+  addLog,
+  chrome,
+  completeNodeFromBackground,
+  ensureContentScriptReadyOnTab,
+  ensureIcloudMailSession: ensureIcloudMailSessionForVerification,
+  ensureMail2925MailboxSession,
+  fetchImpl: typeof fetch === 'function' ? fetch.bind(globalThis) : null,
+  getMailConfig,
+  getTabId,
+  getState,
+  HOTMAIL_PROVIDER,
+  isTabAlive,
+  KIRO_REGISTER_INJECT_FILES,
+  LUCKMAIL_PROVIDER,
+  CLOUDFLARE_TEMP_EMAIL_PROVIDER,
+  CLOUD_MAIL_PROVIDER,
+  YYDS_MAIL_PROVIDER,
+  MAIL_2925_VERIFICATION_INTERVAL_MS,
+  MAIL_2925_VERIFICATION_MAX_ATTEMPTS,
+  maybeSubmitFlowContribution,
+  pollCloudflareTempEmailVerificationCode,
+  pollCloudMailVerificationCode,
+  pollHotmailVerificationCode,
+  pollLuckmailVerificationCode,
+  pollYydsMailVerificationCode,
+  registerTab,
+  reuseOrCreateTab,
+  sendToContentScriptResilient,
+  sendToMailContentScriptResilient,
+  setState,
+  sleepWithStop,
+  throwIfStopped,
+  waitForTabStableComplete,
+  KIRO_DESKTOP_AUTHORIZE_INJECT_FILES,
+});
+const kiroPublisher = self.MultiPageBackgroundKiroPublisherKiroRs?.createKiroRsPublisher({
+  addLog,
+  completeNodeFromBackground,
+  fetchImpl: typeof fetch === 'function' ? fetch.bind(globalThis) : null,
+  getState,
+  maybeSubmitFlowContribution,
+  setState,
+});
 const step10Executor = self.MultiPageBackgroundStep10?.createStep10Executor({
   addLog,
   chrome,
@@ -12798,6 +13831,7 @@ const step10Executor = self.MultiPageBackgroundStep10?.createStep10Executor({
   ensureContentScriptReadyOnTab,
   getPanelMode,
   getTabId,
+  getStepIdByKeyForState,
   isLocalhostOAuthCallbackUrl,
   isTabAlive,
   normalizeCodex2ApiUrl,
@@ -12851,12 +13885,19 @@ const stepExecutorsByKey = {
   'fill-profile': (state) => step5Executor.executeStep5(state),
   'wait-registration-success': (state) => step6Executor.executeStep6(state),
   'plus-checkout-create': (state) => plusCheckoutCreateExecutor.executePlusCheckoutCreate(state),
+  'paypal-hosted-openai-checkout': (state) => plusCheckoutCreateExecutor.executePayPalHostedOpenAiCheckout(state),
+  'paypal-hosted-email': (state) => plusCheckoutCreateExecutor.executePayPalHostedEmail(state),
+  'paypal-hosted-card': (state) => plusCheckoutCreateExecutor.executePayPalHostedCard(state),
+  'paypal-hosted-create-account': (state) => plusCheckoutCreateExecutor.executePayPalHostedCreateAccount(state),
+  'paypal-hosted-review': (state) => plusCheckoutCreateExecutor.executePayPalHostedReview(state),
   'plus-checkout-billing': (state) => plusCheckoutBillingExecutor.executePlusCheckoutBilling(state),
   'gopay-subscription-confirm': (state) => goPayManualConfirmExecutor.executeGoPayManualConfirm(state),
   'paypal-approve': (state) => normalizePlusPaymentMethod(state?.plusPaymentMethod) === PLUS_PAYMENT_METHOD_GOPAY
     ? goPayApproveExecutor.executeGoPayApprove(state)
     : payPalApproveExecutor.executePayPalApprove(state),
   'plus-checkout-return': (state) => plusReturnConfirmExecutor.executePlusReturnConfirm(state),
+  'sub2api-session-import': (state) => sub2ApiSessionImportExecutor.executeSub2ApiSessionImport(state),
+  'cpa-session-import': (state) => cpaSessionImportExecutor.executeCpaSessionImport(state),
   'oauth-login': (state) => step7Executor.executeStep7(state),
   'fetch-login-code': (state) => step8Executor.executeStep8(state),
   'post-login-phone-verification': (state) => step8Executor.executePostLoginPhoneVerification(state),
@@ -12867,6 +13908,15 @@ const stepExecutorsByKey = {
   'post-bound-email-phone-verification': (state) => step8Executor.executeBoundEmailPostLoginPhoneVerification(state),
   'confirm-oauth': (state) => step9Executor.executeStep9(state),
   'platform-verify': (state) => executeStep10(state),
+  'kiro-open-register-page': (state) => kiroRegisterRunner.executeKiroOpenRegisterPage(state),
+  'kiro-submit-email': (state) => kiroRegisterRunner.executeKiroSubmitEmail(state),
+  'kiro-submit-name': (state) => kiroRegisterRunner.executeKiroSubmitName(state),
+  'kiro-submit-verification-code': (state) => kiroRegisterRunner.executeKiroSubmitVerificationCode(state),
+  'kiro-submit-password': (state) => kiroRegisterRunner.executeKiroSubmitPassword(state),
+  'kiro-complete-register-consent': (state) => kiroRegisterRunner.executeKiroCompleteRegisterConsent(state),
+  'kiro-start-desktop-authorize': (state) => kiroDesktopAuthorizeRunner.executeKiroStartDesktopAuthorize(state),
+  'kiro-complete-desktop-authorize': (state) => kiroDesktopAuthorizeRunner.executeKiroCompleteDesktopAuthorize(state),
+  'kiro-upload-credential': (state) => kiroPublisher.executeKiroUploadCredential(state),
 };
 const messageRouter = self.MultiPageBackgroundMessageRouter?.createMessageRouter({
   addLog,
@@ -12905,6 +13955,16 @@ const messageRouter = self.MultiPageBackgroundMessageRouter?.createMessageRouter
   fetchGeneratedEmail,
   refreshGpcCardBalance,
   finalizePhoneActivationAfterSuccessfulFlow,
+  testKiroRsConnection: async (baseUrl, apiKey) => {
+    if (typeof self.MultiPageBackgroundKiroPublisherKiroRs?.checkKiroRsConnection !== 'function') {
+      throw new Error('kiro.rs 连接测试能力尚未接入。');
+    }
+    return self.MultiPageBackgroundKiroPublisherKiroRs.checkKiroRsConnection(
+      baseUrl,
+      apiKey,
+      typeof fetch === 'function' ? fetch.bind(globalThis) : null
+    );
+  },
   finalizeStep3Completion: async () => {
     const currentState = await getState();
     const signupTabId = await getTabId('signup-page');
@@ -12976,7 +14036,7 @@ const messageRouter = self.MultiPageBackgroundMessageRouter?.createMessageRouter
   setCurrentPayPalAccount,
   setCurrentHotmailAccount,
   setCurrentMail2925Account,
-  setContributionMode,
+  setAccountContributionMode,
   setEmailState,
   setEmailStateSilently,
   persistRegistrationEmailState,
@@ -12993,9 +14053,10 @@ const messageRouter = self.MultiPageBackgroundMessageRouter?.createMessageRouter
   setNodeStatus,
   skipAutoRunCountdown,
   skipNode,
-  startContributionFlow: (...args) => contributionOAuthManager?.startContributionFlow?.(...args),
+  startFlowContribution: (...args) => contributionOAuthManager?.startFlowContribution?.(...args),
   startAutoRunLoop,
   pollContributionStatus: (...args) => contributionOAuthManager?.pollContributionStatus?.(...args),
+  submitFlowContribution: (...args) => contributionOAuthManager?.submitContributionCallback?.(...args),
   syncHotmailAccounts,
   syncPayPalAccounts,
   deleteMail2925Account,
@@ -13012,82 +14073,72 @@ function buildNodeRegistry(definitions = []) {
     definitions.map((definition) => ({
       ...definition,
       nodeId: definition.nodeId || definition.key,
-      displayOrder: definition.displayOrder || definition.order,
+      displayOrder: definition.displayOrder || definition.id || definition.order,
       executeKey: definition.executeKey || definition.key,
       execute: stepExecutorsByKey[definition.executeKey || definition.key || definition.nodeId],
     }))
   );
 }
 
+async function acquireTopLevelAuthChainExecution(step, state = {}) {
+  return acquireTopLevelAuthChainExecutionForNode(getNodeIdByStepForState(step, state), state);
+}
+
 function buildStepRegistry(definitions = []) {
-  const nodeRegistry = buildNodeRegistry(definitions);
+  const normalizedDefinitions = (Array.isArray(definitions) ? definitions : [])
+    .map((definition) => ({
+      ...definition,
+      displayOrder: Number(definition?.displayOrder ?? definition?.id ?? definition?.order) || 0,
+      nodeId: String(definition?.nodeId || definition?.key || '').trim(),
+    }))
+    .filter((definition) => definition.nodeId);
+  const nodeRegistry = buildNodeRegistry(normalizedDefinitions);
+  const stepToNodeDefinition = new Map(
+    normalizedDefinitions
+      .filter((definition) => Number.isInteger(definition.displayOrder) && definition.displayOrder > 0)
+      .map((definition) => [definition.displayOrder, definition])
+  );
+
   return {
     executeNode: (nodeId, state) => nodeRegistry.executeNode(nodeId, state),
     getNodeDefinition: (nodeId) => nodeRegistry.getNodeDefinition(nodeId),
     getOrderedNodes: () => nodeRegistry.getOrderedNodes(),
     executeStep: (step, state) => {
-      const nodeId = String(getStepDefinitionForState(step, state)?.key || '').trim();
+      const nodeId = String(stepToNodeDefinition.get(Number(step))?.nodeId || '').trim();
       if (!nodeId) {
-        throw new Error(`未知节点：${step}`);
+        throw new Error(`Unknown step: ${step}`);
       }
       return nodeRegistry.executeNode(nodeId, state);
     },
     getStepDefinition: (step) => {
-      const nodeId = String(getStepDefinitionForState(step, {})?.key || '').trim();
+      const nodeId = String(stepToNodeDefinition.get(Number(step))?.nodeId || '').trim();
       return nodeId ? nodeRegistry.getNodeDefinition(nodeId) : null;
     },
     getOrderedSteps: () => nodeRegistry.getOrderedNodes(),
   };
 }
 
-async function acquireTopLevelAuthChainExecution(step, state = {}) {
-  return acquireTopLevelAuthChainExecutionForNode(getNodeIdByStepForState(step, state), state);
-}
-
-const normalStepRegistry = buildStepRegistry(NORMAL_STEP_DEFINITIONS);
-const normalPhoneStepRegistry = buildStepRegistry(NORMAL_PHONE_STEP_DEFINITIONS);
-const normalPhoneBoundEmailReloginStepRegistry = buildStepRegistry(NORMAL_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS);
-const plusPayPalStepRegistry = buildStepRegistry(PLUS_PAYPAL_STEP_DEFINITIONS);
-const plusPayPalPhoneStepRegistry = buildStepRegistry(PLUS_PAYPAL_PHONE_STEP_DEFINITIONS);
-const plusPayPalPhoneBoundEmailReloginStepRegistry = buildStepRegistry(PLUS_PAYPAL_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS);
-const plusGoPayStepRegistry = buildStepRegistry(PLUS_GOPAY_STEP_DEFINITIONS);
-const plusGoPayPhoneStepRegistry = buildStepRegistry(PLUS_GOPAY_PHONE_STEP_DEFINITIONS);
-const plusGoPayPhoneBoundEmailReloginStepRegistry = buildStepRegistry(PLUS_GOPAY_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS);
-const plusGpcStepRegistry = buildStepRegistry(PLUS_GPC_STEP_DEFINITIONS);
-const plusGpcPhoneStepRegistry = buildStepRegistry(PLUS_GPC_PHONE_STEP_DEFINITIONS);
-const plusGpcPhoneBoundEmailReloginStepRegistry = buildStepRegistry(PLUS_GPC_PHONE_BOUND_EMAIL_RELOGIN_STEP_DEFINITIONS);
+const stepRegistryCache = new Map();
 
 function getStepRegistryForState(state = {}) {
-  const activeFlowId = String(state?.activeFlowId || DEFAULT_ACTIVE_FLOW_ID).trim().toLowerCase() || DEFAULT_ACTIVE_FLOW_ID;
-  if (activeFlowId !== DEFAULT_ACTIVE_FLOW_ID) {
-    throw new Error(`当前尚未注册 flow=${activeFlowId} 的步骤执行器。`);
+  const definitions = getNodeDefinitionsForState(state);
+  const activeFlowId = String(state?.activeFlowId || state?.flowId || DEFAULT_ACTIVE_FLOW_ID).trim().toLowerCase() || DEFAULT_ACTIVE_FLOW_ID;
+  const cacheKey = `${activeFlowId}:${(Array.isArray(definitions) ? definitions : [])
+    .map((definition) => [
+      Number(definition?.displayOrder ?? definition?.id ?? definition?.order) || 0,
+      String(definition?.nodeId || definition?.key || '').trim(),
+      String(definition?.executeKey || definition?.key || '').trim(),
+      Number(definition?.displayOrder ?? definition?.id ?? definition?.order) || 0,
+    ].join(':'))
+    .join('|')}`;
+
+  if (!cacheKey || cacheKey === `${activeFlowId}:`) {
+    return buildStepRegistry([]);
   }
-  const signupMethod = getSignupMethodForStepDefinitions(state);
-  const useBoundEmailRelogin = signupMethod === SIGNUP_METHOD_PHONE
-    && Boolean(state?.phoneSignupReloginAfterBindEmailEnabled);
-  if (!isPlusModeState(state)) {
-    if (signupMethod === SIGNUP_METHOD_PHONE) {
-      return useBoundEmailRelogin ? normalPhoneBoundEmailReloginStepRegistry : normalPhoneStepRegistry;
-    }
-    return normalStepRegistry;
+  if (!stepRegistryCache.has(cacheKey)) {
+    stepRegistryCache.set(cacheKey, buildStepRegistry(definitions));
   }
-  const paymentMethod = normalizePlusPaymentMethod(state?.plusPaymentMethod);
-  if (paymentMethod === PLUS_PAYMENT_METHOD_GPC_HELPER) {
-    if (signupMethod === SIGNUP_METHOD_PHONE) {
-      return useBoundEmailRelogin ? plusGpcPhoneBoundEmailReloginStepRegistry : plusGpcPhoneStepRegistry;
-    }
-    return plusGpcStepRegistry;
-  }
-  if (paymentMethod === PLUS_PAYMENT_METHOD_GOPAY) {
-    if (signupMethod === SIGNUP_METHOD_PHONE) {
-      return useBoundEmailRelogin ? plusGoPayPhoneBoundEmailReloginStepRegistry : plusGoPayPhoneStepRegistry;
-    }
-    return plusGoPayStepRegistry;
-  }
-  if (signupMethod === SIGNUP_METHOD_PHONE) {
-    return useBoundEmailRelogin ? plusPayPalPhoneBoundEmailReloginStepRegistry : plusPayPalPhoneStepRegistry;
-  }
-  return plusPayPalStepRegistry;
+  return stepRegistryCache.get(cacheKey);
 }
 
 async function requestOAuthUrlFromPanel(state, options = {}) {
@@ -13318,15 +14369,15 @@ async function executeStep5(state) {
 
 async function refreshOAuthUrlBeforeStep6(state, options = {}) {
   const visibleStep = Number(options.visibleStep) || Number(state?.visibleStep) || 7;
-  if (state?.contributionModeExpected && !state?.contributionMode) {
-    throw new Error(`步骤 ${visibleStep}：当前自动流程预期使用贡献模式，但运行态 contributionMode 已丢失，已阻止回退到普通 CPA / SUB2API / Codex2API 链路。请重新进入贡献模式后再点击自动。`);
+  if (state?.accountContributionExpected && !state?.accountContributionEnabled) {
+    throw new Error(`步骤 ${visibleStep}：当前自动流程预期使用账号贡献，但运行态 accountContributionEnabled 已丢失，已阻止回退到普通 CPA / SUB2API / Codex2API 链路。请重新进入账号贡献后再点击自动。`);
   }
-  if (state?.contributionMode && contributionOAuthManager?.startContributionFlow) {
-    await addLog('contributionMode=true，走公开贡献接口，正在申请 OAuth 登录地址...', 'info', {
+  if (state?.accountContributionEnabled && contributionOAuthManager?.startFlowContribution) {
+    await addLog('账号贡献已开启，走公开贡献接口，正在申请 OAuth 登录地址...', 'info', {
       step: visibleStep,
       stepKey: 'oauth-login',
     });
-    const contributionState = await contributionOAuthManager.startContributionFlow({
+    const contributionState = await contributionOAuthManager.startFlowContribution({
       nickname: state.contributionNickname || '',
       openAuthTab: false,
       stateOverride: state,
@@ -13338,7 +14389,7 @@ async function refreshOAuthUrlBeforeStep6(state, options = {}) {
     await handleStepData(1, { oauthUrl });
     return oauthUrl;
   }
-  await addLog(`contributionMode=false，走普通 CPA / SUB2API / Codex2API 链路（当前面板：${getPanelModeLabel(state)}），正在刷新 OAuth 登录地址...`, 'info', {
+  await addLog(`账号贡献未开启，走普通 CPA / SUB2API / Codex2API 链路（当前面板：${getPanelModeLabel(state)}），正在刷新 OAuth 登录地址...`, 'info', {
     step: visibleStep,
     stepKey: 'oauth-login',
   });
@@ -13515,6 +14566,7 @@ async function getPostStep6AutoRestartDecision(step, error) {
   const errorMessage = getErrorMessage(error);
   const shouldForceRestartFromStep7 = /restart step 7 with a new number/i.test(errorMessage);
   const latestState = await getState();
+  const explicitAuthChainStartStep = findStepIdByKeyForState('oauth-login', latestState);
   const authChainStartStep = typeof getAuthChainStartStepId === 'function'
     ? getAuthChainStartStepId(latestState)
     : FINAL_OAUTH_CHAIN_START_STEP;
@@ -13522,6 +14574,20 @@ async function getPostStep6AutoRestartDecision(step, error) {
     ? getLastStepIdForState(latestState)
     : (typeof LAST_STEP_ID === 'number' ? LAST_STEP_ID : 10);
   const currentNodeKey = resolveStepKey(normalizedStep, latestState);
+  const currentNodeIsAuthChain = typeof isAuthChainNode === 'function'
+    ? isAuthChainNode(currentNodeKey)
+    : [
+      'oauth-login',
+      'fetch-login-code',
+      'post-login-phone-verification',
+      'bind-email',
+      'fetch-bind-email-code',
+      'relogin-bound-email',
+      'fetch-bound-email-login-code',
+      'post-bound-email-phone-verification',
+      'confirm-oauth',
+      'platform-verify',
+    ].includes(currentNodeKey);
   const confirmOauthStep = findStepIdByKeyForState('confirm-oauth', latestState);
   const boundEmailReloginStep = findStepIdByKeyForState('relogin-bound-email', latestState);
   const isBoundEmailReloginTailStep = [
@@ -13540,6 +14606,17 @@ async function getPostStep6AutoRestartDecision(step, error) {
       ? boundEmailReloginStep
       : authChainStartStep);
   if (isPhoneSmsPlatformRateLimitFailure(errorMessage)) {
+    return {
+      shouldRestart: false,
+      blockedByAddPhone: false,
+      forcedByPhoneVerificationTimeout: false,
+      restartStep: authChainStartStep,
+      errorMessage,
+      authState: null,
+    };
+  }
+
+  if (!Number.isFinite(explicitAuthChainStartStep) || explicitAuthChainStartStep <= 0 || !currentNodeIsAuthChain) {
     return {
       shouldRestart: false,
       blockedByAddPhone: false,
@@ -14196,7 +15273,7 @@ async function prepareStep8DebuggerClick(tabId, options = {}) {
   const result = await sendToContentScriptResilient('signup-page', {
     type: 'STEP8_FIND_AND_CLICK',
     source: 'background',
-    payload: { visibleStep },
+    payload: { visibleStep, nodeId: 'confirm-oauth' },
   }, {
     timeoutMs,
     responseTimeoutMs,
@@ -14227,6 +15304,7 @@ async function triggerStep8ContentStrategy(tabId, strategy, options = {}) {
     type: 'STEP8_TRIGGER_CONTINUE',
     source: 'background',
     payload: {
+      nodeId: 'confirm-oauth',
       visibleStep,
       strategy,
       findTimeoutMs: 4000,
@@ -14263,7 +15341,7 @@ async function recoverAuthRetryPageOnTab(tabId, payload = {}, options = {}) {
   const result = await sendToContentScriptResilient('signup-page', {
     type: 'RECOVER_AUTH_RETRY_PAGE',
     source: 'background',
-    payload,
+    payload: { nodeId: 'confirm-oauth', ...(payload || {}) },
   }, {
     timeoutMs,
     responseTimeoutMs,
@@ -14435,9 +15513,17 @@ async function recoverOAuthLocalhostTimeout(details = {}) {
     return null;
   }
 
-  const authLoginStep = typeof getAuthChainStartStepId === 'function'
+  const defaultAuthLoginStep = typeof getAuthChainStartStepId === 'function'
     ? getAuthChainStartStepId(state || {})
     : FINAL_OAUTH_CHAIN_START_STEP;
+  const reloginBoundEmailStep = typeof getStepIdByKeyForState === 'function'
+    ? Number(getStepIdByKeyForState('relogin-bound-email', state || {}))
+    : 0;
+  const authLoginStep = Number.isFinite(reloginBoundEmailStep)
+    && reloginBoundEmailStep > 0
+    && reloginBoundEmailStep < Number(visibleStep)
+    ? reloginBoundEmailStep
+    : defaultAuthLoginStep;
   const authLoginNodeId = String(getNodeIdByStepForState(authLoginStep, state || {}) || 'oauth-login').trim();
   const confirmNodeId = String(getNodeIdByStepForState(visibleStep, state || {}) || 'confirm-oauth').trim();
 
@@ -14510,6 +15596,12 @@ async function recoverOAuthLocalhostTimeout(details = {}) {
         return step8Executor.executeBindEmail(payload);
       case 'fetch-bind-email-code':
         return step8Executor.executeFetchBindEmailCode(payload);
+      case 'relogin-bound-email':
+        return executeReloginBoundEmail(payload);
+      case 'fetch-bound-email-login-code':
+        return step8Executor.executeBoundEmailLoginCode(payload);
+      case 'post-bound-email-phone-verification':
+        return step8Executor.executeBoundEmailPostLoginPhoneVerification(payload);
       default:
         throw new Error(`OAuth localhost 恢复不支持节点 ${nodeId}。`);
     }
@@ -14671,10 +15763,10 @@ async function executeStep10(state) {
   const platformVerifyStep = typeof getStepIdByKeyForState === 'function'
     ? (getStepIdByKeyForState('platform-verify', state || {}) || 10)
     : 10;
-  if (state?.contributionModeExpected && !state?.contributionMode) {
-    throw new Error(`步骤 ${platformVerifyStep}：当前自动流程预期使用贡献模式，但运行态 contributionMode 已丢失，已阻止回退到普通 CPA / SUB2API / Codex2API 提交。请重新进入贡献模式后再点击自动。`);
+  if (state?.accountContributionExpected && !state?.accountContributionEnabled) {
+    throw new Error(`步骤 ${platformVerifyStep}：当前自动流程预期使用账号贡献，但运行态 accountContributionEnabled 已丢失，已阻止回退到普通 CPA / SUB2API / Codex2API 提交。请重新进入账号贡献后再点击自动。`);
   }
-  if (state?.contributionMode) {
+  if (state?.accountContributionEnabled) {
     return executeContributionStep10(state);
   }
   return step10Executor.executeStep10(state);
@@ -14701,6 +15793,9 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 });
 
 chrome.runtime.onStartup.addListener(() => {
+  migrateLegacyAccountContributionState().catch((err) => {
+    console.error(LOG_PREFIX, 'Failed to migrate legacy account contribution state on startup:', err);
+  });
   restoreAutoRunTimerIfNeeded().catch((err) => {
     console.error(LOG_PREFIX, 'Failed to restore auto run timer on startup:', err);
   });
@@ -14718,6 +15813,9 @@ chrome.runtime.onStartup.addListener(() => {
 });
 
 chrome.runtime.onInstalled.addListener(() => {
+  migrateLegacyAccountContributionState().catch((err) => {
+    console.error(LOG_PREFIX, 'Failed to migrate legacy account contribution state on install/update:', err);
+  });
   restoreAutoRunTimerIfNeeded().catch((err) => {
     console.error(LOG_PREFIX, 'Failed to restore auto run timer on install/update:', err);
   });
@@ -14734,6 +15832,9 @@ chrome.runtime.onInstalled.addListener(() => {
   });
 });
 
+migrateLegacyAccountContributionState().catch((err) => {
+  console.error(LOG_PREFIX, 'Failed to migrate legacy account contribution state:', err);
+});
 restoreAutoRunTimerIfNeeded().catch((err) => {
   console.error(LOG_PREFIX, 'Failed to restore auto run timer:', err);
 });

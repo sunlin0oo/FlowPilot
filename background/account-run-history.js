@@ -431,7 +431,7 @@
         source,
         autoRunContext: source === 'auto' ? autoRunContext : null,
         plusModeEnabled: Boolean(record.plusModeEnabled),
-        contributionMode: Boolean(record.contributionMode),
+        accountContributionEnabled: Boolean(record.accountContributionEnabled),
       };
     }
 
@@ -526,7 +526,7 @@
         source,
         autoRunContext,
         plusModeEnabled: Boolean(state.plusModeEnabled),
-        contributionMode: Boolean(state.contributionMode),
+        accountContributionEnabled: Boolean(state.accountContributionEnabled),
       };
     }
 
@@ -637,7 +637,7 @@
     }
 
     function shouldSyncAccountRunHistorySnapshot(state = {}) {
-      if (Boolean(state.contributionMode)) {
+      if (Boolean(state.accountContributionEnabled)) {
         return false;
       }
 

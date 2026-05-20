@@ -11,6 +11,7 @@
       AUTO_RUN_TIMER_KIND_BETWEEN_ROUNDS,
       broadcastAutoRunStatus,
       broadcastStopToContentScripts,
+      buildFreshAutoRunKeepState,
       cancelPendingCommands,
       clearStopRequest,
       createAutoRunSessionId,
@@ -24,6 +25,7 @@
       hasSavedNodeProgress,
       isAddPhoneAuthFailure,
       isGpcTaskEndedFailure,
+      isKiroProxyFailure,
       isPhoneSmsPlatformRateLimitFailure,
       isPlusCheckoutNonFreeTrialFailure,
       isRestartCurrentAttemptError,
@@ -75,6 +77,67 @@
         return runAutoSequenceFromNode(startNodeId, context);
       }
       throw new Error('自动运行节点执行器未接入。');
+    }
+
+    function buildFreshStartStateSnapshot(state = {}) {
+      return {
+        ...(state || {}),
+        currentNodeId: '',
+        nodeStatuses: {},
+        stepStatuses: {},
+      };
+    }
+
+    function resolveFreshStartNodeId(state = {}) {
+      const freshState = buildFreshStartStateSnapshot(state);
+      return String(getFirstUnfinishedWorkflowNode(freshState) || '').trim();
+    }
+
+    function buildFreshAttemptKeepState(state = {}, context = {}) {
+      if (typeof buildFreshAutoRunKeepState === 'function') {
+        const helperPatch = buildFreshAutoRunKeepState(state, context);
+        if (helperPatch && typeof helperPatch === 'object' && !Array.isArray(helperPatch)) {
+          return {
+            ...helperPatch,
+          };
+        }
+      }
+
+      return {
+        activeFlowId: state.activeFlowId,
+        flowId: state.flowId || state.activeFlowId,
+        panelMode: state.panelMode,
+        kiroTargetId: state.kiroTargetId,
+        vpsUrl: state.vpsUrl,
+        vpsPassword: state.vpsPassword,
+        customPassword: state.customPassword,
+        plusModeEnabled: state.plusModeEnabled,
+        plusPaymentMethod: state.plusPaymentMethod,
+        phoneVerificationEnabled: state.phoneVerificationEnabled,
+        phoneSignupReloginAfterBindEmailEnabled: state.phoneSignupReloginAfterBindEmailEnabled,
+        paypalEmail: state.paypalEmail,
+        paypalPassword: state.paypalPassword,
+        kiroRsUrl: state.kiroRsUrl,
+        kiroRsKey: state.kiroRsKey,
+        autoRunSkipFailures: state.autoRunSkipFailures,
+        autoRunFallbackThreadIntervalMinutes: state.autoRunFallbackThreadIntervalMinutes,
+        autoRunDelayEnabled: state.autoRunDelayEnabled,
+        autoRunDelayMinutes: state.autoRunDelayMinutes,
+        autoStepDelaySeconds: state.autoStepDelaySeconds,
+        stepExecutionRangeByFlow: state.stepExecutionRangeByFlow,
+        signupMethod: state.signupMethod,
+        mailProvider: state.mailProvider,
+        emailGenerator: state.emailGenerator,
+        gmailBaseEmail: state.gmailBaseEmail,
+        mail2925BaseEmail: state.mail2925BaseEmail,
+        currentMail2925AccountId: state.currentMail2925AccountId,
+        emailPrefix: state.emailPrefix,
+        inbucketHost: state.inbucketHost,
+        inbucketMailbox: state.inbucketMailbox,
+        cloudflareDomain: state.cloudflareDomain,
+        cloudflareDomains: state.cloudflareDomains,
+        reusablePhoneActivation: state.reusablePhoneActivation,
+      };
     }
 
     function createAutoRunRoundSummary(round) {
@@ -502,12 +565,13 @@
             autoRunAttemptRun: attemptRun,
           });
           roundSummary.attempts = attemptRun;
-          const defaultStartNodeId = typeof runAutoSequenceFromNode === 'function' ? 'open-chatgpt' : 1;
+          const attemptState = await getState();
+          const defaultStartNodeId = resolveFreshStartNodeId(attemptState);
           let startNodeId = defaultStartNodeId;
           let useExistingProgress = false;
 
           if (reuseExistingProgress) {
-            let currentState = await getState();
+            let currentState = attemptState;
             if (getRunningWorkflowNodes(currentState).length) {
               currentState = await waitForRunningWorkflowNodesToFinish({
                 currentRun: targetRun,
@@ -525,33 +589,14 @@
           }
 
           if (!useExistingProgress) {
-            const prevState = await getState();
+            const prevState = attemptState;
             const keepSettings = {
-              vpsUrl: prevState.vpsUrl,
-              vpsPassword: prevState.vpsPassword,
-              customPassword: prevState.customPassword,
-              plusModeEnabled: prevState.plusModeEnabled,
-              paypalEmail: prevState.paypalEmail,
-              paypalPassword: prevState.paypalPassword,
-              autoRunSkipFailures: prevState.autoRunSkipFailures,
-              autoRunFallbackThreadIntervalMinutes: prevState.autoRunFallbackThreadIntervalMinutes,
-              autoRunDelayEnabled: prevState.autoRunDelayEnabled,
-              autoRunDelayMinutes: prevState.autoRunDelayMinutes,
-              autoStepDelaySeconds: prevState.autoStepDelaySeconds,
-              stepExecutionRangeByFlow: prevState.stepExecutionRangeByFlow,
-              signupMethod: prevState.signupMethod,
-              mailProvider: prevState.mailProvider,
-              emailGenerator: prevState.emailGenerator,
-              gmailBaseEmail: prevState.gmailBaseEmail,
-              mail2925BaseEmail: prevState.mail2925BaseEmail,
-              currentMail2925AccountId: prevState.currentMail2925AccountId,
-              emailPrefix: prevState.emailPrefix,
-              registrationEmailPool: prevState.registrationEmailPool,
-              inbucketHost: prevState.inbucketHost,
-              inbucketMailbox: prevState.inbucketMailbox,
-              cloudflareDomain: prevState.cloudflareDomain,
-              cloudflareDomains: prevState.cloudflareDomains,
-              reusablePhoneActivation: prevState.reusablePhoneActivation,
+              ...buildFreshAttemptKeepState(prevState, {
+                targetRun,
+                totalRuns,
+                attemptRun,
+                sessionId,
+              }),
               autoRunRoundSummaries: serializeAutoRunRoundSummaries(totalRuns, roundSummaries),
               autoRunSessionId: sessionId,
               tabRegistry: {},
@@ -660,11 +705,15 @@
               && isSignupUserAlreadyExistsFailure(err);
             const blockedByStep4Route405 = typeof isStep4Route405RecoveryLimitFailure === 'function'
               && isStep4Route405RecoveryLimitFailure(err);
+            const blockedByKiroProxy = typeof isKiroProxyFailure === 'function'
+              && isKiroProxyFailure(err);
             const canRetry = !blockedByAddPhone
               && !blockedByPhoneNoSupply
               && !blockedByPlusNonFreeTrial
               && !blockedByGpcTaskEnded
               && !blockedBySignupUserAlreadyExists
+              && !blockedByStep4Route405
+              && !blockedByKiroProxy
               && autoRunSkipFailures
               && attemptRun < maxAttemptsForRound;
 
@@ -879,6 +928,27 @@
                 'warn'
               );
               forceFreshTabsNextRun = true;
+              break;
+            }
+
+            if (blockedByKiroProxy) {
+              roundSummary.status = 'failed';
+              roundSummary.finalFailureReason = reason;
+              await setState({
+                autoRunRoundSummaries: serializeAutoRunRoundSummaries(totalRuns, roundSummaries),
+              });
+              await appendRoundRecordIfNeeded('failed', reason, err);
+              cancelPendingCommands('当前轮检测到 Kiro 代理异常页，已停止自动运行，等待用户切换代理。');
+              await broadcastStopToContentScripts();
+              await addLog(`第 ${targetRun}/${totalRuns} 轮检测到 Kiro 代理异常页：${reason}`, 'error');
+              await addLog('当前代理可能不可用，请先切换代理后再继续。自动运行已停止。', 'warn');
+              stoppedEarly = true;
+              await broadcastAutoRunStatus('stopped', {
+                currentRun: targetRun,
+                totalRuns,
+                attemptRun,
+                sessionId: 0,
+              });
               break;
             }
 
