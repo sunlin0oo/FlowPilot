@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
 const sidepanelSource = fs.readFileSync('sidepanel/sidepanel.js', 'utf8');
+const sidepanelHtml = fs.readFileSync('sidepanel/sidepanel.html', 'utf8');
 const backgroundSource = fs.readFileSync('background.js', 'utf8');
 
 function extractFunction(name) {
@@ -115,6 +116,20 @@ return {
 `)();
 }
 
+test('sidepanel Plus account access selector only exposes access methods', () => {
+  const selectorStart = sidepanelHtml.indexOf('id="select-plus-account-access-strategy"');
+  const selectorEnd = sidepanelHtml.indexOf('</select>', selectorStart);
+  const selectorHtml = sidepanelHtml.slice(selectorStart, selectorEnd);
+
+  assert.notEqual(selectorStart, -1);
+  assert.match(selectorHtml, /value="oauth"[^>]*>OAuth</);
+  assert.match(selectorHtml, /value="codex_session"[^>]*>使用会话 JSON 导入</);
+  assert.doesNotMatch(selectorHtml, /cpa_codex_session/);
+  assert.doesNotMatch(selectorHtml, /sub2api_codex_session/);
+  assert.doesNotMatch(selectorHtml, /导入当前 ChatGPT 会话到 CPA/);
+  assert.doesNotMatch(selectorHtml, /导入当前 ChatGPT 会话到 SUB2API/);
+});
+
 test('sidepanel keeps requested Plus account strategy while contribution mode forces SUB2API', () => {
   const api = buildHarness(
     `{
@@ -138,12 +153,12 @@ test('sidepanel keeps requested Plus account strategy while contribution mode fo
   assert.equal(api.rowPlusAccountAccessStrategy.style.display, '');
   assert.equal(api.selectPlusAccountAccessStrategy.disabled, true);
   assert.equal(api.selectPlusAccountAccessStrategy.dataset.requestedValue, 'cpa_codex_session');
-  assert.equal(api.selectPlusAccountAccessStrategy.value, 'sub2api_codex_session');
+  assert.equal(api.selectPlusAccountAccessStrategy.value, 'codex_session');
   assert.equal(api.getRequestedPlusAccountAccessStrategy(), 'cpa_codex_session');
   assert.match(api.plusAccountAccessStrategyCaption.textContent, /SUB2API/);
 });
 
-test('sidepanel enables SUB2API session strategy selection when the current Plus target supports it', () => {
+test('sidepanel maps generic session import to SUB2API when the current source is SUB2API', () => {
   const api = buildHarness(
     `{
       canShowPlusSettings: true,
@@ -163,12 +178,12 @@ test('sidepanel enables SUB2API session strategy selection when the current Plus
 
   assert.equal(api.rowPlusAccountAccessStrategy.style.display, '');
   assert.equal(api.selectPlusAccountAccessStrategy.disabled, false);
-  assert.equal(api.selectPlusAccountAccessStrategy.value, 'sub2api_codex_session');
+  assert.equal(api.selectPlusAccountAccessStrategy.value, 'codex_session');
   assert.equal(api.getRequestedPlusAccountAccessStrategy(), 'sub2api_codex_session');
   assert.match(api.plusAccountAccessStrategyCaption.textContent, /SUB2API/);
 });
 
-test('sidepanel enables CPA session strategy selection when the current Plus target supports it', () => {
+test('sidepanel maps generic session import to CPA when the current source is CPA', () => {
   const api = buildHarness(
     `{
       canShowPlusSettings: true,
@@ -190,9 +205,36 @@ test('sidepanel enables CPA session strategy selection when the current Plus tar
 
   assert.equal(api.rowPlusAccountAccessStrategy.style.display, '');
   assert.equal(api.selectPlusAccountAccessStrategy.disabled, false);
-  assert.equal(api.selectPlusAccountAccessStrategy.value, 'cpa_codex_session');
+  assert.equal(api.selectPlusAccountAccessStrategy.value, 'codex_session');
   assert.equal(api.getRequestedPlusAccountAccessStrategy(), 'cpa_codex_session');
   assert.match(api.plusAccountAccessStrategyCaption.textContent, /CPA/);
+});
+
+test('sidepanel falls back to OAuth when the current source cannot import sessions', () => {
+  const api = buildHarness(
+    `{
+      canShowPlusSettings: true,
+      runtimeLocks: { plusModeEnabled: true },
+      canEditPlusAccountAccessStrategy: false,
+      availablePlusAccountAccessStrategies: ['oauth'],
+      effectivePanelMode: 'codex2api',
+      effectivePlusAccountAccessStrategy: 'oauth',
+    }`,
+    `{
+      activeFlowId: 'openai',
+      panelMode: 'codex2api',
+      plusPaymentMethod: 'paypal',
+      plusAccountAccessStrategy: 'cpa_codex_session',
+    }`
+  );
+
+  api.updatePlusModeUI();
+
+  assert.equal(api.selectPlusAccountAccessStrategy.disabled, true);
+  assert.equal(api.selectPlusAccountAccessStrategy.dataset.requestedValue, 'oauth');
+  assert.equal(api.selectPlusAccountAccessStrategy.value, 'oauth');
+  assert.equal(api.getRequestedPlusAccountAccessStrategy(), 'oauth');
+  assert.equal(api.plusAccountAccessStrategyCaption.textContent, '当前来源仅支持 OAuth');
 });
 
 test('sidepanel rebuilds step definitions and workflow nodes with the effective Plus account strategy', () => {

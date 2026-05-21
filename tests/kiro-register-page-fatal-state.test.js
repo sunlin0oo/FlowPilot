@@ -87,6 +87,7 @@ function createDomHarness({
   }
   const context = {
     console: { log() {}, warn() {}, error() {}, info() {} },
+    URL,
     location: { href, hostname },
     document: {
       title,
@@ -108,6 +109,10 @@ function createDomHarness({
       querySelectorAll(selector) {
         if (String(selector).startsWith('label[for=')) {
           return [];
+        }
+        const testIdMatch = String(selector).match(/\[data-testid="([^"]+)"\]/);
+        if (testIdMatch) {
+          return [...inputs, ...buttons].filter((element) => element.getAttribute?.('data-testid') === testIdMatch[1]);
         }
         if (String(selector).trim().startsWith('input')) {
           return inputs;
@@ -234,7 +239,7 @@ test('kiro register content fills primary and confirm password fields separately
   harness.simulateClick = (element) => clicks.push(element);
 
   const detected = harness.detectKiroRegisterPageState();
-  assert.equal(detected.state, 'password_page');
+  assert.equal(detected.state, 'create_password_page');
   assert.equal(detected.passwordInput, passwordInput);
   assert.equal(detected.confirmPasswordInput, confirmPasswordInput);
 
@@ -244,4 +249,69 @@ test('kiro register content fills primary and confirm password fields separately
   assert.equal(passwordInput.value, 'mdy8U9_rzqhw6D');
   assert.equal(confirmPasswordInput.value, 'mdy8U9_rzqhw6D');
   assert.deepEqual(clicks, [continueButton]);
+});
+
+test('kiro register content classifies AWS login password as an existing-account branch', () => {
+  const passwordInput = createInputElement({
+    id: 'formField15-1779237828927-4809',
+    type: 'text',
+    placeholder: 'Enter password',
+    label: '\u5bc6\u7801',
+  });
+  const continueButton = createButtonElement({ text: '\u7ee7\u7eed' });
+
+  const harness = createDomHarness({
+    href: 'https://us-east-1.signin.aws/platform/d-9067642ac7/login?workflowStateHandle=abc',
+    hostname: 'us-east-1.signin.aws',
+    title: 'Amazon Web Services',
+    bodyText: 'Sign in with your AWS Builder ID Email much-glance-avert@duck.com Change',
+    inputs: [passwordInput],
+    buttons: [continueButton],
+  });
+
+  const detected = harness.detectKiroRegisterPageState();
+
+  assert.equal(detected.state, 'login_password_page');
+  assert.equal(detected.email, 'much-glance-avert@duck.com');
+  assert.equal(detected.passwordInput, passwordInput);
+});
+
+test('kiro register content classifies signup verification separately from login verification', () => {
+  const registerOtpInput = createInputElement({
+    id: 'formField38-1779237828927-4809',
+    type: 'text',
+    placeholder: '6-digit',
+    label: '\u9a8c\u8bc1\u7801',
+  });
+  const loginOtpInput = createInputElement({
+    id: 'formField38-1779237828927-4810',
+    type: 'text',
+    placeholder: '6-digit',
+    label: '\u9a8c\u8bc1\u7801',
+  });
+
+  const registerHarness = createDomHarness({
+    href: 'https://us-east-1.signin.aws/platform/d-9067642ac7/signup?state=abc',
+    hostname: 'us-east-1.signin.aws',
+    title: 'Amazon Web Services',
+    bodyText: 'Verify your identity Email new-user@duck.com',
+    inputs: [registerOtpInput],
+    buttons: [createButtonElement()],
+  });
+  const loginHarness = createDomHarness({
+    href: 'https://us-east-1.signin.aws/platform/d-9067642ac7/login?workflowStateHandle=abc',
+    hostname: 'us-east-1.signin.aws',
+    title: 'Amazon Web Services',
+    bodyText: 'Verify your identity Email existing-user@duck.com',
+    inputs: [loginOtpInput],
+    buttons: [createButtonElement()],
+  });
+
+  const registerDetected = registerHarness.detectKiroRegisterPageState();
+  const loginDetected = loginHarness.detectKiroRegisterPageState();
+
+  assert.equal(registerDetected.state, 'register_otp_page');
+  assert.equal(registerDetected.email, 'new-user@duck.com');
+  assert.equal(loginDetected.state, 'login_otp_page');
+  assert.equal(loginDetected.email, 'existing-user@duck.com');
 });

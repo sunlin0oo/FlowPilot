@@ -74,7 +74,7 @@ test('kiro state session patch accepts canonical nested runtime updates', () => 
     kiroRuntime: {
       session: {
         currentStage: 'register',
-        pageState: 'otp_page',
+        pageState: 'register_otp_page',
         pageUrl: 'https://signin.aws/register',
       },
       register: {
@@ -92,7 +92,7 @@ test('kiro state session patch accepts canonical nested runtime updates', () => 
   });
 
   assert.equal(patch.kiroRuntime.session.currentStage, 'register');
-  assert.equal(patch.kiroRuntime.session.pageState, 'otp_page');
+  assert.equal(patch.kiroRuntime.session.pageState, 'register_otp_page');
   assert.equal(patch.kiroRuntime.session.pageUrl, 'https://signin.aws/register');
   assert.equal(patch.kiroRuntime.register.email, 'aws-user@example.com');
   assert.equal(patch.kiroRuntime.register.fullName, 'Ada Lovelace');

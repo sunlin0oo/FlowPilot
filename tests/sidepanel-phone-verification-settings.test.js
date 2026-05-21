@@ -160,7 +160,37 @@ test('sidepanel loads SMS country lists silently during startup fallback', () =>
   assert.doesNotMatch(fiveSimLoader, /console\.(?:warn|error)\('加载 5sim 国家列表失败：'/);
   assert.match(sidepanelSource, /loadHeroSmsCountries\(\{ silent: true, preferFallbackOnly: true \}\)/);
   assert.match(sidepanelSource, /loadFiveSimCountries\(\{ silent: true, preferFallbackOnly: true \}\)/);
+  assert.match(sidepanelSource, /await loadHeroSmsCountries\(\{ silent: true \}\);/);
   assert.doesNotMatch(sidepanelSource, /console\.error\('加载 (?:HeroSMS|5sim|NexSMS) 国家列表失败：'/);
+});
+
+test('HeroSMS country parser accepts keyed country maps from the live API', () => {
+  const api = new Function(`
+${extractFunction('normalizeHeroSmsCountryPayloadEntries')}
+${extractFunction('parseHeroSmsCountryPayload')}
+return { parseHeroSmsCountryPayload };
+`)();
+
+  const keyedPayload = {
+    52: { id: 52, eng: 'Thailand', chn: '泰国' },
+    6: { id: 6, eng: 'Indonesia', chn: '印度尼西亚' },
+  };
+  const ids = (payload) => api.parseHeroSmsCountryPayload(payload)
+    .map((entry) => entry.id)
+    .sort((left, right) => left - right);
+
+  assert.deepStrictEqual(
+    ids(keyedPayload),
+    [6, 52]
+  );
+  assert.deepStrictEqual(
+    ids({ value: keyedPayload }),
+    [6, 52]
+  );
+  assert.deepStrictEqual(
+    ids({ value: Object.values(keyedPayload) }),
+    [6, 52]
+  );
 });
 
 test('sidepanel source wires free reusable phone save and clear actions to runtime messages', () => {
