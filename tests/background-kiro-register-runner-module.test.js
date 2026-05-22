@@ -37,6 +37,18 @@ test('kiro register runner uses a shared 3-minute page-load timeout budget', () 
   assert.match(source, /onRetryableError: buildKiroRetryRecovery\(tabId, \{\s*\.\.\.options,\s*timeoutBudget,/);
 });
 
+test('kiro register runner delegates verification mail polling to the shared flow mail service', () => {
+  const source = fs.readFileSync('flows/kiro/background/register-runner.js', 'utf8');
+  assert.match(source, /pollFlowVerificationCode/);
+  assert.doesNotMatch(source, /buildKiroVerificationPollPayload/);
+  assert.doesNotMatch(source, /pollHotmailVerificationCode/);
+  assert.doesNotMatch(source, /pollLuckmailVerificationCode/);
+  assert.doesNotMatch(source, /pollCloudflareTempEmailVerificationCode/);
+  assert.doesNotMatch(source, /pollCloudMailVerificationCode/);
+  assert.doesNotMatch(source, /pollYydsMailVerificationCode/);
+  assert.doesNotMatch(source, /sendToMailContentScriptResilient/);
+});
+
 test('kiro register consent step treats Kiro Web signed-in page as completion', () => {
   const source = fs.readFileSync('flows/kiro/background/register-runner.js', 'utf8');
   assert.match(source, /readKiroRegisterPageState\(tabId, \{/);
