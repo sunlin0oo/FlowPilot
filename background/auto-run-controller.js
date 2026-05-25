@@ -175,10 +175,10 @@
       return preserved;
     }
 
-    function finalizeFreshAttemptKeepState(value, context = {}) {
+    function finalizeFreshAttemptKeepState(value, context = {}, sourceState = {}) {
       const resetState = buildFreshAttemptRuntimeIdentityResetState();
       const preservedIdentityState = context.preserveRegistrationEmailIdentity
-        ? buildFreshAttemptPreservedRuntimeIdentityState(value)
+        ? buildFreshAttemptPreservedRuntimeIdentityState(sourceState)
         : {};
       return {
         ...stripRuntimeProgressFromFreshKeepState(value),
@@ -201,7 +201,7 @@
         if (helperPatch && typeof helperPatch === 'object' && !Array.isArray(helperPatch)) {
           return finalizeFreshAttemptKeepState({
             ...helperPatch,
-          }, context);
+          }, context, state);
         }
       }
 
@@ -236,7 +236,7 @@
         cloudflareDomain: state.cloudflareDomain,
         cloudflareDomains: state.cloudflareDomains,
         reusablePhoneActivation: state.reusablePhoneActivation,
-      }, context);
+      }, context, state);
     }
 
     function createAutoRunRoundSummary(round) {
