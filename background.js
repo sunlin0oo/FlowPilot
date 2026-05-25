@@ -4296,6 +4296,9 @@ async function importSettingsBundle(configBundle) {
   const settingsImporter = self.MultiPageLegacySettingsImporter?.createSettingsImporter?.({
     flowRegistry: self.MultiPageFlowRegistry,
     settingsSchemaApi: typeof getSettingsSchemaApi === 'function' ? getSettingsSchemaApi() : null,
+    persistedSettingKeys: typeof PERSISTED_SETTING_KEYS !== 'undefined' && Array.isArray(PERSISTED_SETTING_KEYS)
+      ? PERSISTED_SETTING_KEYS
+      : [],
     defaultFlowId: DEFAULT_ACTIVE_FLOW_ID,
   }) || null;
   const importedSettingsSource = typeof settingsImporter?.importSettings === 'function'

@@ -23,7 +23,8 @@
     const CPA_PANEL_INJECT_FILES = [
       'content/activation-utils.js',
       'content/utils.js',
-      'content/vps-panel.js',
+      // CPA OAuth 第 7 步需要注入真实的面板脚本；旧路径 content/vps-panel.js 不存在，会导致只能打开/登录面板但无法点击“开始CodeX登录”。
+      'flows/openai/content/vps-panel.js',
     ];
 
     function getSub2ApiApi() {

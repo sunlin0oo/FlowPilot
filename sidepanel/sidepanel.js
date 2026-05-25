@@ -15205,6 +15205,7 @@ async function startAutoRunFromCurrentSettings() {
       activeFlowId,
       targetId,
       autoRunSkipFailures,
+      registrationEmailPool,
       accountContributionEnabled: Boolean(latestState?.accountContributionEnabled),
       contributionAdapterId: latestState?.contributionAdapterId || '',
       contributionNickname,

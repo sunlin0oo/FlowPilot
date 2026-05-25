@@ -828,8 +828,30 @@ function findCodexOAuthCard() {
 
 function findOAuthCardLoginButton(header) {
   const card = header?.closest('.card, [class*="card"]') || header?.parentElement || document;
-  const candidates = card.querySelectorAll('button.btn.btn-primary, button.btn-primary, button.btn');
-  return Array.from(candidates).find((el) => isVisibleElement(el) && /登录|login/i.test(getActionText(el))) || null;
+  const selectors = [
+    'button.btn.btn-primary, button.btn-primary, button.btn',
+    // 新版 CPA / Codex 面板的“开始CodeX登录”按钮可能不带 Bootstrap 的 .btn 类。
+    // 这里兜底扫描卡片内所有可点击控件，避免只登录面板却没有启动 Codex OAuth。
+    'button, [role="button"], input[type="button"], input[type="submit"]',
+  ];
+  const candidates = [];
+  const seen = new Set();
+  for (const selector of selectors) {
+    for (const candidate of Array.from(card.querySelectorAll(selector))) {
+      if (seen.has(candidate)) continue;
+      seen.add(candidate);
+      candidates.push(candidate);
+    }
+  }
+
+  return candidates.find((el) => {
+    if (!isVisibleElement(el) || el.disabled || el.getAttribute?.('aria-disabled') === 'true') {
+      return false;
+    }
+    const text = getActionText(el);
+    // 兼容 CPA 旧版“登录”和新版“开始CodeX登录 / 开始 Codex 登录”文案。
+    return /开始\s*(?:CodeX|Codex)\s*登录|(?:CodeX|Codex)\s*(?:OAuth\s*)?(?:登录|授权)|登录|授权|login|sign\s*in|authorize/i.test(text);
+  }) || null;
 }
 
 function findAuthUrlElement() {

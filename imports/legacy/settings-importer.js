@@ -105,8 +105,25 @@
     return next;
   }
 
+  function buildRecognizedFlatSettings(input = {}, persistedSettingKeys = []) {
+    if (!isPlainObject(input) || !Array.isArray(persistedSettingKeys)) {
+      return {};
+    }
+
+    const recognized = {};
+    persistedSettingKeys.forEach((key) => {
+      if (Object.prototype.hasOwnProperty.call(input, key)) {
+        recognized[key] = cloneValue(input[key]);
+      }
+    });
+    return recognized;
+  }
+
   function createSettingsImporter(deps = {}) {
     const settingsSchemaApi = resolveSettingsSchemaApi(deps);
+    const persistedSettingKeys = Array.isArray(deps.persistedSettingKeys)
+      ? deps.persistedSettingKeys
+      : [];
 
     function importSettings(input = {}) {
       if (!isPlainObject(input)) {
@@ -122,6 +139,10 @@
       });
 
       return {
+        // Keep flat persisted fields that are outside settingsState (for example
+        // Cloudflare Temp Email and HeroSMS secrets) so import does not reset them
+        // to defaults after the canonical settings schema is rebuilt.
+        ...buildRecognizedFlatSettings(input, persistedSettingKeys),
         settingsSchemaVersion: Number(normalizedState.schemaVersion) || 0,
         settingsState: cloneValue(normalizedState),
         legacyFieldHits: collectLegacyFieldHits(input),
@@ -136,6 +157,7 @@
 
   return {
     LEGACY_TOP_LEVEL_KEYS,
+    buildRecognizedFlatSettings,
     collectLegacyFieldHits,
     createSettingsImporter,
   };

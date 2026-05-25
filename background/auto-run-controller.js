@@ -123,6 +123,70 @@
       return next;
     }
 
+    function buildFreshAttemptRuntimeIdentityResetState() {
+      return {
+        resolvedSignupMethod: null,
+        accountIdentifierType: null,
+        accountIdentifier: '',
+        email: null,
+        password: '',
+        registrationEmailState: {
+          current: '',
+          previous: '',
+          source: '',
+          updatedAt: 0,
+        },
+        lastEmailTimestamp: null,
+        lastSignupCode: null,
+        lastLoginCode: null,
+        step8VerificationTargetEmail: '',
+        phoneNumber: '',
+        currentPhoneActivation: null,
+        currentPhoneVerificationCode: '',
+        currentPhoneVerificationCountdownEndsAt: null,
+        currentPhoneVerificationCountdownWindowIndex: 0,
+        currentPhoneVerificationCountdownWindowTotal: 0,
+        signupPhoneNumber: '',
+        signupPhoneActivation: null,
+        signupPhoneCompletedActivation: null,
+        signupPhoneVerificationRequestedAt: null,
+        signupPhoneVerificationPurpose: '',
+      };
+    }
+
+    function buildFreshAttemptPreservedRuntimeIdentityState(state = {}) {
+      const preserved = {};
+      for (const key of [
+        'resolvedSignupMethod',
+        'accountIdentifierType',
+        'accountIdentifier',
+        'email',
+        'password',
+        'registrationEmailState',
+        'lastEmailTimestamp',
+        'lastSignupCode',
+        'lastLoginCode',
+        'step8VerificationTargetEmail',
+      ]) {
+        if (state[key] !== undefined) {
+          preserved[key] = state[key];
+        }
+      }
+      return preserved;
+    }
+
+    function finalizeFreshAttemptKeepState(value, context = {}) {
+      const resetState = buildFreshAttemptRuntimeIdentityResetState();
+      const preservedIdentityState = context.preserveRegistrationEmailIdentity
+        ? buildFreshAttemptPreservedRuntimeIdentityState(value)
+        : {};
+      return {
+        ...stripRuntimeProgressFromFreshKeepState(value),
+        ...resetState,
+        ...preservedIdentityState,
+      };
+    }
+
     function buildFreshAttemptNodeStatuses(state = {}) {
       const knownNodeIds = getKnownNodeIdsFromState(state);
       if (knownNodeIds.length) {
@@ -135,13 +199,13 @@
       if (typeof buildFreshAutoRunKeepState === 'function') {
         const helperPatch = buildFreshAutoRunKeepState(state, context);
         if (helperPatch && typeof helperPatch === 'object' && !Array.isArray(helperPatch)) {
-          return stripRuntimeProgressFromFreshKeepState({
+          return finalizeFreshAttemptKeepState({
             ...helperPatch,
-          });
+          }, context);
         }
       }
 
-      return stripRuntimeProgressFromFreshKeepState({
+      return finalizeFreshAttemptKeepState({
         activeFlowId: state.activeFlowId,
         flowId: state.flowId || state.activeFlowId,
         targetId: state.targetId,
@@ -172,7 +236,7 @@
         cloudflareDomain: state.cloudflareDomain,
         cloudflareDomains: state.cloudflareDomains,
         reusablePhoneActivation: state.reusablePhoneActivation,
-      });
+      }, context);
     }
 
     function createAutoRunRoundSummary(round) {
@@ -630,6 +694,7 @@
                 totalRuns,
                 attemptRun,
                 sessionId,
+                preserveRegistrationEmailIdentity: keepSameEmailUntilAddPhone && attemptRun > 1,
               }),
               currentNodeId: '',
               nodeStatuses: buildFreshAttemptNodeStatuses(prevState),
