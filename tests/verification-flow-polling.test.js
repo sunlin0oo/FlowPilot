@@ -1569,7 +1569,7 @@ test('verification flow notifies onResendRequestedAt when resend is triggered', 
   );
 });
 
-test('verification flow uses resilient signup-page transport when submitting verification code', async () => {
+test('verification flow uses resilient openai-auth transport when submitting verification code', async () => {
   const resilientCalls = [];
 
   const helpers = api.createVerificationFlowHelpers({

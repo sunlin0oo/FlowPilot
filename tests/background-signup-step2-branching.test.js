@@ -2,7 +2,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
-const step2Source = fs.readFileSync('background/steps/submit-signup-email.js', 'utf8');
+const step2Source = fs.readFileSync('flows/openai/background/steps/submit-signup-email.js', 'utf8');
 const step2GlobalScope = {};
 const step2Api = new Function('self', `${step2Source}; return self.MultiPageBackgroundStep2;`)(step2GlobalScope);
 
@@ -33,7 +33,7 @@ test('step 2 completes with password step skipped when landing on email verifica
     isTabAlive: async () => true,
     resolveSignupEmailForFlow: async () => 'user@example.com',
     sendToContentScriptResilient: async () => ({ submitted: true }),
-    SIGNUP_PAGE_INJECT_FILES: [],
+    OPENAI_AUTH_INJECT_FILES: [],
   });
 
   await executor.executeStep2({ email: 'user@example.com' });
@@ -72,7 +72,7 @@ test('step 2 keeps password flow when landing on password page', async () => {
     isTabAlive: async () => true,
     resolveSignupEmailForFlow: async () => 'user@example.com',
     sendToContentScriptResilient: async () => ({ submitted: true }),
-    SIGNUP_PAGE_INJECT_FILES: [],
+    OPENAI_AUTH_INJECT_FILES: [],
   });
 
   await executor.executeStep2({ email: 'user@example.com' });
@@ -150,7 +150,7 @@ test('step 2 uses phone activation when resolved signup method is phone', async 
       sentPayloads.push(message.payload);
       return { submitted: true };
     },
-    SIGNUP_PAGE_INJECT_FILES: [],
+    OPENAI_AUTH_INJECT_FILES: [],
   });
 
   await executor.executeStep2({ signupMethod: 'phone' });
@@ -233,7 +233,7 @@ test('step 2 reuses existing signup phone activation without acquiring a new num
       sentPayloads.push(message.payload);
       return { submitted: true };
     },
-    SIGNUP_PAGE_INJECT_FILES: [],
+    OPENAI_AUTH_INJECT_FILES: [],
   });
 
   await executor.executeStep2({
@@ -290,7 +290,7 @@ test('step 2 submits manual signup phone without acquiring a number', async () =
       sentPayloads.push(message.payload);
       return { submitted: true };
     },
-    SIGNUP_PAGE_INJECT_FILES: [],
+    OPENAI_AUTH_INJECT_FILES: [],
   });
 
   await executor.executeStep2({
@@ -354,7 +354,7 @@ test('step 2 stops with an explicit error instead of silently skipping 3/4/5 on 
     isTabAlive: async () => true,
     resolveSignupEmailForFlow: async () => 'user@example.com',
     sendToContentScriptResilient: async () => ({ submitted: true }),
-    SIGNUP_PAGE_INJECT_FILES: [],
+    OPENAI_AUTH_INJECT_FILES: [],
   });
 
   await assert.rejects(
@@ -405,7 +405,7 @@ test('step 2 does not force auth-entry retry on logged-out chatgpt home when con
       sentPayloads.push(message.payload);
       return { submitted: true };
     },
-    SIGNUP_PAGE_INJECT_FILES: [],
+    OPENAI_AUTH_INJECT_FILES: [],
   });
 
   await executor.executeStep2({ email: 'user@example.com' });
@@ -472,7 +472,7 @@ test('step 2 waits for the existing signup tab to settle before probing the entr
       }
       return { submitted: true };
     },
-    SIGNUP_PAGE_INJECT_FILES: [],
+    OPENAI_AUTH_INJECT_FILES: [],
     waitForTabStableComplete: async (_tabId, options) => {
       events.push({ type: 'wait-stable', options });
       return { id: 17, url: 'https://chatgpt.com/', status: 'complete' };
@@ -543,7 +543,7 @@ test('signup flow helper recognizes email verification page as post-email landin
     },
     setEmailState: async () => {},
     SIGNUP_ENTRY_URL: 'https://chatgpt.com/',
-    SIGNUP_PAGE_INJECT_FILES: [],
+    OPENAI_AUTH_INJECT_FILES: [],
     waitForTabUrlMatch: async () => ({
       id: 21,
       url: 'https://auth.openai.com/email-verification',
@@ -600,7 +600,7 @@ test('signup flow helper waits for the signup entry tab to settle for step 2 bef
     },
     setEmailState: async () => {},
     SIGNUP_ENTRY_URL: 'https://chatgpt.com/',
-    SIGNUP_PAGE_INJECT_FILES: [],
+    OPENAI_AUTH_INJECT_FILES: [],
     waitForTabStableComplete: async (_tabId, options) => {
       events.push({ type: 'wait-stable', options });
       return { id: 23, url: 'https://chatgpt.com/', status: 'complete' };
@@ -680,7 +680,7 @@ test('signup flow helper accepts phone signup landing on login password page', a
     },
     setEmailState: async () => {},
     SIGNUP_ENTRY_URL: 'https://chatgpt.com/',
-    SIGNUP_PAGE_INJECT_FILES: [],
+    OPENAI_AUTH_INJECT_FILES: [],
     waitForTabUrlMatch: async (_tabId, predicate) => {
       const url = 'https://auth.openai.com/log-in/password';
       return predicate(url) ? { id: 22, url } : null;
@@ -724,7 +724,7 @@ test('signup flow helper reuses existing managed alias email when it is still co
       setEmailCalls += 1;
     },
     SIGNUP_ENTRY_URL: 'https://chatgpt.com/',
-    SIGNUP_PAGE_INJECT_FILES: [],
+    OPENAI_AUTH_INJECT_FILES: [],
     waitForTabUrlMatch: async () => null,
   });
 
@@ -767,7 +767,7 @@ test('signup flow helper can generate an email on demand when add-email starts f
       setStateCalls.push(updates);
     },
     SIGNUP_ENTRY_URL: 'https://chatgpt.com/',
-    SIGNUP_PAGE_INJECT_FILES: [],
+    OPENAI_AUTH_INJECT_FILES: [],
     waitForTabUrlMatch: async () => null,
   });
 
@@ -836,7 +836,7 @@ test('signup flow helper delegates preserved phone identity email sync to the sh
       setStateCalls += 1;
     },
     SIGNUP_ENTRY_URL: 'https://chatgpt.com/',
-    SIGNUP_PAGE_INJECT_FILES: [],
+    OPENAI_AUTH_INJECT_FILES: [],
     waitForTabUrlMatch: async () => null,
   });
 
@@ -901,7 +901,7 @@ test('signup flow helper finalizes step 3 submit by reusing signup verification 
     },
     setEmailState: async () => {},
     SIGNUP_ENTRY_URL: 'https://chatgpt.com/',
-    SIGNUP_PAGE_INJECT_FILES: ['content/utils.js', 'content/signup-page.js'],
+    OPENAI_AUTH_INJECT_FILES: ['content/utils.js', 'flows/openai/content/openai-auth.js'],
     waitForTabUrlMatch: async () => null,
   });
 
@@ -943,11 +943,11 @@ test('signup flow helper rewrites retryable step 3 finalize transport timeout in
     isSignupPasswordPageUrl: () => true,
     reuseOrCreateTab: async () => 31,
     sendToContentScriptResilient: async () => {
-      throw new Error('Content script on signup-page did not respond in 45s. Try refreshing the tab and retry.');
+      throw new Error('Content script on openai-auth did not respond in 45s. Try refreshing the tab and retry.');
     },
     setEmailState: async () => {},
     SIGNUP_ENTRY_URL: 'https://chatgpt.com/',
-    SIGNUP_PAGE_INJECT_FILES: ['content/utils.js', 'content/signup-page.js'],
+    OPENAI_AUTH_INJECT_FILES: ['content/utils.js', 'flows/openai/content/openai-auth.js'],
     waitForTabUrlMatch: async () => null,
   });
 

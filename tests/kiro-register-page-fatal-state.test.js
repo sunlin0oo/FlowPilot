@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 
-const source = fs.readFileSync('content/kiro/register-page.js', 'utf8');
+const source = fs.readFileSync('flows/kiro/content/register-page.js', 'utf8');
 
 function createTextNode(textContent = '') {
   return { textContent };
@@ -314,4 +314,34 @@ test('kiro register content classifies signup verification separately from login
   assert.equal(registerDetected.email, 'new-user@duck.com');
   assert.equal(loginDetected.state, 'login_otp_page');
   assert.equal(loginDetected.email, 'existing-user@duck.com');
+});
+
+test('kiro register content classifies AWS signup hash verify route as register OTP page', () => {
+  const harness = createHarness({
+    href: 'https://profile.aws.amazon.com/?workflowID=abc#/signup/verify-otp',
+    hostname: 'profile.aws.amazon.com',
+    title: 'Amazon Web Services',
+    bodyText: 'Verify your email Verification code 6 digits Continue hash-user@duck.com',
+  });
+
+  const detected = harness.detectKiroRegisterPageState();
+
+  assert.equal(detected.state, 'register_otp_page');
+  assert.equal(detected.email, 'hash-user@duck.com');
+  assert.equal(detected.otpInput, null);
+  assert.equal(detected.verifyButton, null);
+});
+
+test('kiro register content keeps AWS login hash verify route out of register OTP branch', () => {
+  const harness = createHarness({
+    href: 'https://profile.aws.amazon.com/?workflowID=abc#/login/verify-otp',
+    hostname: 'profile.aws.amazon.com',
+    title: 'Amazon Web Services',
+    bodyText: 'Verify your identity Verification code 6 digits Continue existing-hash-user@duck.com',
+  });
+
+  const detected = harness.detectKiroRegisterPageState();
+
+  assert.equal(detected.state, 'login_otp_page');
+  assert.equal(detected.email, 'existing-hash-user@duck.com');
 });

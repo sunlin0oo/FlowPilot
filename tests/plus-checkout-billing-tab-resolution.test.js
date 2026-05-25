@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
 function loadPlusCheckoutBillingModule() {
-  const source = fs.readFileSync('background/steps/fill-plus-checkout.js', 'utf8');
+  const source = fs.readFileSync('flows/openai/background/steps/fill-plus-checkout.js', 'utf8');
   const globalScope = {};
   return new Function('self', `${source}; return self.MultiPageBackgroundPlusCheckoutBilling;`)(globalScope);
 }

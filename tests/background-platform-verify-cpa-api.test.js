@@ -44,7 +44,7 @@ function createDeps(overrides = {}) {
 
 function loadStep10WithSub2Api() {
   const sub2apiSource = fs.readFileSync('background/sub2api-api.js', 'utf8');
-  const step10Source = fs.readFileSync('background/steps/platform-verify.js', 'utf8');
+  const step10Source = fs.readFileSync('flows/openai/background/steps/platform-verify.js', 'utf8');
   return new Function('self', `${sub2apiSource}\n${step10Source}; return self.MultiPageBackgroundStep10;`)({});
 }
 
@@ -57,7 +57,7 @@ function createSub2ApiResponse(payload, status = 200) {
 }
 
 test('platform verify module submits CPA callback via management API first', async () => {
-  const source = fs.readFileSync('background/steps/platform-verify.js', 'utf8');
+  const source = fs.readFileSync('flows/openai/background/steps/platform-verify.js', 'utf8');
   const originalFetch = globalThis.fetch;
   let uiCalled = false;
   globalThis.fetch = async (url, options = {}) => {
@@ -114,7 +114,7 @@ test('platform verify module submits CPA callback via management API first', asy
 });
 
 test('platform verify module prefers cpaManagementOrigin when provided', async () => {
-  const source = fs.readFileSync('background/steps/platform-verify.js', 'utf8');
+  const source = fs.readFileSync('flows/openai/background/steps/platform-verify.js', 'utf8');
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url, options = {}) => {
     assert.equal(url, 'http://localhost:9999/v0/management/oauth-callback');
@@ -149,7 +149,7 @@ test('platform verify module prefers cpaManagementOrigin when provided', async (
 });
 
 test('platform verify module fails fast when CPA API submit fails', async () => {
-  const source = fs.readFileSync('background/steps/platform-verify.js', 'utf8');
+  const source = fs.readFileSync('flows/openai/background/steps/platform-verify.js', 'utf8');
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () => ({
     ok: false,
@@ -185,7 +185,7 @@ test('platform verify module fails fast when CPA API submit fails', async () => 
 });
 
 test('platform verify module requires management key for CPA API-only flow', async () => {
-  const source = fs.readFileSync('background/steps/platform-verify.js', 'utf8');
+  const source = fs.readFileSync('flows/openai/background/steps/platform-verify.js', 'utf8');
   const originalFetch = globalThis.fetch;
   let fetchCalled = false;
   globalThis.fetch = async () => {
@@ -221,7 +221,7 @@ test('platform verify module requires management key for CPA API-only flow', asy
 });
 
 test('platform verify module rejects callback when cpa oauth state mismatches', async () => {
-  const source = fs.readFileSync('background/steps/platform-verify.js', 'utf8');
+  const source = fs.readFileSync('flows/openai/background/steps/platform-verify.js', 'utf8');
   const originalFetch = globalThis.fetch;
   let fetchCalled = false;
   globalThis.fetch = async () => {

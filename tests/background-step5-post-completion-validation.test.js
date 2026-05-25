@@ -110,6 +110,7 @@ async function waitForTabStableComplete() {}
 ${extractFunction('parseUrlSafely')}
 ${extractFunction('isSignupEntryHost')}
 ${extractFunction('isLikelyLoggedInChatgptHomeUrl')}
+${extractFunction('isStep5CompletionChatgptUrl')}
 ${extractFunction('getStep5SubmitStateFromContent')}
 ${extractFunction('recoverStep5SubmitRetryPageOnTab')}
 ${extractFunction('validateStep5PostCompletion')}
@@ -135,6 +136,124 @@ return {
   assert.equal(snapshot.stateReadCount, 2);
   assert.equal(
     snapshot.logs.some(({ message }) => /检测到认证重试页/.test(message)),
+    true
+  );
+});
+
+test('step 5 post-completion validation rejects non-chatgpt success candidates', async () => {
+  const api = new Function(`
+const logs = [];
+const chrome = {
+  tabs: {
+    async get() {
+      return { url: 'https://auth.openai.com/sign-in-with-chatgpt/codex/consent' };
+    },
+  },
+};
+
+async function sendToContentScriptResilient(source, message) {
+  if (message.type === 'GET_STEP5_SUBMIT_STATE') {
+    return {
+      retryPage: false,
+      retryEnabled: false,
+      maxCheckAttemptsBlocked: false,
+      userAlreadyExistsBlocked: false,
+      successState: 'oauth_consent',
+      profileVisible: false,
+      errorText: '',
+      unknownAuthPage: false,
+      url: 'https://auth.openai.com/sign-in-with-chatgpt/codex/consent',
+    };
+  }
+  throw new Error('unexpected message type: ' + message.type);
+}
+
+async function addLog(message, level, meta) {
+  logs.push({ message, level, meta });
+}
+
+async function waitForTabStableComplete() {}
+
+${extractFunction('parseUrlSafely')}
+${extractFunction('isSignupEntryHost')}
+${extractFunction('isLikelyLoggedInChatgptHomeUrl')}
+${extractFunction('isStep5CompletionChatgptUrl')}
+${extractFunction('getStep5SubmitStateFromContent')}
+${extractFunction('recoverStep5SubmitRetryPageOnTab')}
+${extractFunction('validateStep5PostCompletion')}
+
+return {
+  run() {
+    return validateStep5PostCompletion(99, {});
+  },
+  snapshot() {
+    return { logs };
+  },
+};
+`)();
+
+  await assert.rejects(
+    api.run(),
+    /尚未跳转到 https:\/\/chatgpt\.com/
+  );
+  assert.equal(
+    api.snapshot().logs.some(({ message }) => /非 chatgpt\.com 的步骤 5 完成候选/.test(message)),
+    true
+  );
+});
+
+test('step 5 recovers from bfcache transport close when tab already reached chatgpt', async () => {
+  const api = new Function(`
+const logs = [];
+let waitCalls = 0;
+
+async function getTabId(source) {
+  return source === 'openai-auth' ? 42 : null;
+}
+
+async function waitForTabStableComplete(tabId) {
+  waitCalls += 1;
+  if (tabId !== 42) throw new Error('unexpected tab id');
+  return { url: 'https://chatgpt.com/' };
+}
+
+async function addLog(message, level, meta) {
+  logs.push({ message, level, meta });
+}
+
+function getErrorMessage(error) {
+  return String(error?.message || error || '');
+}
+
+${extractFunction('parseUrlSafely')}
+${extractFunction('isSignupEntryHost')}
+${extractFunction('isLikelyLoggedInChatgptHomeUrl')}
+${extractFunction('isStep5CompletionChatgptUrl')}
+${extractFunction('completeStep5FromTabUrlAfterTransportError')}
+
+return {
+  async run() {
+    return completeStep5FromTabUrlAfterTransportError(new Error('The page keeping the extension port is moved into back/forward cache, so the message channel is closed.'));
+  },
+  snapshot() {
+    return { logs, waitCalls };
+  },
+};
+`)();
+
+  const result = await api.run();
+  const snapshot = api.snapshot();
+
+  assert.deepStrictEqual(result, {
+    profileSubmitted: true,
+    postSubmitChecked: true,
+    outcome: 'logged_in_home',
+    url: 'https://chatgpt.com/',
+    recoveredFromTransportError: true,
+  });
+  assert.equal(snapshot.waitCalls, 1);
+  assert.equal(
+    snapshot.logs.some(({ message }) => /通信中断，但后台确认标签页已进入 chatgpt\.com/.test(message)),
     true
   );
 });

@@ -68,7 +68,7 @@ test('navigation utils support codex2api mode and url normalization', () => {
     utils.normalizeCodex2ApiUrl('https://codex-admin.example.com/'),
     'https://codex-admin.example.com/admin/accounts'
   );
-  assert.equal(utils.getPanelMode({ panelMode: 'codex2api' }), 'codex2api');
+  assert.equal(utils.getPanelMode({ targetId: 'codex2api' }), 'codex2api');
   assert.equal(utils.getPanelModeLabel('codex2api'), 'Codex2API');
 });
 

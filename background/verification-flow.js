@@ -242,7 +242,7 @@
           const requestTimeoutMs = Math.max(1200, Math.min(5000, timeoutMs));
           const result = typeof sendToContentScriptResilient === 'function'
             ? await sendToContentScriptResilient(
-              'signup-page',
+              'openai-auth',
               request,
               {
                 timeoutMs: requestTimeoutMs,
@@ -251,7 +251,7 @@
                 logMessage: `步骤 ${step}：验证码提交后页面正在切换，等待页面恢复并确认授权状态...`,
               }
             )
-            : await sendToContentScript('signup-page', request, {
+            : await sendToContentScript('openai-auth', request, {
               responseTimeoutMs: requestTimeoutMs,
             });
 
@@ -516,7 +516,7 @@
 
     async function requestVerificationCodeResend(step, options = {}) {
       throwIfStopped();
-      const signupTabId = await getTabId('signup-page');
+      const signupTabId = await getTabId('openai-auth');
       if (!signupTabId) {
         throw new Error('认证页面标签页已关闭，无法重新请求验证码。');
       }
@@ -525,7 +525,7 @@
       await chrome.tabs.update(signupTabId, { active: true });
       throwIfStopped();
 
-      const result = await sendToContentScript('signup-page', {
+      const result = await sendToContentScript('openai-auth', {
         type: 'RESEND_VERIFICATION_CODE',
         step,
         source: 'background',
@@ -1111,7 +1111,7 @@
     async function submitVerificationCode(step, code, options = {}) {
       const completionStep = getCompletionStep(step, options);
       const authLoginStep = completionStep >= 11 ? 10 : 7;
-      const signupTabId = await getTabId('signup-page');
+      const signupTabId = await getTabId('openai-auth');
       if (!signupTabId) {
         throw new Error('认证页面标签页已关闭，无法填写验证码。');
       }
@@ -1143,7 +1143,7 @@
       const shouldAvoidReplaySubmit = step === 8;
       if (typeof sendToContentScriptResilient === 'function' && !shouldAvoidReplaySubmit) {
         try {
-          result = await sendToContentScriptResilient('signup-page', message, {
+          result = await sendToContentScriptResilient('openai-auth', message, {
             timeoutMs: Math.max(baseResponseTimeoutMs + 15000, 30000),
             retryDelayMs: 700,
             responseTimeoutMs: baseResponseTimeoutMs,
@@ -1206,7 +1206,7 @@
         }
       } else if (shouldAvoidReplaySubmit) {
         try {
-          result = await sendToContentScript('signup-page', message, {
+          result = await sendToContentScript('openai-auth', message, {
             responseTimeoutMs: baseResponseTimeoutMs,
           });
         } catch (err) {
@@ -1255,7 +1255,7 @@
           throw err;
         }
       } else {
-        result = await sendToContentScript('signup-page', message, {
+        result = await sendToContentScript('openai-auth', message, {
           responseTimeoutMs: baseResponseTimeoutMs,
         });
       }

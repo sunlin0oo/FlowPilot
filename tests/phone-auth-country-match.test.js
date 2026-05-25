@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
-const source = fs.readFileSync('content/phone-auth.js', 'utf8');
+const source = fs.readFileSync('flows/openai/content/phone-auth.js', 'utf8');
 const globalScope = { navigator: { language: 'zh-CN' } };
 const api = new Function('self', `${source}; return self.MultiPagePhoneAuth;`)(globalScope);
 

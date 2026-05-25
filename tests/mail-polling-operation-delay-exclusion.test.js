@@ -78,6 +78,6 @@ test('mail polling bundles do not load operation delay module', () => {
 });
 
 test('WhatsApp code reader remains polling-only and delay-free', () => {
-  const source = fs.readFileSync('content/whatsapp-flow.js', 'utf8');
+  const source = fs.readFileSync('flows/openai/content/whatsapp-flow.js', 'utf8');
   assert.doesNotMatch(source, /performOperationWithDelay\(/);
 });

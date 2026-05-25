@@ -4,10 +4,10 @@ const fs = require('node:fs');
 
 test('confirm-oauth and platform-verify stay free of operation delay gate calls', () => {
   for (const file of [
-    'background/steps/confirm-oauth.js',
-    'background/steps/platform-verify.js',
+    'flows/openai/background/steps/confirm-oauth.js',
+    'flows/openai/background/steps/platform-verify.js',
     'background/panel-bridge.js',
-    'content/sub2api-panel.js',
+    'flows/openai/content/sub2api-panel.js',
   ]) {
     const source = fs.readFileSync(file, 'utf8');
     assert.doesNotMatch(source, /performOperationWithDelay\(/, `${file} must not call the operation delay gate`);

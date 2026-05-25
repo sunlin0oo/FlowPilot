@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
 function loadStep1Module() {
-  const source = fs.readFileSync('background/steps/open-chatgpt.js', 'utf8');
+  const source = fs.readFileSync('flows/openai/background/steps/open-chatgpt.js', 'utf8');
   const globalScope = {};
   return new Function('self', `${source}; return self.MultiPageBackgroundStep1;`)(globalScope);
 }

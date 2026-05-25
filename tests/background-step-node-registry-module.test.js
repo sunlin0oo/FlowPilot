@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
 test('background node registry preserves node metadata even before an executor is registered', () => {
-  const source = fs.readFileSync('background/steps/registry.js', 'utf8');
+  const source = fs.readFileSync('core/flow-kernel/step-registry.js', 'utf8');
   const api = new Function('self', `${source}; return self.MultiPageBackgroundStepRegistry;`)({});
   const registry = api.createNodeRegistry([
     {
@@ -27,7 +27,7 @@ test('background node registry preserves node metadata even before an executor i
 });
 
 test('background node registry executes registered nodes in display order', async () => {
-  const source = fs.readFileSync('background/steps/registry.js', 'utf8');
+  const source = fs.readFileSync('core/flow-kernel/step-registry.js', 'utf8');
   const api = new Function('self', `${source}; return self.MultiPageBackgroundStepRegistry;`)({});
   const events = [];
   const registry = api.createNodeRegistry([

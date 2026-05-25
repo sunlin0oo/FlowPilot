@@ -120,7 +120,7 @@ const self = {
     },
   },
 };
-const DEFAULT_STATE = { panelMode: 'cpa' };
+const DEFAULT_STATE = { targetId: 'cpa' };
 const CONTRIBUTION_RUNTIME_DEFAULTS = {
   accountContributionEnabled: false,
   accountContributionExpected: false,
@@ -150,7 +150,7 @@ return { buildAccountContributionState };
 `)();
 
   const enabledState = api.buildAccountContributionState(true, {
-    panelMode: 'sub2api',
+    targetId: 'sub2api',
     customPassword: 'Secret123!',
     accountRunHistoryTextEnabled: true,
   }, {
@@ -166,12 +166,12 @@ return { buildAccountContributionState };
     openai: { enabled: true, adapterId: 'openai-oauth' },
   });
   assert.equal(enabledState.contributionSessionId, 'session-001');
-  assert.equal(enabledState.panelMode, 'sub2api');
+  assert.equal(enabledState.targetId, 'sub2api');
   assert.equal(enabledState.customPassword, '');
   assert.equal(enabledState.accountRunHistoryTextEnabled, false);
 
   const disabledState = api.buildAccountContributionState(false, {
-    panelMode: 'sub2api',
+    targetId: 'sub2api',
     customPassword: 'Secret123!',
     accountRunHistoryTextEnabled: true,
   }, {
@@ -184,17 +184,17 @@ return { buildAccountContributionState };
   assert.equal(disabledState.contributionAdapterId, '');
   assert.deepStrictEqual(disabledState.flowContributionRuntime, {});
   assert.equal(disabledState.contributionSessionId, '');
-  assert.equal(disabledState.panelMode, 'sub2api');
+  assert.equal(disabledState.targetId, 'sub2api');
   assert.equal(disabledState.customPassword, 'Secret123!');
 
   const plusContributionState = api.buildAccountContributionState(true, {
-    panelMode: 'cpa',
+    targetId: 'cpa',
     plusModeEnabled: true,
     customPassword: 'Secret123!',
     accountRunHistoryTextEnabled: true,
   }, {});
   assert.equal(plusContributionState.contributionTargetGroupName, 'openai-plus');
-  assert.equal(plusContributionState.panelMode, 'sub2api');
+  assert.equal(plusContributionState.targetId, 'sub2api');
 });
 
 test('resetState preserves contribution runtime across reset', () => {
@@ -289,7 +289,7 @@ test('message router handles contribution mode, start flow, and status polling m
       calls.push({ type: 'toggle', enabled });
       return {
         accountContributionEnabled: Boolean(enabled),
-        panelMode: 'cpa',
+        targetId: 'cpa',
       };
     },
     startFlowContribution: async (options) => {
@@ -372,7 +372,7 @@ test('message router re-syncs contribution mode before AUTO_RUN when sidepanel p
   ]);
 });
 
-test('message router blocks AUTO_RUN and SCHEDULE_AUTO_RUN when shared auto-run validation fails', async () => {
+test('message router blocks AUTO_RUN when shared auto-run validation fails', async () => {
   const source = fs.readFileSync('background/message-router.js', 'utf8');
   const globalScope = {};
   const api = new Function('self', `${source}; return self.MultiPageBackgroundMessageRouter;`)(globalScope);
@@ -383,15 +383,11 @@ test('message router blocks AUTO_RUN and SCHEDULE_AUTO_RUN when shared auto-run 
     getPendingAutoRunTimerPlan: () => null,
     getState: async () => ({
       activeFlowId: 'site-a',
-      panelMode: 'cpa',
+      targetId: 'cpa',
       signupMethod: 'phone',
       stepStatuses: {},
     }),
     normalizeRunCount: (value) => Number(value) || 1,
-    scheduleAutoRun: async () => {
-      calls.push({ type: 'scheduleAutoRun' });
-      return { ok: true };
-    },
     setState: async (updates) => {
       calls.push({ type: 'setState', updates });
     },
@@ -415,19 +411,6 @@ test('message router blocks AUTO_RUN and SCHEDULE_AUTO_RUN when shared auto-run 
     }),
     /当前 flow 不支持手机号注册。/
   );
-
-  await assert.rejects(
-    () => router.handleMessage({
-      type: 'SCHEDULE_AUTO_RUN',
-      payload: {
-        totalRuns: 2,
-        delayMinutes: 5,
-        autoRunSkipFailures: false,
-      },
-    }),
-    /当前 flow 不支持手机号注册。/
-  );
-
   assert.deepStrictEqual(calls, []);
 });
 
@@ -947,7 +930,7 @@ return { refreshOAuthUrlBeforeStep6 };
 
   const oauthUrl = await api.refreshOAuthUrlBeforeStep6({
     accountContributionEnabled: false,
-    panelMode: 'sub2api',
+    targetId: 'sub2api',
     email: 'user@example.com',
   });
 

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "FlowPilot",
-  "version": "2.1",
-  "version_name": "FlowPilot2.1",
+  "version": "2.5",
+  "version_name": "FlowPilot2.5",
   "description": "用于自动执行多步骤 OAuth 注册流程",
   "permissions": [
     "sidePanel",
@@ -49,13 +49,18 @@
       ],
       "js": [
         "content/activation-utils.js",
-        "shared/source-registry.js",
+        "flows/openai/index.js",
+        "flows/kiro/index.js",
+        "flows/grok/index.js",
+        "flows/index.js",
+        "core/flow-kernel/flow-registry.js",
+        "core/flow-kernel/source-registry.js",
         "content/utils.js",
         "content/operation-delay.js",
-        "content/auth-page-recovery.js",
-        "content/phone-country-utils.js",
-        "content/phone-auth.js",
-        "content/signup-page.js"
+        "flows/openai/content/auth-page-recovery.js",
+        "flows/openai/content/phone-country-utils.js",
+        "flows/openai/content/phone-auth.js",
+        "flows/openai/content/openai-auth.js"
       ],
       "run_at": "document_idle"
     },
@@ -66,7 +71,12 @@
       ],
       "js": [
         "content/activation-utils.js",
-        "shared/source-registry.js",
+        "flows/openai/index.js",
+        "flows/kiro/index.js",
+        "flows/grok/index.js",
+        "flows/index.js",
+        "core/flow-kernel/flow-registry.js",
+        "core/flow-kernel/source-registry.js",
         "content/utils.js",
         "content/qq-mail.js"
       ],
@@ -83,7 +93,12 @@
       ],
       "js": [
         "content/activation-utils.js",
-        "shared/source-registry.js",
+        "flows/openai/index.js",
+        "flows/kiro/index.js",
+        "flows/grok/index.js",
+        "flows/index.js",
+        "core/flow-kernel/flow-registry.js",
+        "core/flow-kernel/source-registry.js",
         "content/utils.js",
         "content/mail-163.js"
       ],
@@ -97,7 +112,12 @@
       ],
       "js": [
         "content/activation-utils.js",
-        "shared/source-registry.js",
+        "flows/openai/index.js",
+        "flows/kiro/index.js",
+        "flows/grok/index.js",
+        "flows/index.js",
+        "core/flow-kernel/flow-registry.js",
+        "core/flow-kernel/source-registry.js",
         "content/utils.js",
         "content/icloud-mail.js"
       ],
@@ -110,7 +130,12 @@
       ],
       "js": [
         "content/activation-utils.js",
-        "shared/source-registry.js",
+        "flows/openai/index.js",
+        "flows/kiro/index.js",
+        "flows/grok/index.js",
+        "flows/index.js",
+        "core/flow-kernel/flow-registry.js",
+        "core/flow-kernel/source-registry.js",
         "content/utils.js",
         "content/operation-delay.js",
         "content/duck-mail.js"

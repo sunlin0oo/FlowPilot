@@ -3,8 +3,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 
-const source = fs.readFileSync('background/steps/paypal-approve.js', 'utf8');
-const paypalContentSource = fs.readFileSync('content/paypal-flow.js', 'utf8');
+const source = fs.readFileSync('flows/openai/background/steps/paypal-approve.js', 'utf8');
+const paypalContentSource = fs.readFileSync('flows/openai/content/paypal-flow.js', 'utf8');
 
 function loadModule() {
   const self = {};

@@ -3,34 +3,42 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
 function loadDesktopAuthorizeRunnerApi() {
-  const stateSource = fs.readFileSync('background/kiro/state.js', 'utf8');
-  const clientSource = fs.readFileSync('background/kiro/desktop-client.js', 'utf8');
-  const runnerSource = fs.readFileSync('background/kiro/desktop-authorize-runner.js', 'utf8');
+  const stateSource = fs.readFileSync('flows/kiro/background/state.js', 'utf8');
+  const clientSource = fs.readFileSync('flows/kiro/background/desktop-client.js', 'utf8');
+  const runnerSource = fs.readFileSync('flows/kiro/background/desktop-authorize-runner.js', 'utf8');
   const globalScope = {};
   new Function('self', `${stateSource}; ${clientSource}; ${runnerSource}; return self;`)(globalScope);
   return globalScope.MultiPageBackgroundKiroDesktopAuthorizeRunner;
 }
 
+function getKiroRuntime(state = {}) {
+  return state?.runtimeState?.flowState?.kiro || {};
+}
+
 function createDesktopAuthorizeState(overrides = {}) {
   return {
-    kiroRuntime: {
-      session: {
-        desktopTabId: 91,
+    runtimeState: {
+      flowState: {
+        kiro: {
+          session: {
+            desktopTabId: 91,
+          },
+          register: {
+            email: 'kiro-user@example.com',
+          },
+          desktopAuth: {
+            region: 'us-east-1',
+            clientId: 'desktop-client-id',
+            clientSecret: 'desktop-client-secret',
+            state: 'desktop-state-001',
+            codeVerifier: 'desktop-code-verifier',
+            redirectUri: 'http://127.0.0.1:43121/oauth/callback',
+            redirectPort: 43121,
+            authorizeUrl: 'https://example.com/authorize',
+          },
+          upload: {},
+        },
       },
-      register: {
-        email: 'kiro-user@example.com',
-      },
-      desktopAuth: {
-        region: 'us-east-1',
-        clientId: 'desktop-client-id',
-        clientSecret: 'desktop-client-secret',
-        state: 'desktop-state-001',
-        codeVerifier: 'desktop-code-verifier',
-        redirectUri: 'http://127.0.0.1:43121/oauth/callback',
-        redirectPort: 43121,
-        authorizeUrl: 'https://example.com/authorize',
-      },
-      upload: {},
     },
     ...overrides,
   };
@@ -73,7 +81,7 @@ test('parseDesktopCallbackUrl validates state and redirect port', () => {
 });
 
 test('kiro desktop authorize runner uses a shared 3-minute page-load timeout budget', () => {
-  const source = fs.readFileSync('background/kiro/desktop-authorize-runner.js', 'utf8');
+  const source = fs.readFileSync('flows/kiro/background/desktop-authorize-runner.js', 'utf8');
   assert.match(source, /DEFAULT_KIRO_PAGE_LOAD_TIMEOUT_MS/);
   assert.match(source, /createTimeoutBudget/);
   assert.match(source, /resolveTimeoutBudget/);
@@ -81,6 +89,18 @@ test('kiro desktop authorize runner uses a shared 3-minute page-load timeout bud
   assert.match(source, /onRetryableError: buildDesktopRetryRecovery\(tabId, \{\s*\.\.\.options,\s*timeoutBudget,/);
   assert.match(source, /awaitingCallbackAfterConsent/);
   assert.match(source, /finalizeDesktopAuthorizeCallback/);
+});
+
+test('kiro desktop authorize runner delegates OTP mail polling to the shared flow mail service', () => {
+  const source = fs.readFileSync('flows/kiro/background/desktop-authorize-runner.js', 'utf8');
+  assert.match(source, /pollFlowVerificationCode/);
+  assert.doesNotMatch(source, /buildDesktopOtpPollPayload/);
+  assert.doesNotMatch(source, /pollHotmailVerificationCode/);
+  assert.doesNotMatch(source, /pollLuckmailVerificationCode/);
+  assert.doesNotMatch(source, /pollCloudflareTempEmailVerificationCode/);
+  assert.doesNotMatch(source, /pollCloudMailVerificationCode/);
+  assert.doesNotMatch(source, /pollYydsMailVerificationCode/);
+  assert.doesNotMatch(source, /sendToMailContentScriptResilient/);
 });
 
 test('background wires the Kiro register injector into desktop authorization runner', () => {
@@ -95,14 +115,14 @@ test('background wires the Kiro register injector into desktop authorization run
 });
 
 test('kiro desktop authorization opens account page when no web session tab is tracked', () => {
-  const source = fs.readFileSync('background/kiro/desktop-authorize-runner.js', 'utf8');
+  const source = fs.readFileSync('flows/kiro/background/desktop-authorize-runner.js', 'utf8');
   assert.match(source, /KIRO_WEB_ACCOUNT_URL = 'https:\/\/app\.kiro\.dev\/settings\/account'/);
   assert.match(source, /chrome\.tabs\.create\(\{\s*url: KIRO_WEB_ACCOUNT_URL,\s*active: true,/);
   assert.match(source, /未能从已打开页面确认 Kiro Web 登录态，正在打开 Kiro 账号页重新确认/);
 });
 
 test('kiro desktop authorization is gated by completed Kiro Web sign-in', () => {
-  const source = fs.readFileSync('background/kiro/desktop-authorize-runner.js', 'utf8');
+  const source = fs.readFileSync('flows/kiro/background/desktop-authorize-runner.js', 'utf8');
   assert.match(source, /restoreKiroWebSessionFromOpenTabs/);
   assert.match(source, /GET_KIRO_REGISTER_PAGE_STATE/);
   assert.match(source, /Kiro Web 登录态尚未建立/);
@@ -112,12 +132,16 @@ test('kiro desktop authorization is gated by completed Kiro Web sign-in', () => 
 test('executeKiroStartDesktopAuthorize restores existing Kiro Web session before desktop auth', async () => {
   const api = loadDesktopAuthorizeRunnerApi();
   let currentState = {
-    kiroRuntime: {
-      session: {},
-      register: {},
-      webAuth: {},
-      desktopAuth: {},
-      upload: {},
+    runtimeState: {
+      flowState: {
+        kiro: {
+          session: {},
+          register: {},
+          webAuth: {},
+          desktopAuth: {},
+          upload: {},
+        },
+      },
     },
   };
   const setStateCalls = [];
@@ -178,7 +202,7 @@ test('executeKiroStartDesktopAuthorize restores existing Kiro Web session before
     getState: async () => currentState,
     getTabId: async () => null,
     isTabAlive: async () => false,
-    KIRO_REGISTER_INJECT_FILES: ['content/kiro/register-page.js'],
+    KIRO_REGISTER_INJECT_FILES: ['flows/kiro/content/register-page.js'],
     registerTab: async (source, tabId) => {
       if (source === 'kiro-desktop-authorize') {
         desktopRegisteredTabId = tabId;
@@ -213,10 +237,10 @@ test('executeKiroStartDesktopAuthorize restores existing Kiro Web session before
   assert.equal(desktopRegisteredTabId, 88);
   assert.match(openedAuthorizeUrl, /client_id=restored-client-id/);
   assert.equal(currentState.email, 'restored@duck.com');
-  assert.equal(currentState.kiroRuntime.register.email, 'restored@duck.com');
-  assert.equal(currentState.kiroRuntime.register.status, 'completed');
-  assert.equal(currentState.kiroRuntime.webAuth.status, 'signed_in');
-  assert.equal(completedPayload?.kiroRuntime?.desktopAuth?.clientId, 'restored-client-id');
+  assert.equal(getKiroRuntime(currentState).register.email, 'restored@duck.com');
+  assert.equal(getKiroRuntime(currentState).register.status, 'completed');
+  assert.equal(getKiroRuntime(currentState).webAuth.status, 'signed_in');
+  assert.equal(getKiroRuntime(completedPayload).desktopAuth?.clientId, 'restored-client-id');
   assert.equal(
     logs.some(({ message }) => message.includes('检测到已有 Kiro Web 登录态，已恢复账号 restored@duck.com')),
     true
@@ -227,12 +251,16 @@ test('executeKiroStartDesktopAuthorize restores existing Kiro Web session before
 test('executeKiroStartDesktopAuthorize opens Kiro account page to restore login state', async () => {
   const api = loadDesktopAuthorizeRunnerApi();
   let currentState = {
-    kiroRuntime: {
-      session: {},
-      register: {},
-      webAuth: {},
-      desktopAuth: {},
-      upload: {},
+    runtimeState: {
+      flowState: {
+        kiro: {
+          session: {},
+          register: {},
+          webAuth: {},
+          desktopAuth: {},
+          upload: {},
+        },
+      },
     },
   };
   const logs = [];
@@ -278,7 +306,7 @@ test('executeKiroStartDesktopAuthorize opens Kiro account page to restore login 
     ensureContentScriptReadyOnTab: async (source, tabId, options = {}) => {
       assert.equal(source, 'kiro-register-page');
       assert.equal(tabId, 91);
-      assert.deepEqual(options.inject, ['content/kiro/register-page.js']);
+      assert.deepEqual(options.inject, ['flows/kiro/content/register-page.js']);
       assert.equal(options.injectSource, 'kiro-register-page');
     },
     fetchImpl: async () => ({
@@ -291,7 +319,7 @@ test('executeKiroStartDesktopAuthorize opens Kiro account page to restore login 
     getState: async () => currentState,
     getTabId: async () => null,
     isTabAlive: async () => false,
-    KIRO_REGISTER_INJECT_FILES: ['content/kiro/register-page.js'],
+    KIRO_REGISTER_INJECT_FILES: ['flows/kiro/content/register-page.js'],
     registerTab: async (source, tabId) => {
       registeredTabs.push({ source, tabId });
     },
@@ -320,8 +348,8 @@ test('executeKiroStartDesktopAuthorize opens Kiro account page to restore login 
   await runner.executeKiroStartDesktopAuthorize(currentState);
 
   assert.equal(createdTabUrl, 'https://app.kiro.dev/settings/account');
-  assert.equal(currentState.kiroRuntime.register.email, 'opened@duck.com');
-  assert.equal(completedPayload?.kiroRuntime?.desktopAuth?.clientId, 'opened-client-id');
+  assert.equal(getKiroRuntime(currentState).register.email, 'opened@duck.com');
+  assert.equal(getKiroRuntime(completedPayload).desktopAuth?.clientId, 'opened-client-id');
   assert.deepEqual(registeredTabs, [
     { source: 'kiro-register-page', tabId: 91 },
     { source: 'kiro-desktop-authorize', tabId: 92 },
@@ -391,31 +419,35 @@ test('executeKiroCompleteDesktopAuthorize finishes from callback page without wa
 
   await runner.executeKiroCompleteDesktopAuthorize(currentState);
 
-  assert.equal(completedPayload?.kiroRuntime?.desktopAuth?.authorizationCode, 'auth-code-001');
-  assert.equal(completedPayload?.kiroRuntime?.desktopAuth?.refreshToken, 'refresh-token-001');
+  assert.equal(getKiroRuntime(completedPayload).desktopAuth?.authorizationCode, 'auth-code-001');
+  assert.equal(getKiroRuntime(completedPayload).desktopAuth?.refreshToken, 'refresh-token-001');
 });
 
 test('executeKiroCompleteDesktopAuthorize waits for callback after consent even if original tab disappears', async () => {
   const api = loadDesktopAuthorizeRunnerApi();
   let currentState = createDesktopAuthorizeState({
-    kiroRuntime: {
-      session: {
-        desktopTabId: 91,
+    runtimeState: {
+      flowState: {
+        kiro: {
+          session: {
+            desktopTabId: 91,
+          },
+          register: {
+            email: 'kiro-user@example.com',
+          },
+          desktopAuth: {
+            region: 'us-east-1',
+            clientId: 'desktop-client-id',
+            clientSecret: 'desktop-client-secret',
+            state: 'desktop-state-002',
+            codeVerifier: 'desktop-code-verifier',
+            redirectUri: 'http://127.0.0.1:43121/oauth/callback',
+            redirectPort: 43121,
+            authorizeUrl: 'https://example.com/authorize',
+          },
+          upload: {},
+        },
       },
-      register: {
-        email: 'kiro-user@example.com',
-      },
-      desktopAuth: {
-        region: 'us-east-1',
-        clientId: 'desktop-client-id',
-        clientSecret: 'desktop-client-secret',
-        state: 'desktop-state-002',
-        codeVerifier: 'desktop-code-verifier',
-        redirectUri: 'http://127.0.0.1:43121/oauth/callback',
-        redirectPort: 43121,
-        authorizeUrl: 'https://example.com/authorize',
-      },
-      upload: {},
     },
   });
   let completedPayload = null;
@@ -505,6 +537,6 @@ test('executeKiroCompleteDesktopAuthorize waits for callback after consent even 
 
   await runner.executeKiroCompleteDesktopAuthorize(currentState);
 
-  assert.equal(completedPayload?.kiroRuntime?.desktopAuth?.authorizationCode, 'auth-code-002');
-  assert.equal(completedPayload?.kiroRuntime?.desktopAuth?.refreshToken, 'refresh-token-002');
+  assert.equal(getKiroRuntime(completedPayload).desktopAuth?.authorizationCode, 'auth-code-002');
+  assert.equal(getKiroRuntime(completedPayload).desktopAuth?.refreshToken, 'refresh-token-002');
 });

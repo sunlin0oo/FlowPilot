@@ -1,4 +1,4 @@
-# 步骤与Flow节点化重构开发方案
+﻿# 步骤与Flow节点化重构开发方案
 
 ## 1. 文档目标
 
@@ -19,17 +19,17 @@
 | --- | --- | --- |
 | 状态 | `background.js` 里仍有 `currentStep`、`stepStatuses` | 数字步骤同时承担状态、顺序和恢复锚点 |
 | 协议 | `EXECUTE_STEP`、`STEP_COMPLETE`、`STEP_ERROR`、`SKIP_STEP` | 消息协议仍以数字 step 为核心 |
-| 定义 | `data/step-definitions.js`、`background/steps/registry.js` | 只有 OpenAI 真正注册，且执行仍按数字 id |
+| 定义 | `data/step-definitions.js`、`core/flow-kernel/step-registry.js` | 只有 OpenAI 真正注册，且执行仍按数字 id |
 | UI | `sidepanel/sidepanel.js` 按 step 渲染、发送、跳过 | 侧边栏本质上还是数字步骤面板 |
-| 内容脚本 | `content/signup-page.js` 按 `message.step` 分支 | 页面驱动逻辑被 step number 绑死 |
-| 运行态 | `background/runtime-state.js` 已有 `currentNodeId`、`nodeStatuses` | 但仍通过 legacy step 视图回写，双模型并存 |
-| 外围能力 | `shared/source-registry.js`、`shared/flow-capabilities.js`、`background/mail-rule-registry.js` | 已有抽象，但都还没成为唯一事实来源 |
+| 内容脚本 | `flows/openai/content/openai-auth.js` 按 `message.step` 分支 | 页面驱动逻辑被 step number 绑死 |
+| 运行态 | `core/flow-kernel/runtime-state.js` 已有 `currentNodeId`、`nodeStatuses` | 但仍通过 legacy step 视图回写，双模型并存 |
+| 外围能力 | `core/flow-kernel/source-registry.js`、`core/flow-kernel/flow-capabilities.js`、`background/mail-rule-registry.js` | 已有抽象，但都还没成为唯一事实来源 |
 
 重点文件里最能说明问题的几个点：
 
 - `background.js`：`DEFAULT_STATE`、`setStepStatus()`、`skipStep()`、`runAutoSequenceFromStep()`、`getStepRegistryForState()` 仍把数字 step 当主流程。
 - `background/message-router.js`：`STEP_COMPLETE` / `STEP_ERROR` / `EXECUTE_STEP` / `SKIP_STEP` 还在消息层面锁死 step。
-- `background/runtime-state.js`：已经有 node 相关字段，但还在做 step 兼容派生。
+- `core/flow-kernel/runtime-state.js`：已经有 node 相关字段，但还在做 step 兼容派生。
 - `sidepanel/sidepanel.js`：步骤列表、状态展示、手动执行、跳过、自动运行都还围着 step。
 - `flows/openai/mail-rules.js`、`background/mail-rule-registry.js`：已经说明“规则可以 flow 化”，但目前只有 OpenAI 在用。
 
@@ -164,7 +164,7 @@ node = {
   type: 'task',
   order: 20, // 仅用于展示，不参与身份
   sourceId: 'openai-auth',
-  driverId: 'content/signup-page',
+  driverId: 'flows/openai/content/openai-auth',
   next: ['fill-password'],
   retryPolicy: { maxAttempts: 3 },
   recoveryPolicy: { onFailure: 'restart-node' },
@@ -241,11 +241,11 @@ flows/<flowId>/
 
 ### 6.3 content scripts
 
-`content/signup-page.js` 这类脚本要从“按 step 分支”改成“按 node action / command 分支”。
+`flows/openai/content/openai-auth.js` 这类脚本要从“按 step 分支”改成“按 node action / command 分支”。
 
 ### 6.4 source / driver
 
-`shared/source-registry.js` 只负责页面来源、标签页生命周期和注入范围。
+`core/flow-kernel/source-registry.js` 只负责页面来源、标签页生命周期和注入范围。
 
 `driverRegistry` 只负责“这个 source 能接什么命令”。
 
@@ -378,3 +378,4 @@ flows/<flowId>/
 - 邮件规则是否只从当前 flow definition 派生。
 - sidepanel 是否能仅通过 workflow nodes 渲染，不新增全局步骤 switch。
 - 自动运行、历史和日志是否都能用 `flowId/runId/nodeId` 定位。
+

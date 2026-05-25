@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
-const source = fs.readFileSync('content/signup-page.js', 'utf8');
+const source = fs.readFileSync('flows/openai/content/openai-auth.js', 'utf8');
 
 function extractFunction(name) {
   const markers = [`async function ${name}(`, `function ${name}(`];
@@ -66,6 +66,7 @@ function getStep5Bundle() {
     extractFunction('waitForStep5SubmitButton'),
     extractFunction('isStep5SubmitButtonClickable'),
     extractFunction('isStep5ProfileStillVisible'),
+    extractFunction('isStep5CompletionChatgptUrl'),
     extractFunction('getStep5PostSubmitSuccessState'),
     extractFunction('installStep5NavigationCompletionReporter'),
     extractFunction('waitForStep5SubmitOutcome'),

@@ -78,11 +78,10 @@ const stepsProgress = document.getElementById('steps-progress');
 const btnAutoRun = document.getElementById('btn-auto-run');
 const btnAutoContinue = document.getElementById('btn-auto-continue');
 const autoContinueBar = document.getElementById('auto-continue-bar');
-const autoScheduleBar = document.getElementById('auto-schedule-bar');
-const autoScheduleTitle = document.getElementById('auto-schedule-title');
-const autoScheduleMeta = document.getElementById('auto-schedule-meta');
+const autoCountdownBar = document.getElementById('auto-countdown-bar');
+const autoCountdownTitle = document.getElementById('auto-countdown-title');
+const autoCountdownMeta = document.getElementById('auto-countdown-meta');
 const btnAutoRunNow = document.getElementById('btn-auto-run-now');
-const btnAutoCancelSchedule = document.getElementById('btn-auto-cancel-schedule');
 const btnClearLog = document.getElementById('btn-clear-log');
 const configMenuShell = document.getElementById('config-menu-shell');
 const btnConfigMenu = document.getElementById('btn-config-menu');
@@ -92,6 +91,7 @@ const btnImportSettings = document.getElementById('btn-import-settings');
 const inputImportSettingsFile = document.getElementById('input-import-settings-file');
 const labelSourceSelector = document.getElementById('label-source-selector');
 const selectPanelMode = document.getElementById('select-panel-mode');
+const btnOpenWebchat2ApiGithub = document.getElementById('btn-open-webchat2api-github');
 const rowVpsUrl = document.getElementById('row-vps-url');
 const inputVpsUrl = document.getElementById('input-vps-url');
 const rowVpsPassword = document.getElementById('row-vps-password');
@@ -187,12 +187,26 @@ const inputKiroRsKey = document.getElementById('input-kiro-rs-key');
 const btnTestKiroRs = document.getElementById('btn-test-kiro-rs');
 const rowKiroRsTestStatus = document.getElementById('row-kiro-rs-test-status');
 const displayKiroRsTestStatus = document.getElementById('display-kiro-rs-test-status');
+const rowGrokWebchat2ApiUrl = document.getElementById('row-grok-webchat2api-url');
+const inputGrokWebchat2ApiUrl = document.getElementById('input-grok-webchat2api-url');
+const rowGrokWebchat2ApiKey = document.getElementById('row-grok-webchat2api-key');
+const inputGrokWebchat2ApiKey = document.getElementById('input-grok-webchat2api-key');
 const rowKiroWebStatus = document.getElementById('row-kiro-web-status');
 const displayKiroWebStatus = document.getElementById('display-kiro-web-status');
 const rowKiroLoginUrl = document.getElementById('row-kiro-login-url');
 const displayKiroLoginUrl = document.getElementById('display-kiro-login-url');
 const rowKiroUploadStatus = document.getElementById('row-kiro-upload-status');
 const displayKiroUploadStatus = document.getElementById('display-kiro-upload-status');
+const rowGrokRegisterStatus = document.getElementById('row-grok-register-status');
+const displayGrokRegisterStatus = document.getElementById('display-grok-register-status');
+const rowGrokSsoStatus = document.getElementById('row-grok-sso-status');
+const displayGrokSsoStatus = document.getElementById('display-grok-sso-status');
+const rowGrokWebchat2ApiUploadStatus = document.getElementById('row-grok-webchat2api-upload-status');
+const displayGrokWebchat2ApiUploadStatus = document.getElementById('display-grok-webchat2api-upload-status');
+const rowGrokSsoSettings = document.getElementById('row-grok-sso-settings');
+const displayGrokSsoCookie = document.getElementById('display-grok-sso-cookie');
+const btnCopyGrokSso = document.getElementById('btn-copy-grok-sso');
+const btnClearGrokSso = document.getElementById('btn-clear-grok-sso');
 const rowCustomPassword = document.getElementById('row-custom-password');
 const rowPlusMode = document.getElementById('row-plus-mode');
 const inputPlusModeEnabled = document.getElementById('input-plus-mode-enabled');
@@ -415,10 +429,7 @@ const inputRunCount = document.getElementById('input-run-count');
 const inputAutoSkipFailures = document.getElementById('input-auto-skip-failures');
 const inputAutoSkipFailuresThreadIntervalMinutes = document.getElementById('input-auto-skip-failures-thread-interval-minutes');
 const inputStep6CookieCleanupEnabled = document.getElementById('input-step6-cookie-cleanup-enabled');
-const inputAutoDelayEnabled = document.getElementById('input-auto-delay-enabled');
-const inputAutoDelayMinutes = document.getElementById('input-auto-delay-minutes');
 const inputAutoStepDelaySeconds = document.getElementById('input-auto-step-delay-seconds');
-const inputOAuthFlowTimeoutEnabled = document.getElementById('input-oauth-flow-timeout-enabled');
 const rowStepExecutionRange = document.getElementById('row-step-execution-range');
 const inputStepExecutionRangeEnabled = document.getElementById('input-step-execution-range-enabled');
 const inputStepExecutionRangeFrom = document.getElementById('input-step-execution-range-from');
@@ -553,6 +564,7 @@ const autoHintText = document.querySelector('.auto-hint');
 const stepsList = document.querySelector('.steps-list');
 const PLUS_PAYMENT_METHOD_PAYPAL = 'paypal';
 const PLUS_PAYMENT_METHOD_PAYPAL_HOSTED = 'paypal-hosted';
+const PLUS_PAYMENT_METHOD_NONE = 'none';
 const PLUS_PAYMENT_METHOD_GOPAY = 'gopay';
 const PLUS_PAYMENT_METHOD_GPC_HELPER = 'gpc-helper';
 const DEFAULT_GPC_HELPER_API_URL = 'https://gpc.qlhazycoder.top';
@@ -577,6 +589,7 @@ let currentPlusModeEnabled = false;
 let currentPlusPaymentMethod = DEFAULT_PLUS_PAYMENT_METHOD;
 let currentPlusAccountAccessStrategy = DEFAULT_PLUS_ACCOUNT_ACCESS_STRATEGY;
 let currentSignupMethod = DEFAULT_SIGNUP_METHOD;
+let currentPhoneVerificationEnabled = false;
 let currentPhoneSignupReloginAfterBindEmailEnabled = DEFAULT_PHONE_SIGNUP_RELOGIN_AFTER_BIND_EMAIL_ENABLED;
 let currentStepDefinitionFlowId = DEFAULT_ACTIVE_FLOW_ID;
 let phoneSignupReuseUiWasLocked = false;
@@ -600,12 +613,14 @@ let stepDefinitions = getStepDefinitionsForMode(false, {
   plusPaymentMethod: currentPlusPaymentMethod,
   plusAccountAccessStrategy: currentPlusAccountAccessStrategy,
   signupMethod: currentSignupMethod,
+  phoneVerificationEnabled: currentPhoneVerificationEnabled,
   phoneSignupReloginAfterBindEmailEnabled: currentPhoneSignupReloginAfterBindEmailEnabled,
 });
 let workflowNodes = getWorkflowNodesForMode(false, {
   plusPaymentMethod: currentPlusPaymentMethod,
   plusAccountAccessStrategy: currentPlusAccountAccessStrategy,
   signupMethod: currentSignupMethod,
+  phoneVerificationEnabled: currentPhoneVerificationEnabled,
   phoneSignupReloginAfterBindEmailEnabled: currentPhoneSignupReloginAfterBindEmailEnabled,
 });
 let STEP_IDS = stepDefinitions.map((step) => Number(step.id)).filter(Number.isFinite);
@@ -614,9 +629,6 @@ let SKIPPABLE_STEPS = new Set(STEP_IDS);
 let NODE_IDS = workflowNodes.map((node) => String(node.nodeId || '').trim()).filter(Boolean);
 let NODE_DEFAULT_STATUSES = Object.fromEntries(NODE_IDS.map((nodeId) => [nodeId, 'pending']));
 let SKIPPABLE_NODES = new Set(NODE_IDS);
-const AUTO_DELAY_MIN_MINUTES = 1;
-const AUTO_DELAY_MAX_MINUTES = 1440;
-const AUTO_DELAY_DEFAULT_MINUTES = 30;
 const AUTO_FALLBACK_THREAD_INTERVAL_MIN_MINUTES = 0;
 const AUTO_FALLBACK_THREAD_INTERVAL_MAX_MINUTES = 1440;
 const AUTO_FALLBACK_THREAD_INTERVAL_DEFAULT_MINUTES = 0;
@@ -875,6 +887,13 @@ function getStepDefinitionsForMode(plusModeEnabled = false, options = {}) {
   const rawSignupMethod = typeof options === 'string'
     ? currentSignupMethod
     : (options.signupMethod || currentSignupMethod || DEFAULT_SIGNUP_METHOD);
+  const phoneVerificationEnabled = typeof options === 'string'
+    ? (typeof inputPhoneVerificationEnabled !== 'undefined' && inputPhoneVerificationEnabled
+      ? Boolean(inputPhoneVerificationEnabled.checked)
+      : Boolean(typeof latestState !== 'undefined' ? latestState?.phoneVerificationEnabled : false))
+    : Boolean(options.phoneVerificationEnabled ?? (typeof inputPhoneVerificationEnabled !== 'undefined' && inputPhoneVerificationEnabled
+      ? inputPhoneVerificationEnabled.checked
+      : (typeof latestState !== 'undefined' ? latestState?.phoneVerificationEnabled : false)));
   const phoneSignupReloginAfterBindEmailEnabled = typeof options === 'string'
     ? currentPhoneSignupReloginAfterBindEmailEnabled
     : Boolean(options.phoneSignupReloginAfterBindEmailEnabled ?? currentPhoneSignupReloginAfterBindEmailEnabled);
@@ -890,6 +909,7 @@ function getStepDefinitionsForMode(plusModeEnabled = false, options = {}) {
     plusPaymentMethod: normalizePlusPaymentMethod(rawPaymentMethod),
     plusAccountAccessStrategy: normalizePlusAccountAccessStrategy(rawPlusAccountAccessStrategy),
     signupMethod: normalizeSignupMethod(rawSignupMethod),
+    phoneVerificationEnabled,
     phoneSignupReloginAfterBindEmailEnabled,
     accountContributionEnabled,
   }) || [])
@@ -914,6 +934,13 @@ function getWorkflowNodesForMode(plusModeEnabled = false, options = {}) {
   const rawSignupMethod = typeof options === 'string'
     ? currentSignupMethod
     : (options.signupMethod || currentSignupMethod || DEFAULT_SIGNUP_METHOD);
+  const phoneVerificationEnabled = typeof options === 'string'
+    ? (typeof inputPhoneVerificationEnabled !== 'undefined' && inputPhoneVerificationEnabled
+      ? Boolean(inputPhoneVerificationEnabled.checked)
+      : Boolean(typeof latestState !== 'undefined' ? latestState?.phoneVerificationEnabled : false))
+    : Boolean(options.phoneVerificationEnabled ?? (typeof inputPhoneVerificationEnabled !== 'undefined' && inputPhoneVerificationEnabled
+      ? inputPhoneVerificationEnabled.checked
+      : (typeof latestState !== 'undefined' ? latestState?.phoneVerificationEnabled : false)));
   const phoneSignupReloginAfterBindEmailEnabled = typeof options === 'string'
     ? currentPhoneSignupReloginAfterBindEmailEnabled
     : Boolean(options.phoneSignupReloginAfterBindEmailEnabled ?? currentPhoneSignupReloginAfterBindEmailEnabled);
@@ -929,6 +956,7 @@ function getWorkflowNodesForMode(plusModeEnabled = false, options = {}) {
     plusPaymentMethod: normalizePlusPaymentMethod(rawPaymentMethod),
     plusAccountAccessStrategy: normalizePlusAccountAccessStrategy(rawPlusAccountAccessStrategy),
     signupMethod: normalizeSignupMethod(rawSignupMethod),
+    phoneVerificationEnabled,
     phoneSignupReloginAfterBindEmailEnabled,
     accountContributionEnabled,
   });
@@ -995,6 +1023,13 @@ function rebuildStepDefinitionState(plusModeEnabled = false, options = {}) {
   const rawSignupMethod = typeof options === 'string'
     ? currentSignupMethod
     : (options.signupMethod || currentSignupMethod || DEFAULT_SIGNUP_METHOD);
+  const phoneVerificationEnabled = typeof options === 'string'
+    ? (typeof inputPhoneVerificationEnabled !== 'undefined' && inputPhoneVerificationEnabled
+      ? Boolean(inputPhoneVerificationEnabled.checked)
+      : Boolean(typeof latestState !== 'undefined' ? latestState?.phoneVerificationEnabled : false))
+    : Boolean(options.phoneVerificationEnabled ?? (typeof inputPhoneVerificationEnabled !== 'undefined' && inputPhoneVerificationEnabled
+      ? inputPhoneVerificationEnabled.checked
+      : (typeof latestState !== 'undefined' ? latestState?.phoneVerificationEnabled : false)));
   const phoneSignupReloginAfterBindEmailEnabled = typeof options === 'string'
     ? currentPhoneSignupReloginAfterBindEmailEnabled
     : Boolean(options.phoneSignupReloginAfterBindEmailEnabled ?? currentPhoneSignupReloginAfterBindEmailEnabled);
@@ -1005,6 +1040,7 @@ function rebuildStepDefinitionState(plusModeEnabled = false, options = {}) {
   currentPlusPaymentMethod = normalizePlusPaymentMethod(rawPaymentMethod);
   currentPlusAccountAccessStrategy = normalizePlusAccountAccessStrategy(rawPlusAccountAccessStrategy);
   currentSignupMethod = normalizeSignupMethod(rawSignupMethod);
+  currentPhoneVerificationEnabled = Boolean(phoneVerificationEnabled);
   currentPhoneSignupReloginAfterBindEmailEnabled = phoneSignupReloginAfterBindEmailEnabled;
   const nextActiveFlowId = String(
     options?.activeFlowId
@@ -1019,6 +1055,7 @@ function rebuildStepDefinitionState(plusModeEnabled = false, options = {}) {
     plusPaymentMethod: currentPlusPaymentMethod,
     plusAccountAccessStrategy: currentPlusAccountAccessStrategy,
     signupMethod: currentSignupMethod,
+    phoneVerificationEnabled,
     phoneSignupReloginAfterBindEmailEnabled: currentPhoneSignupReloginAfterBindEmailEnabled,
     accountContributionEnabled,
   });
@@ -1028,6 +1065,7 @@ function rebuildStepDefinitionState(plusModeEnabled = false, options = {}) {
       plusPaymentMethod: currentPlusPaymentMethod,
       plusAccountAccessStrategy: currentPlusAccountAccessStrategy,
       signupMethod: currentSignupMethod,
+      phoneVerificationEnabled,
       phoneSignupReloginAfterBindEmailEnabled: currentPhoneSignupReloginAfterBindEmailEnabled,
       accountContributionEnabled,
     })
@@ -1351,7 +1389,6 @@ let currentAutoRun = {
   currentRun: 0,
   totalRuns: 1,
   attemptRun: 0,
-  scheduledAt: null,
   countdownAt: null,
   countdownTitle: '',
   countdownNote: '',
@@ -1372,7 +1409,7 @@ let currentModalActions = [];
 let modalResultBuilder = null;
 let activePlusManualConfirmationRequestId = '';
 let plusManualConfirmationDialogInFlight = false;
-let scheduledCountdownTimer = null;
+let autoRunCountdownTimer = null;
 let configMenuOpen = false;
 let configActionInFlight = false;
 let currentReleaseSnapshot = null;
@@ -1412,9 +1449,7 @@ function shouldAttachAutomationWindow(message = {}) {
   return [
     'EXECUTE_NODE',
     'AUTO_RUN',
-    'SCHEDULE_AUTO_RUN',
     'RESUME_AUTO_RUN',
-    'START_SCHEDULED_AUTO_RUN_NOW',
     'SKIP_AUTO_RUN_COUNTDOWN',
     'PROBE_IP_PROXY_EXIT',
   ].includes(String(message?.type || '').trim());
@@ -1567,6 +1602,7 @@ const PRIVACY_MASKED_INPUT_IDS = Object.freeze([
   'input-sub2api-default-proxy',
   'input-codex2api-url',
   'input-kiro-rs-url',
+  'input-grok-webchat2api-url',
   'input-gpc-helper-api',
   'input-gpc-helper-phone',
   'input-gpc-helper-local-sms-url',
@@ -1665,7 +1701,6 @@ const ICLOUD_FORWARD_MAIL_PROVIDER_LABELS = Object.fromEntries(
 const getIcloudLoginUrlForHost = window.IcloudUtils?.getIcloudLoginUrlForHost
   || ((host) => host === 'icloud.com.cn' ? 'https://www.icloud.com.cn/' : (host === 'icloud.com' ? 'https://www.icloud.com/' : ''));
 
-btnAutoCancelSchedule?.remove();
 const MAIL_PROVIDER_LOGIN_CONFIGS = {
   [ICLOUD_PROVIDER]: {
     label: 'iCloud 邮箱',
@@ -2003,13 +2038,44 @@ async function openConfirmModalWithOption({
 async function openPlusManualConfirmationDialog(options = {}) {
   const method = String(options.method || '').trim().toLowerCase();
   const activeFlowId = String(latestState?.activeFlowId || latestState?.flowId || 'openai').trim().toLowerCase();
-  const panelMode = String(latestState?.panelMode || latestState?.openaiIntegrationTargetId || '').trim().toLowerCase();
+  const normalizeTargetIdForFlowSafe = typeof normalizeTargetIdForFlow === 'function'
+    ? normalizeTargetIdForFlow
+    : ((flowId, targetId = '', fallback = '') => {
+      const normalizedFlowId = String(flowId || '').trim().toLowerCase() || 'openai';
+      if (normalizedFlowId === 'openai') {
+        const normalizedTargetId = String(targetId || fallback || '').trim().toLowerCase();
+        return normalizedTargetId === 'sub2api' || normalizedTargetId === 'codex2api' ? normalizedTargetId : 'cpa';
+      }
+      const normalizedTargetId = String(targetId || '').trim().toLowerCase();
+      return normalizedTargetId || String(fallback || '').trim().toLowerCase() || 'kiro-rs';
+    });
+  const getDefaultTargetIdForFlowSafe = typeof getDefaultTargetIdForFlow === 'function'
+    ? getDefaultTargetIdForFlow
+    : ((flowId = 'openai') => (String(flowId || '').trim().toLowerCase() === 'openai' ? 'cpa' : 'kiro-rs'));
+  const normalizePlusStrategyTargetIdSafe = typeof normalizePlusStrategyTargetId === 'function'
+    ? normalizePlusStrategyTargetId
+    : ((value = '') => {
+      const normalized = String(value || '').trim().toLowerCase();
+      if (normalized === 'sub2api' || normalized === 'codex2api') {
+        return normalized;
+      }
+      return 'cpa';
+    });
+  const targetId = normalizePlusStrategyTargetIdSafe(
+    typeof getSelectedTargetIdForState === 'function'
+      ? getSelectedTargetIdForState(latestState, activeFlowId)
+      : normalizeTargetIdForFlowSafe(
+        activeFlowId,
+        latestState?.targetId || '',
+        getDefaultTargetIdForFlowSafe(activeFlowId)
+      )
+  );
   const signupMethod = String(latestState?.resolvedSignupMethod || latestState?.signupMethod || 'email').trim().toLowerCase();
   const plusModeEnabled = latestState?.plusModeEnabled === undefined ? true : Boolean(latestState.plusModeEnabled);
   const plusAccountAccessStrategy = String(latestState?.plusAccountAccessStrategy || 'oauth').trim().toLowerCase();
   const useSub2ApiSessionImport = plusModeEnabled
     && activeFlowId === 'openai'
-    && panelMode === 'sub2api'
+    && targetId === 'sub2api'
     && signupMethod === 'email'
     && plusAccountAccessStrategy === 'sub2api_codex_session';
   const continuationActionLabel = useSub2ApiSessionImport
@@ -2043,13 +2109,44 @@ async function syncPlusManualConfirmationDialog() {
   const step = Number(latestState?.plusManualConfirmationStep) || 0;
   const method = String(latestState?.plusManualConfirmationMethod || '').trim().toLowerCase();
   const activeFlowId = String(latestState?.activeFlowId || latestState?.flowId || 'openai').trim().toLowerCase();
-  const panelMode = String(latestState?.panelMode || latestState?.openaiIntegrationTargetId || '').trim().toLowerCase();
+  const normalizeTargetIdForFlowSafe = typeof normalizeTargetIdForFlow === 'function'
+    ? normalizeTargetIdForFlow
+    : ((flowId, targetId = '', fallback = '') => {
+      const normalizedFlowId = String(flowId || '').trim().toLowerCase() || 'openai';
+      if (normalizedFlowId === 'openai') {
+        const normalizedTargetId = String(targetId || fallback || '').trim().toLowerCase();
+        return normalizedTargetId === 'sub2api' || normalizedTargetId === 'codex2api' ? normalizedTargetId : 'cpa';
+      }
+      const normalizedTargetId = String(targetId || '').trim().toLowerCase();
+      return normalizedTargetId || String(fallback || '').trim().toLowerCase() || 'kiro-rs';
+    });
+  const getDefaultTargetIdForFlowSafe = typeof getDefaultTargetIdForFlow === 'function'
+    ? getDefaultTargetIdForFlow
+    : ((flowId = 'openai') => (String(flowId || '').trim().toLowerCase() === 'openai' ? 'cpa' : 'kiro-rs'));
+  const normalizePlusStrategyTargetIdSafe = typeof normalizePlusStrategyTargetId === 'function'
+    ? normalizePlusStrategyTargetId
+    : ((value = '') => {
+      const normalized = String(value || '').trim().toLowerCase();
+      if (normalized === 'sub2api' || normalized === 'codex2api') {
+        return normalized;
+      }
+      return 'cpa';
+    });
+  const targetId = normalizePlusStrategyTargetIdSafe(
+    typeof getSelectedTargetIdForState === 'function'
+      ? getSelectedTargetIdForState(latestState, activeFlowId)
+      : normalizeTargetIdForFlowSafe(
+        activeFlowId,
+        latestState?.targetId || '',
+        getDefaultTargetIdForFlowSafe(activeFlowId)
+      )
+  );
   const signupMethod = String(latestState?.resolvedSignupMethod || latestState?.signupMethod || 'email').trim().toLowerCase();
   const plusModeEnabled = latestState?.plusModeEnabled === undefined ? true : Boolean(latestState.plusModeEnabled);
   const plusAccountAccessStrategy = String(latestState?.plusAccountAccessStrategy || 'oauth').trim().toLowerCase();
   const useSub2ApiSessionImport = plusModeEnabled
     && activeFlowId === 'openai'
-    && panelMode === 'sub2api'
+    && targetId === 'sub2api'
     && signupMethod === 'email'
     && plusAccountAccessStrategy === 'sub2api_codex_session';
   const continuationActionLabel = useSub2ApiSessionImport
@@ -2160,10 +2257,10 @@ function getContributionContentFlowId(state = latestState) {
 
 function getContributionContentTargetId(state = latestState) {
   const flowId = getContributionContentFlowId(state);
-  if (flowId === 'kiro') {
-    return String(state?.kiroTargetId || state?.targetId || 'kiro-rs').trim().toLowerCase() || 'kiro-rs';
+  if (typeof getSelectedTargetIdForState === 'function') {
+    return getSelectedTargetIdForState(state, flowId);
   }
-  return String(state?.openaiIntegrationTargetId || state?.panelMode || state?.targetId || 'cpa').trim().toLowerCase() || 'cpa';
+  return normalizeTargetIdForFlow(flowId, state?.targetId || '', getDefaultTargetIdForFlow(flowId));
 }
 
 function openNewUserGuidePrompt() {
@@ -2256,29 +2353,54 @@ function shouldWarnAutoRunFallbackRisk(totalRuns, autoRunSkipFailures) {
   return totalRuns >= AUTO_RUN_FALLBACK_RISK_WARNING_MIN_RUNS;
 }
 
-function shouldWarnCpaPhoneSignup(signupMethod = null, panelMode = null) {
+function shouldWarnCpaPhoneSignup(signupMethod = null, targetId = null) {
+  const defaultFlowId = typeof DEFAULT_ACTIVE_FLOW_ID === 'string' ? DEFAULT_ACTIVE_FLOW_ID : 'openai';
   const resolvedSignupMethod = normalizeSignupMethod(
     signupMethod ?? (
       typeof getSelectedSignupMethod === 'function'
         ? getSelectedSignupMethod()
         : DEFAULT_SIGNUP_METHOD
-    )
+      )
   );
-  const resolvedPanelMode = normalizePanelMode(
-    panelMode ?? (
-      typeof getSelectedPanelMode === 'function'
-        ? getSelectedPanelMode()
-        : 'cpa'
-    )
+  const activeFlowId = typeof getSelectedFlowId === 'function'
+    ? getSelectedFlowId(latestState)
+    : (
+      typeof normalizeFlowId === 'function'
+        ? normalizeFlowId(latestState?.activeFlowId || latestState?.flowId || defaultFlowId)
+        : (String(latestState?.activeFlowId || latestState?.flowId || defaultFlowId).trim().toLowerCase() || defaultFlowId)
+    );
+  const normalizeTargetIdForFlowSafe = typeof normalizeTargetIdForFlow === 'function'
+    ? normalizeTargetIdForFlow
+    : ((flowId, value = '', fallback = '') => {
+      const normalizedFlowId = String(flowId || '').trim().toLowerCase() || defaultFlowId;
+      if (normalizedFlowId === defaultFlowId) {
+        return normalizePanelMode(value || fallback);
+      }
+      const normalizedValue = String(value || '').trim().toLowerCase();
+      return normalizedValue || String(fallback || '').trim().toLowerCase() || 'kiro-rs';
+    });
+  const resolvedTargetId = normalizeTargetIdForFlowSafe(
+    activeFlowId,
+    targetId ?? (
+      typeof getSelectedTargetId === 'function'
+        ? getSelectedTargetId(activeFlowId)
+        : getSelectedTargetIdForState(latestState, activeFlowId)
+    ),
+    typeof getDefaultTargetIdForFlow === 'function'
+      ? getDefaultTargetIdForFlow(activeFlowId)
+      : (activeFlowId === defaultFlowId ? 'cpa' : 'kiro-rs')
   );
 
   const capabilityState = typeof resolveCurrentSidepanelCapabilities === 'function'
     ? resolveCurrentSidepanelCapabilities({
-      panelMode: resolvedPanelMode,
+      activeFlowId,
+      targetId: resolvedTargetId,
       signupMethod: resolvedSignupMethod,
       state: {
         ...(typeof latestState !== 'undefined' ? latestState : {}),
-        panelMode: resolvedPanelMode,
+        activeFlowId,
+        flowId: activeFlowId,
+        targetId: resolvedTargetId,
         signupMethod: resolvedSignupMethod,
       },
     })
@@ -2289,12 +2411,14 @@ function shouldWarnCpaPhoneSignup(signupMethod = null, panelMode = null) {
       }) || null;
       return registry?.resolveSidepanelCapabilities
         ? registry.resolveSidepanelCapabilities({
-          activeFlowId: typeof latestState !== 'undefined' ? latestState?.activeFlowId : '',
-          panelMode: resolvedPanelMode,
+          activeFlowId,
+          targetId: resolvedTargetId,
           signupMethod: resolvedSignupMethod,
           state: {
             ...(typeof latestState !== 'undefined' ? latestState : {}),
-            panelMode: resolvedPanelMode,
+            activeFlowId,
+            flowId: activeFlowId,
+            targetId: resolvedTargetId,
             signupMethod: resolvedSignupMethod,
           },
         })
@@ -2306,7 +2430,7 @@ function shouldWarnCpaPhoneSignup(signupMethod = null, panelMode = null) {
   }
 
   return resolvedSignupMethod === SIGNUP_METHOD_PHONE
-    && resolvedPanelMode === 'cpa'
+    && resolvedTargetId === 'cpa'
     && !isCpaPhoneSignupPromptDismissed();
 }
 
@@ -2328,11 +2452,11 @@ async function confirmCpaPhoneSignupIfNeeded(options = {}) {
   const signupMethod = Object.prototype.hasOwnProperty.call(options, 'signupMethod')
     ? options.signupMethod
     : null;
-  const panelMode = Object.prototype.hasOwnProperty.call(options, 'panelMode')
-    ? options.panelMode
+  const targetId = Object.prototype.hasOwnProperty.call(options, 'targetId')
+    ? options.targetId
     : null;
 
-  if (!shouldWarnCpaPhoneSignup(signupMethod, panelMode)) {
+  if (!shouldWarnCpaPhoneSignup(signupMethod, targetId)) {
     return true;
   }
 
@@ -2584,6 +2708,148 @@ function getKiroUploadStatusLabel(value = '') {
   }
 }
 
+function getKiroRuntimeState(state = {}) {
+  const runtimeState = state?.runtimeState?.flowState?.kiro;
+  if (runtimeState && typeof runtimeState === 'object' && !Array.isArray(runtimeState)) {
+    return runtimeState;
+  }
+  const flowState = state?.flowState?.kiro;
+  if (flowState && typeof flowState === 'object' && !Array.isArray(flowState)) {
+    return flowState;
+  }
+  return {};
+}
+
+function getGrokRuntimeState(state = {}) {
+  const runtimeState = state?.runtimeState?.flowState?.grok;
+  if (runtimeState && typeof runtimeState === 'object' && !Array.isArray(runtimeState)) {
+    return runtimeState;
+  }
+  const flowState = state?.flowState?.grok;
+  if (flowState && typeof flowState === 'object' && !Array.isArray(flowState)) {
+    return flowState;
+  }
+  return {};
+}
+
+function normalizeGrokSsoCookies(state = latestState) {
+  const runtimeState = getGrokRuntimeState(state);
+  const rawCookies = Array.isArray(runtimeState?.sso?.cookies)
+    ? runtimeState.sso.cookies
+    : (Array.isArray(state?.grokSsoCookies) ? state.grokSsoCookies : []);
+  const currentCookie = String(runtimeState?.sso?.currentCookie || state?.grokSsoCookie || '').trim();
+  return Array.from(new Set([
+    currentCookie,
+    ...rawCookies,
+  ].map((entry) => String(entry || '').trim()).filter(Boolean)));
+}
+
+function getGrokRegisterStatusLabel(value = '') {
+  const normalized = String(value || '').trim().toLowerCase();
+  switch (normalized) {
+    case 'signup_page_opened':
+      return '注册页已打开';
+    case 'email_submitting':
+      return '正在提交邮箱';
+    case 'verification_requested':
+      return '等待验证码';
+    case 'verified':
+      return '验证码已提交';
+    case 'profile_submitting':
+      return '正在提交资料';
+    case 'profile_submitted':
+      return '资料已提交';
+    case 'completed':
+      return '已完成';
+    case 'error':
+      return '失败';
+    default:
+      return String(value || '').trim() || '未开始';
+  }
+}
+
+function getGrokWebchat2ApiUploadStatusLabel(value = '') {
+  const normalized = String(value || '').trim().toLowerCase();
+  switch (normalized) {
+    case 'uploading':
+      return '正在上传';
+    case 'uploaded':
+      return '已上传';
+    case 'error':
+      return '上传失败';
+    default:
+      return String(value || '').trim() || '未开始';
+  }
+}
+
+function renderGrokRuntimeState(state = latestState) {
+  const runtimeState = getGrokRuntimeState(state);
+  const registerStatus = String(
+    runtimeState?.register?.status
+    || state?.grokRegisterStatus
+    || ''
+  ).trim();
+  const cookies = normalizeGrokSsoCookies(state);
+  const currentCookie = String(
+    runtimeState?.sso?.currentCookie
+    || state?.grokSsoCookie
+    || cookies[0]
+    || ''
+  ).trim();
+  const extractedAt = Number(
+    runtimeState?.sso?.extractedAt
+    || state?.grokSsoExtractedAt
+    || 0
+  ) || 0;
+  const uploadState = runtimeState?.upload || {};
+  const uploadStatus = String(
+    uploadState.status
+    || state?.grokWebchat2ApiUploadStatus
+    || ''
+  ).trim();
+  const uploadedAt = Number(
+    uploadState.uploadedAt
+    || state?.grokWebchat2ApiUploadedAt
+    || 0
+  ) || 0;
+  const uploadMessage = String(
+    uploadState.message
+    || state?.grokWebchat2ApiUploadMessage
+    || ''
+  ).trim();
+  const uploadTargetUrl = String(
+    uploadState.targetUrl
+    || state?.grokWebchat2ApiTargetUrl
+    || ''
+  ).trim();
+
+  if (displayGrokRegisterStatus) {
+    displayGrokRegisterStatus.textContent = getGrokRegisterStatusLabel(registerStatus);
+  }
+  if (displayGrokSsoStatus) {
+    displayGrokSsoStatus.textContent = currentCookie
+      ? `已提取 ${cookies.length || 1} 条${extractedAt ? `，${new Date(extractedAt).toLocaleString()}` : ''}`
+      : '未提取';
+  }
+  if (displayGrokSsoCookie) {
+    displayGrokSsoCookie.textContent = currentCookie
+      ? `${currentCookie.slice(0, 8)}...${currentCookie.slice(-6)}`
+      : '未提取';
+    displayGrokSsoCookie.title = currentCookie ? '已隐藏完整 SSO Cookie，可使用复制' : '';
+  }
+  if (displayGrokWebchat2ApiUploadStatus) {
+    const label = getGrokWebchat2ApiUploadStatusLabel(uploadStatus);
+    const suffix = uploadedAt ? `，${new Date(uploadedAt).toLocaleString()}` : '';
+    displayGrokWebchat2ApiUploadStatus.textContent = `${label}${uploadMessage ? `：${uploadMessage}` : ''}${suffix}`;
+    displayGrokWebchat2ApiUploadStatus.title = uploadTargetUrl || '';
+  }
+  [btnCopyGrokSso, btnClearGrokSso].forEach((button) => {
+    if (button) {
+      button.disabled = cookies.length === 0;
+    }
+  });
+}
+
 function setKiroRsConnectionTestStatus(message = '') {
   const nextText = String(message || '').trim() || '未测试';
   kiroRsConnectionTestStatusText = nextText;
@@ -2760,7 +3026,7 @@ function applyStepExecutionRangeState(state = latestState) {
   if (inputStepExecutionRangeEnabled) {
     inputStepExecutionRangeEnabled.checked = Boolean(range.enabled);
   }
-  const controlsDisabled = !available || isAutoRunLockedPhase() || isAutoRunScheduledPhase();
+  const controlsDisabled = !available || isAutoRunLockedPhase();
   if (inputStepExecutionRangeEnabled) inputStepExecutionRangeEnabled.disabled = controlsDisabled;
   if (inputStepExecutionRangeFrom) inputStepExecutionRangeFrom.disabled = controlsDisabled || !inputStepExecutionRangeEnabled?.checked;
   if (inputStepExecutionRangeTo) inputStepExecutionRangeTo.disabled = controlsDisabled || !inputStepExecutionRangeEnabled?.checked;
@@ -2861,7 +3127,7 @@ function hasSavedProgress(state = latestState) {
 function isContributionModeSwitchBlocked(state = latestState) {
   const statuses = getStepStatuses(state);
   const anyRunning = Object.values(statuses).some((status) => status === 'running');
-  return anyRunning || isAutoRunLockedPhase() || isAutoRunPausedPhase() || isAutoRunScheduledPhase();
+  return anyRunning || isAutoRunLockedPhase() || isAutoRunPausedPhase();
 }
 
 function shouldOfferAutoModeChoice(state = latestState) {
@@ -2897,6 +3163,18 @@ function syncLatestState(nextState) {
     ...normalizedNextState,
     nodeStatuses: mergedNodeStatuses,
   };
+
+  const activeFlowId = typeof normalizeFlowId === 'function'
+    ? normalizeFlowId(latestState?.activeFlowId || latestState?.flowId || DEFAULT_ACTIVE_FLOW_ID, DEFAULT_ACTIVE_FLOW_ID)
+    : (String(latestState?.activeFlowId || latestState?.flowId || DEFAULT_ACTIVE_FLOW_ID).trim().toLowerCase() || DEFAULT_ACTIVE_FLOW_ID);
+  const schema = typeof getSettingsSchema === 'function' ? getSettingsSchema() : null;
+  const selectedTargetId = schema?.getSelectedTargetId
+    ? schema.getSelectedTargetId(latestState, activeFlowId)
+    : (String(latestState?.targetId || '').trim().toLowerCase()
+      || (activeFlowId === 'kiro' ? 'kiro-rs' : 'cpa'));
+  latestState.targetId = typeof normalizeTargetIdForFlow === 'function'
+    ? normalizeTargetIdForFlow(activeFlowId, selectedTargetId)
+    : selectedTargetId;
 
   renderAccountRecords(latestState);
 }
@@ -2987,7 +3265,11 @@ function normalizePlusPaymentMethod(value = '') {
   const gpcValue = typeof PLUS_PAYMENT_METHOD_GPC_HELPER !== 'undefined' ? PLUS_PAYMENT_METHOD_GPC_HELPER : 'gpc-helper';
   const paypalValue = typeof PLUS_PAYMENT_METHOD_PAYPAL !== 'undefined' ? PLUS_PAYMENT_METHOD_PAYPAL : 'paypal';
   const paypalHostedValue = typeof PLUS_PAYMENT_METHOD_PAYPAL_HOSTED !== 'undefined' ? PLUS_PAYMENT_METHOD_PAYPAL_HOSTED : 'paypal-hosted';
+  const noneValue = typeof PLUS_PAYMENT_METHOD_NONE !== 'undefined' ? PLUS_PAYMENT_METHOD_NONE : 'none';
   const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === noneValue || normalized === 'no-payment' || normalized === 'skip-payment') {
+    return noneValue;
+  }
   if (normalized === paypalHostedValue || normalized === 'paypal_direct' || normalized === 'paypal-direct') {
     return paypalHostedValue;
   }
@@ -3078,7 +3360,12 @@ function getRequestedPlusAccountAccessStrategy(state = latestState) {
     if (typeof selectPanelMode !== 'undefined' && selectPanelMode?.value) {
       return selectPanelMode.value;
     }
-    return state?.panelMode || state?.openaiIntegrationTargetId || 'cpa';
+    return getSelectedTargetIdForState({
+      ...(latestState || {}),
+      ...(state || {}),
+      activeFlowId: DEFAULT_ACTIVE_FLOW_ID,
+      flowId: DEFAULT_ACTIVE_FLOW_ID,
+    }, DEFAULT_ACTIVE_FLOW_ID);
   };
   const resolveStrategyForTarget = typeof resolvePlusAccountAccessStrategyForTarget === 'function'
     ? resolvePlusAccountAccessStrategyForTarget
@@ -3161,7 +3448,38 @@ function resolvePlusManualContinuationActionLabelFromState(state = latestState) 
   const activeFlowId = String(state?.activeFlowId || state?.flowId || DEFAULT_ACTIVE_FLOW_ID).trim().toLowerCase();
   const signupMethod = normalizeSignupMethod(state?.resolvedSignupMethod || state?.signupMethod || DEFAULT_SIGNUP_METHOD);
   const plusModeEnabled = state?.plusModeEnabled === undefined ? true : Boolean(state?.plusModeEnabled);
-  const targetId = normalizePlusStrategyTargetId(state?.panelMode || state?.openaiIntegrationTargetId || 'cpa');
+  const normalizeTargetIdForFlowSafe = typeof normalizeTargetIdForFlow === 'function'
+    ? normalizeTargetIdForFlow
+    : ((flowId, targetId = '', fallback = '') => {
+      const normalizedFlowId = String(flowId || '').trim().toLowerCase() || DEFAULT_ACTIVE_FLOW_ID;
+      if (normalizedFlowId === DEFAULT_ACTIVE_FLOW_ID) {
+        const normalizedTargetId = String(targetId || fallback || '').trim().toLowerCase();
+        return normalizedTargetId === 'sub2api' || normalizedTargetId === 'codex2api' ? normalizedTargetId : 'cpa';
+      }
+      const normalizedTargetId = String(targetId || '').trim().toLowerCase();
+      return normalizedTargetId || String(fallback || '').trim().toLowerCase() || 'kiro-rs';
+    });
+  const getDefaultTargetIdForFlowSafe = typeof getDefaultTargetIdForFlow === 'function'
+    ? getDefaultTargetIdForFlow
+    : ((flowId = DEFAULT_ACTIVE_FLOW_ID) => (String(flowId || '').trim().toLowerCase() === DEFAULT_ACTIVE_FLOW_ID ? 'cpa' : 'kiro-rs'));
+  const normalizePlusStrategyTargetIdSafe = typeof normalizePlusStrategyTargetId === 'function'
+    ? normalizePlusStrategyTargetId
+    : ((value = '') => {
+      const normalized = String(value || '').trim().toLowerCase();
+      if (normalized === 'sub2api' || normalized === 'codex2api') {
+        return normalized;
+      }
+      return 'cpa';
+    });
+  const targetId = normalizePlusStrategyTargetIdSafe(
+    typeof getSelectedTargetIdForState === 'function'
+      ? getSelectedTargetIdForState(state, activeFlowId)
+      : normalizeTargetIdForFlowSafe(
+        activeFlowId,
+        state?.targetId || '',
+        getDefaultTargetIdForFlowSafe(activeFlowId)
+      )
+  );
   const strategy = normalizePlusAccountAccessStrategy(state?.plusAccountAccessStrategy || DEFAULT_PLUS_ACCOUNT_ACCESS_STRATEGY);
   const effectiveStrategy = plusModeEnabled && activeFlowId === DEFAULT_ACTIVE_FLOW_ID && signupMethod === SIGNUP_METHOD_EMAIL
     ? strategy
@@ -3356,7 +3674,7 @@ function syncAutoRunState(source = {}) {
   const autoRunning = source.autoRunning !== undefined
     ? Boolean(source.autoRunning)
     : (source.autoRunPhase !== undefined || source.phase !== undefined
-      ? ['scheduled', 'running', 'waiting_step', 'waiting_email', 'retrying', 'waiting_interval'].includes(phase)
+      ? ['running', 'waiting_step', 'waiting_email', 'retrying', 'waiting_interval'].includes(phase)
       : currentAutoRun.autoRunning);
 
   currentAutoRun = {
@@ -3365,7 +3683,6 @@ function syncAutoRunState(source = {}) {
     currentRun: readAutoRunStateValue(source, ['autoRunCurrentRun', 'currentRun'], currentAutoRun.currentRun),
     totalRuns: readAutoRunStateValue(source, ['autoRunTotalRuns', 'totalRuns'], currentAutoRun.totalRuns),
     attemptRun: readAutoRunStateValue(source, ['autoRunAttemptRun', 'attemptRun'], currentAutoRun.attemptRun),
-    scheduledAt: readAutoRunStateValue(source, ['scheduledAutoRunAt', 'scheduledAt'], currentAutoRun.scheduledAt),
     countdownAt: readAutoRunStateValue(source, ['autoRunCountdownAt', 'countdownAt'], currentAutoRun.countdownAt),
     countdownTitle: readAutoRunStateValue(source, ['autoRunCountdownTitle', 'countdownTitle'], currentAutoRun.countdownTitle),
     countdownNote: readAutoRunStateValue(source, ['autoRunCountdownNote', 'countdownNote'], currentAutoRun.countdownNote),
@@ -3375,8 +3692,7 @@ function syncAutoRunState(source = {}) {
 function isContributionButtonLocked() {
   const autoActive = currentAutoRun.autoRunning
     || isAutoRunLockedPhase()
-    || isAutoRunPausedPhase()
-    || isAutoRunScheduledPhase();
+    || isAutoRunPausedPhase();
   if (autoActive) {
     return false;
   }
@@ -3401,12 +3717,8 @@ function isAutoRunWaitingStepPhase() {
   return currentAutoRun.phase === 'waiting_step';
 }
 
-function isAutoRunScheduledPhase() {
-  return currentAutoRun.phase === 'scheduled';
-}
-
 function isAutoRunSourceSyncPhase(phase) {
-  return ['scheduled', 'running', 'waiting_step', 'waiting_email', 'retrying', 'waiting_interval'].includes(phase);
+  return ['running', 'waiting_step', 'waiting_email', 'retrying', 'waiting_interval'].includes(phase);
 }
 
 function shouldSyncRunCountFromAutoRunSource(source = {}) {
@@ -3441,14 +3753,6 @@ function getAutoRunLabel(payload = currentAutoRun) {
     return ` (${payload.currentRun}/${payload.totalRuns}${attemptLabel})`;
   }
   return attemptLabel ? ` (${attemptLabel.slice(3)})` : '';
-}
-
-function normalizeAutoDelayMinutes(value) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) {
-    return AUTO_DELAY_DEFAULT_MINUTES;
-  }
-  return Math.min(AUTO_DELAY_MAX_MINUTES, Math.max(AUTO_DELAY_MIN_MINUTES, Math.floor(numeric)));
 }
 
 function normalizeAutoRunThreadIntervalMinutes(value) {
@@ -3715,12 +4019,6 @@ function updateFallbackThreadIntervalInputState() {
   inputAutoSkipFailuresThreadIntervalMinutes.disabled = Boolean(inputAutoSkipFailures.disabled);
 }
 
-function updateAutoDelayInputState() {
-  const scheduled = isAutoRunScheduledPhase();
-  inputAutoDelayEnabled.disabled = scheduled;
-  inputAutoDelayMinutes.disabled = scheduled || !inputAutoDelayEnabled.checked;
-}
-
 function formatCountdown(remainingMs) {
   const totalSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
   const hours = Math.floor(totalSeconds / 3600);
@@ -3741,21 +4039,12 @@ function formatScheduleTime(timestamp) {
   });
 }
 
-function stopScheduledCountdownTicker() {
-  clearInterval(scheduledCountdownTimer);
-  scheduledCountdownTimer = null;
+function stopAutoRunCountdownTicker() {
+  clearInterval(autoRunCountdownTimer);
+  autoRunCountdownTimer = null;
 }
 
 function getActiveAutoRunCountdown() {
-  if (isAutoRunScheduledPhase() && Number.isFinite(currentAutoRun.scheduledAt)) {
-    return {
-      at: currentAutoRun.scheduledAt,
-      title: '已计划自动运行',
-      note: `计划于 ${formatScheduleTime(currentAutoRun.scheduledAt)} 开始`,
-      tone: 'scheduled',
-    };
-  }
-
   if (currentAutoRun.phase !== 'waiting_interval') {
     return null;
   }
@@ -3772,48 +4061,45 @@ function getActiveAutoRunCountdown() {
   };
 }
 
-function renderScheduledAutoRunInfo() {
-  if (!autoScheduleBar) {
+function renderAutoRunCountdownInfo() {
+  if (!autoCountdownBar) {
     return;
   }
 
   const countdown = getActiveAutoRunCountdown();
   if (!countdown) {
-    autoScheduleBar.style.display = 'none';
+    autoCountdownBar.style.display = 'none';
     return;
   }
 
   const remainingMs = countdown.at - Date.now();
-  autoScheduleBar.style.display = 'flex';
+  autoCountdownBar.style.display = 'flex';
   if (btnAutoRunNow) {
     btnAutoRunNow.hidden = false;
-    btnAutoRunNow.textContent = currentAutoRun.phase === 'waiting_interval' ? '立即继续' : '立即开始';
+    btnAutoRunNow.textContent = '立即继续';
   }
-  if (btnAutoCancelSchedule) {
-    btnAutoCancelSchedule.hidden = true;
-  }
-  autoScheduleTitle.textContent = countdown.title;
-  autoScheduleMeta.textContent = remainingMs > 0
+  autoCountdownTitle.textContent = countdown.title;
+  autoCountdownMeta.textContent = remainingMs > 0
     ? `${countdown.note ? `${countdown.note}，` : ''}剩余 ${formatCountdown(remainingMs)}`
     : '倒计时即将结束，正在准备继续...';
   return;
 }
 
-function syncScheduledCountdownTicker() {
-  renderScheduledAutoRunInfo();
+function syncAutoRunCountdownTicker() {
+  renderAutoRunCountdownInfo();
   if (getActiveAutoRunCountdown()) {
-    if (scheduledCountdownTimer) {
+    if (autoRunCountdownTimer) {
       return;
     }
 
-    scheduledCountdownTimer = setInterval(() => {
-      renderScheduledAutoRunInfo();
+    autoRunCountdownTimer = setInterval(() => {
+      renderAutoRunCountdownInfo();
       updateStatusDisplay(latestState);
     }, 1000);
     return;
   }
 
-  stopScheduledCountdownTicker();
+  stopAutoRunCountdownTicker();
   return;
 }
 
@@ -4544,12 +4830,63 @@ function collectSettingsPayload() {
       const normalized = String(value || '').trim().toLowerCase();
       return normalized === 'sub2api' || normalized === 'codex2api' ? normalized : 'cpa';
     });
-  const rawPanelMode = normalizePanelModeSafe(selectPanelMode?.value || latestState?.panelMode || 'cpa');
+  const normalizeTargetIdForFlowSafe = typeof normalizeTargetIdForFlow === 'function'
+    ? normalizeTargetIdForFlow
+    : ((flowId, targetId = '', fallback = '') => {
+      const normalizedFlowId = String(flowId || '').trim().toLowerCase() || defaultFlowId;
+      if (normalizedFlowId === defaultFlowId) {
+        return normalizePanelModeSafe(targetId || fallback);
+      }
+      const normalizedTargetId = String(targetId || '').trim().toLowerCase();
+      return normalizedTargetId || String(fallback || '').trim().toLowerCase() || 'kiro-rs';
+    });
+  const resolvePlusAccountAccessStrategyForTargetSafe = typeof resolvePlusAccountAccessStrategyForTarget === 'function'
+    ? resolvePlusAccountAccessStrategyForTarget
+    : ((value = '', targetId = '') => {
+      const oauthStrategyValue = typeof PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH !== 'undefined'
+        ? PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH
+        : 'oauth';
+      const sub2apiSessionStrategyValue = typeof PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION !== 'undefined'
+        ? PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION
+        : 'sub2api_codex_session';
+      const cpaSessionStrategyValue = typeof PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION !== 'undefined'
+        ? PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION
+        : 'cpa_codex_session';
+      const sessionUiValue = typeof PLUS_ACCOUNT_ACCESS_STRATEGY_CODEX_SESSION_UI !== 'undefined'
+        ? PLUS_ACCOUNT_ACCESS_STRATEGY_CODEX_SESSION_UI
+        : 'codex_session';
+      const normalizedValue = String(value || '').trim().toLowerCase();
+      const isSessionImport = normalizedValue === sessionUiValue
+        || normalizedValue === sub2apiSessionStrategyValue
+        || normalizedValue === cpaSessionStrategyValue;
+      if (!isSessionImport) {
+        return oauthStrategyValue;
+      }
+      const normalizedTargetId = typeof normalizePlusStrategyTargetId === 'function'
+        ? normalizePlusStrategyTargetId(targetId)
+        : normalizePanelModeSafe(targetId || '');
+      if (normalizedTargetId === 'sub2api') {
+        return sub2apiSessionStrategyValue;
+      }
+      if (normalizedTargetId === 'cpa') {
+        return cpaSessionStrategyValue;
+      }
+      return oauthStrategyValue;
+    });
   const selectedTargetId = typeof getSelectedTargetId === 'function'
     ? getSelectedTargetId(activeFlowId)
-    : (activeFlowId === defaultFlowId
-      ? rawPanelMode
-      : String(selectPanelMode?.value || latestState?.kiroTargetId || 'kiro-rs').trim().toLowerCase() || 'kiro-rs');
+    : normalizeTargetIdForFlowSafe(
+      activeFlowId,
+      selectPanelMode?.value || latestState?.targetId || '',
+      typeof getDefaultTargetIdForFlow === 'function'
+        ? getDefaultTargetIdForFlow(activeFlowId)
+        : (activeFlowId === defaultFlowId ? 'cpa' : 'kiro-rs')
+    );
+  const openAiTargetId = normalizePanelModeSafe(
+    activeFlowId === defaultFlowId
+      ? selectedTargetId
+      : getSelectedPanelMode(latestState)
+  );
   const rawPlusModeEnabled = typeof inputPlusModeEnabled !== 'undefined' && inputPlusModeEnabled
     ? Boolean(inputPlusModeEnabled.checked)
     : Boolean(latestState?.plusModeEnabled);
@@ -4561,14 +4898,12 @@ function collectSettingsPayload() {
     ? resolveCurrentSidepanelCapabilities({
       activeFlowId,
       targetId: selectedTargetId,
-      panelMode: rawPanelMode,
       signupMethod: selectedSignupMethod,
       state: {
         ...(latestState || {}),
         activeFlowId,
-        ...(activeFlowId === defaultFlowId
-          ? { panelMode: rawPanelMode }
-          : { kiroTargetId: selectedTargetId }),
+        flowId: activeFlowId,
+        targetId: selectedTargetId,
         plusModeEnabled: rawPlusModeEnabled,
         plusAccountAccessStrategy: requestedPlusAccountAccessStrategy,
         phoneVerificationEnabled: rawPhoneVerificationEnabled,
@@ -4583,15 +4918,13 @@ function collectSettingsPayload() {
       return registry?.resolveSidepanelCapabilities
         ? registry.resolveSidepanelCapabilities({
           activeFlowId,
-          panelMode: rawPanelMode,
           targetId: selectedTargetId,
           signupMethod: selectedSignupMethod,
           state: {
             ...(latestState || {}),
             activeFlowId,
-            ...(activeFlowId === defaultFlowId
-              ? { panelMode: rawPanelMode }
-              : { kiroTargetId: selectedTargetId }),
+            flowId: activeFlowId,
+            targetId: selectedTargetId,
             plusModeEnabled: rawPlusModeEnabled,
             plusAccountAccessStrategy: requestedPlusAccountAccessStrategy,
             phoneVerificationEnabled: rawPhoneVerificationEnabled,
@@ -4600,8 +4933,12 @@ function collectSettingsPayload() {
         })
         : null;
     })();
-  const effectivePanelMode = capabilityState?.effectivePanelMode || capabilityState?.panelMode || rawPanelMode;
   const effectiveTargetId = capabilityState?.effectiveTargetId || selectedTargetId;
+  const effectiveOpenAiTargetId = normalizePanelModeSafe(
+    activeFlowId === defaultFlowId
+      ? effectiveTargetId
+      : openAiTargetId
+  );
   const effectivePlusModeEnabled = capabilityState
     ? Boolean(capabilityState.runtimeLocks?.plusModeEnabled)
     : rawPlusModeEnabled;
@@ -4678,6 +5015,12 @@ function collectSettingsPayload() {
   const currentKiroRsKeyValue = typeof inputKiroRsKey !== 'undefined' && inputKiroRsKey
     ? String(inputKiroRsKey.value ?? '').trim()
     : null;
+  const currentGrokWebchat2ApiUrlValue = typeof inputGrokWebchat2ApiUrl !== 'undefined' && inputGrokWebchat2ApiUrl
+    ? String(inputGrokWebchat2ApiUrl.value ?? '').trim()
+    : null;
+  const currentGrokWebchat2ApiKeyValue = typeof inputGrokWebchat2ApiKey !== 'undefined' && inputGrokWebchat2ApiKey
+    ? String(inputGrokWebchat2ApiKey.value ?? '').trim()
+    : null;
   const normalizeHostedCheckoutDelaySecondsSafe = typeof normalizePlusHostedCheckoutOauthDelaySeconds === 'function'
     ? normalizePlusHostedCheckoutOauthDelaySeconds
     : ((value) => {
@@ -4689,22 +5032,19 @@ function collectSettingsPayload() {
     });
   return {
     activeFlowId,
-    ...(accountContributionEnabled ? {} : {
-      ...(activeFlowId === defaultFlowId ? { panelMode: effectivePanelMode } : {}),
-    }),
-    kiroTargetId: normalizeKiroTargetIdSafe(
-      'kiro',
-      activeFlowId === 'kiro'
-        ? effectiveTargetId
-        : (latestState?.kiroTargetId || 'kiro-rs'),
-      'kiro-rs'
-    ),
+    targetId: effectiveTargetId,
     kiroRsUrl: currentKiroRsUrlValue !== null
       ? (currentKiroRsUrlValue || defaultKiroRsUrl)
       : (String(latestState?.kiroRsUrl || defaultKiroRsUrl).trim() || defaultKiroRsUrl),
     kiroRsKey: currentKiroRsKeyValue !== null
       ? currentKiroRsKeyValue
       : String(latestState?.kiroRsKey || '').trim(),
+    grokWebchat2ApiUrl: currentGrokWebchat2ApiUrlValue !== null
+      ? currentGrokWebchat2ApiUrlValue
+      : String(latestState?.grokWebchat2ApiUrl || '').trim(),
+    grokWebchat2ApiAdminKey: currentGrokWebchat2ApiKeyValue !== null
+      ? currentGrokWebchat2ApiKeyValue
+      : String(latestState?.grokWebchat2ApiAdminKey || '').trim(),
     vpsUrl: inputVpsUrl.value.trim(),
     vpsPassword: inputVpsPassword.value,
     localCpaStep9Mode: getSelectedLocalCpaStep9Mode(),
@@ -4743,7 +5083,9 @@ function collectSettingsPayload() {
     codex2apiAdminKey: inputCodex2ApiAdminKey.value.trim(),
     plusModeEnabled: effectivePlusModeEnabled,
     plusPaymentMethod,
-    plusAccountAccessStrategy: requestedPlusAccountAccessStrategy,
+    plusAccountAccessStrategy: activeFlowId === defaultFlowId
+      ? resolvePlusAccountAccessStrategyForTargetSafe(requestedPlusAccountAccessStrategy, effectiveOpenAiTargetId)
+      : requestedPlusAccountAccessStrategy,
     hostedCheckoutVerificationUrl: typeof inputHostedCheckoutVerificationUrl !== 'undefined' && inputHostedCheckoutVerificationUrl
       ? String(inputHostedCheckoutVerificationUrl.value || '').trim()
       : String(latestState?.hostedCheckoutVerificationUrl || '').trim(),
@@ -4870,12 +5212,7 @@ function collectSettingsPayload() {
     stepExecutionRangeByFlow: typeof buildStepExecutionRangeByFlowPayload === 'function'
       ? buildStepExecutionRangeByFlowPayload(latestState?.stepExecutionRangeByFlow)
       : (latestState?.stepExecutionRangeByFlow || {}),
-    autoRunDelayEnabled: inputAutoDelayEnabled.checked,
-    autoRunDelayMinutes: normalizeAutoDelayMinutes(inputAutoDelayMinutes.value),
     autoStepDelaySeconds: normalizeAutoStepDelaySeconds(inputAutoStepDelaySeconds.value),
-    oauthFlowTimeoutEnabled: typeof inputOAuthFlowTimeoutEnabled !== 'undefined' && inputOAuthFlowTimeoutEnabled
-      ? Boolean(inputOAuthFlowTimeoutEnabled.checked)
-      : true,
     phoneVerificationEnabled: effectivePhoneVerificationEnabled,
     signupMethod: effectiveSignupMethod,
     phoneSignupReloginAfterBindEmailEnabled: typeof inputPhoneSignupReloginAfterBindEmail !== 'undefined' && inputPhoneSignupReloginAfterBindEmail
@@ -8749,12 +9086,9 @@ function getSelectedTargetIdForState(state = latestState, flowId = getSelectedFl
   if (schema?.getSelectedTargetId) {
     return schema.getSelectedTargetId(state || {}, normalizedFlowId);
   }
-  if (normalizedFlowId === DEFAULT_ACTIVE_FLOW_ID) {
-    return normalizePanelMode(state?.panelMode || getDefaultTargetIdForFlow(normalizedFlowId));
-  }
   return normalizeTargetIdForFlow(
     normalizedFlowId,
-    state?.kiroTargetId || '',
+    state?.targetId || '',
     getDefaultTargetIdForFlow(normalizedFlowId)
   );
 }
@@ -8764,14 +9098,9 @@ function getSelectedTargetId(flowId = getSelectedFlowId()) {
   const selectedValue = typeof selectPanelMode !== 'undefined' && selectPanelMode
     ? selectPanelMode.value
     : '';
-  if (normalizedFlowId === DEFAULT_ACTIVE_FLOW_ID) {
-    return normalizePanelMode(
-      selectedValue || latestState?.panelMode || getDefaultTargetIdForFlow(normalizedFlowId)
-    );
-  }
   return normalizeTargetIdForFlow(
     normalizedFlowId,
-    selectedValue || latestState?.kiroTargetId || '',
+    selectedValue || latestState?.targetId || '',
     getDefaultTargetIdForFlow(normalizedFlowId)
   );
 }
@@ -8923,24 +9252,15 @@ function resolveCurrentSidepanelCapabilities(options = {}) {
   };
   const targetId = options?.targetId !== undefined
     ? options.targetId
-    : (activeFlowId === DEFAULT_ACTIVE_FLOW_ID
-      ? (options?.panelMode ?? state?.panelMode)
-      : (options?.kiroTargetId ?? state?.kiroTargetId));
-  if (activeFlowId === DEFAULT_ACTIVE_FLOW_ID) {
-    state.panelMode = normalizePanelMode(
-      targetId || state?.panelMode || getDefaultTargetIdForFlow(activeFlowId)
-    );
-  } else {
-    state.kiroTargetId = normalizeTargetIdForFlow(
-      activeFlowId,
-      targetId || state?.kiroTargetId || '',
-      getDefaultTargetIdForFlow(activeFlowId)
-    );
-  }
+    : (state?.targetId ?? getSelectedTargetIdForState(state, activeFlowId));
+  state.targetId = normalizeTargetIdForFlow(
+    activeFlowId,
+    targetId || state?.targetId || '',
+    getDefaultTargetIdForFlow(activeFlowId)
+  );
   return registry.resolveSidepanelCapabilities({
     activeFlowId,
-    panelMode: state?.panelMode,
-    targetId: activeFlowId === DEFAULT_ACTIVE_FLOW_ID ? state?.panelMode : state?.kiroTargetId,
+    targetId: state.targetId,
     signupMethod: options?.signupMethod ?? state?.signupMethod,
     state,
   });
@@ -8953,7 +9273,7 @@ function resolveStepDefinitionCapabilityState(state = latestState, options = {})
   };
   const capabilityState = resolveCurrentSidepanelCapabilities({
     activeFlowId: options?.activeFlowId ?? nextState?.activeFlowId,
-    panelMode: options?.panelMode ?? nextState?.panelMode,
+    targetId: options?.targetId ?? nextState?.targetId,
     signupMethod: options?.signupMethod ?? nextState?.signupMethod,
     state: nextState,
   });
@@ -8968,19 +9288,41 @@ function resolveStepDefinitionCapabilityState(state = latestState, options = {})
       ),
     signupMethod: capabilityState?.effectiveSignupMethod
       || normalizeSignupMethod((options?.signupMethod ?? nextState?.signupMethod) || DEFAULT_SIGNUP_METHOD),
+    phoneVerificationEnabled: capabilityState
+      ? Boolean(capabilityState.runtimeLocks?.phoneVerificationEnabled)
+      : Boolean(nextState?.phoneVerificationEnabled),
   };
 }
 
-function getSelectedPanelMode() {
+function getSelectedPanelMode(state = latestState) {
   const resolvedPanelMode = normalizePanelMode(
-    typeof selectPanelMode !== 'undefined' && selectPanelMode
-      ? selectPanelMode.value
-      : (typeof latestState !== 'undefined' ? latestState?.panelMode : '')
+    typeof getSelectedTargetIdForState === 'function'
+      ? getSelectedTargetIdForState({
+        ...(typeof latestState !== 'undefined' ? latestState : {}),
+        ...(state || {}),
+        activeFlowId: DEFAULT_ACTIVE_FLOW_ID,
+        flowId: DEFAULT_ACTIVE_FLOW_ID,
+      }, DEFAULT_ACTIVE_FLOW_ID)
+      : (
+        typeof selectPanelMode !== 'undefined' && selectPanelMode
+          ? selectPanelMode.value
+          : (typeof state !== 'undefined' ? state?.targetId : '')
+      )
   );
   const capabilityState = typeof resolveCurrentSidepanelCapabilities === 'function'
-    ? resolveCurrentSidepanelCapabilities({ panelMode: resolvedPanelMode })
+    ? resolveCurrentSidepanelCapabilities({
+      activeFlowId: DEFAULT_ACTIVE_FLOW_ID,
+      targetId: resolvedPanelMode,
+      state: {
+        ...(typeof latestState !== 'undefined' ? latestState : {}),
+        ...(state || {}),
+        activeFlowId: DEFAULT_ACTIVE_FLOW_ID,
+        flowId: DEFAULT_ACTIVE_FLOW_ID,
+        targetId: resolvedPanelMode,
+      },
+    })
     : null;
-  return capabilityState?.effectivePanelMode || capabilityState?.panelMode || resolvedPanelMode;
+  return normalizePanelMode(capabilityState?.effectiveTargetId || resolvedPanelMode);
 }
 
 function getSelectedSignupMethod() {
@@ -9009,7 +9351,9 @@ function canSelectPhoneSignupMethod() {
     : Boolean(latestState?.accountContributionEnabled);
   const capabilityState = typeof resolveCurrentSidepanelCapabilities === 'function'
     ? resolveCurrentSidepanelCapabilities({
-      panelMode: typeof getSelectedPanelMode === 'function' ? getSelectedPanelMode() : latestState?.panelMode,
+      targetId: typeof getSelectedTargetId === 'function'
+        ? getSelectedTargetId(getSelectedFlowId(latestState))
+        : latestState?.targetId,
       state: {
         ...(typeof latestState !== 'undefined' ? latestState : {}),
         phoneVerificationEnabled: phoneEnabled,
@@ -9025,7 +9369,9 @@ function canSelectPhoneSignupMethod() {
       return registry?.resolveSidepanelCapabilities
         ? registry.resolveSidepanelCapabilities({
           activeFlowId: typeof latestState !== 'undefined' ? latestState?.activeFlowId : '',
-          panelMode: typeof getSelectedPanelMode === 'function' ? getSelectedPanelMode() : (latestState?.panelMode || 'cpa'),
+          targetId: typeof getSelectedTargetId === 'function'
+            ? getSelectedTargetId(getSelectedFlowId(latestState))
+            : latestState?.targetId,
           state: {
             ...(typeof latestState !== 'undefined' ? latestState : {}),
             phoneVerificationEnabled: phoneEnabled,
@@ -9042,7 +9388,7 @@ function canSelectPhoneSignupMethod() {
 }
 
 function isSignupMethodSwitchLocked() {
-  return isAutoRunLockedPhase() || isAutoRunPausedPhase() || isAutoRunScheduledPhase();
+  return isAutoRunLockedPhase() || isAutoRunPausedPhase();
 }
 
 function updateSignupMethodUI(options = {}) {
@@ -9127,7 +9473,9 @@ function updatePhoneVerificationSettingsUI() {
     : Boolean(latestState?.plusModeEnabled);
   const capabilityState = typeof resolveCurrentSidepanelCapabilities === 'function'
     ? resolveCurrentSidepanelCapabilities({
-      panelMode: typeof getSelectedPanelMode === 'function' ? getSelectedPanelMode() : latestState?.panelMode,
+      targetId: typeof getSelectedTargetId === 'function'
+        ? getSelectedTargetId(getSelectedFlowId(latestState))
+        : latestState?.targetId,
       signupMethod: typeof getSelectedSignupMethod === 'function' ? getSelectedSignupMethod() : latestState?.signupMethod,
       state: {
         ...(latestState || {}),
@@ -9143,7 +9491,9 @@ function updatePhoneVerificationSettingsUI() {
       return registry?.resolveSidepanelCapabilities
         ? registry.resolveSidepanelCapabilities({
           activeFlowId: latestState?.activeFlowId,
-          panelMode: typeof getSelectedPanelMode === 'function' ? getSelectedPanelMode() : (latestState?.panelMode || 'cpa'),
+          targetId: typeof getSelectedTargetId === 'function'
+            ? getSelectedTargetId(getSelectedFlowId(latestState))
+            : latestState?.targetId,
           signupMethod: typeof getSelectedSignupMethod === 'function' ? getSelectedSignupMethod() : latestState?.signupMethod,
           state: {
             ...(latestState || {}),
@@ -9282,7 +9632,7 @@ function updatePhoneVerificationSettingsUI() {
     }
   }
   phoneSignupReuseUiWasLocked = phoneSignupReuseLocked;
-  const settingsLocked = isAutoRunLockedPhase() || isAutoRunScheduledPhase();
+  const settingsLocked = isAutoRunLockedPhase();
   if (typeof inputPhoneSignupReloginAfterBindEmail !== 'undefined' && inputPhoneSignupReloginAfterBindEmail) {
     inputPhoneSignupReloginAfterBindEmail.disabled = settingsLocked || !showPhoneSignupReloginAfterBindEmail;
   }
@@ -9365,6 +9715,7 @@ function updatePhoneVerificationSettingsUI() {
 function updatePlusModeUI() {
   const paypalValue = typeof PLUS_PAYMENT_METHOD_PAYPAL !== 'undefined' ? PLUS_PAYMENT_METHOD_PAYPAL : 'paypal';
   const paypalHostedValue = typeof PLUS_PAYMENT_METHOD_PAYPAL_HOSTED !== 'undefined' ? PLUS_PAYMENT_METHOD_PAYPAL_HOSTED : 'paypal-hosted';
+  const noneValue = typeof PLUS_PAYMENT_METHOD_NONE !== 'undefined' ? PLUS_PAYMENT_METHOD_NONE : 'none';
   const gopayValue = typeof PLUS_PAYMENT_METHOD_GOPAY !== 'undefined' ? PLUS_PAYMENT_METHOD_GOPAY : 'gopay';
   const gpcValue = typeof PLUS_PAYMENT_METHOD_GPC_HELPER !== 'undefined' ? PLUS_PAYMENT_METHOD_GPC_HELPER : 'gpc-helper';
   const oauthStrategyValue = typeof PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH !== 'undefined'
@@ -9432,7 +9783,9 @@ function updatePlusModeUI() {
     : false;
   const capabilityState = typeof resolveCurrentSidepanelCapabilities === 'function'
     ? resolveCurrentSidepanelCapabilities({
-      panelMode: typeof getSelectedPanelMode === 'function' ? getSelectedPanelMode() : latestState?.panelMode,
+      targetId: typeof getSelectedTargetId === 'function'
+        ? getSelectedTargetId(getSelectedFlowId(latestState))
+        : latestState?.targetId,
       state: {
         ...(latestState || {}),
         plusModeEnabled: rawEnabled,
@@ -9447,7 +9800,9 @@ function updatePlusModeUI() {
       return registry?.resolveSidepanelCapabilities
         ? registry.resolveSidepanelCapabilities({
           activeFlowId: latestState?.activeFlowId,
-          panelMode: typeof getSelectedPanelMode === 'function' ? getSelectedPanelMode() : (latestState?.panelMode || 'cpa'),
+          targetId: typeof getSelectedTargetId === 'function'
+            ? getSelectedTargetId(getSelectedFlowId(latestState))
+            : latestState?.targetId,
           state: {
             ...(latestState || {}),
             plusModeEnabled: rawEnabled,
@@ -9469,10 +9824,8 @@ function updatePlusModeUI() {
     || requestedPlusAccountAccessStrategy
     || oauthStrategyValue;
   const effectiveTargetId = resolveStrategyTargetId(
-    capabilityState?.effectivePanelMode
-    || capabilityState?.effectiveTargetId
-    || capabilityState?.panelMode
-    || (typeof getSelectedPanelMode === 'function' ? getSelectedPanelMode() : latestState?.panelMode)
+    capabilityState?.effectiveTargetId
+    || (typeof getSelectedPanelMode === 'function' ? getSelectedPanelMode(latestState) : latestState?.targetId)
     || 'cpa'
   );
   const method = enabled ? getSelectedPlusPaymentMethod() : defaultMethod;
@@ -9516,6 +9869,8 @@ function updatePlusModeUI() {
       ? `GPC ${isGpcAutoMode ? '自动' : '手动'}订阅链路`
       : method === gopayValue
       ? 'GoPay 印尼订阅链路'
+      : method === noneValue
+      ? '已有 Plus，无需配置支付链路'
       : method === paypalHostedValue
       ? 'PayPal 无卡直绑链路'
       : 'PayPal 订阅链路';
@@ -9777,7 +10132,12 @@ function syncSignupPhoneInputFromState(state = latestState) {
       : (String(rawSignupMethod || '').trim().toLowerCase() === 'phone' ? 'phone' : 'email');
     const capabilityState = typeof resolveCurrentSidepanelCapabilities === 'function'
       ? resolveCurrentSidepanelCapabilities({
-        panelMode: state?.panelMode || latestState?.panelMode,
+        targetId: typeof getSelectedTargetIdForState === 'function'
+          ? getSelectedTargetIdForState({
+            ...(latestState || {}),
+            ...(state || {}),
+          }, state?.activeFlowId || latestState?.activeFlowId || DEFAULT_ACTIVE_FLOW_ID)
+          : (state?.targetId || latestState?.targetId),
         signupMethod: selectedMethod,
         state: {
           ...(latestState || {}),
@@ -9793,7 +10153,12 @@ function syncSignupPhoneInputFromState(state = latestState) {
         return registry?.resolveSidepanelCapabilities
           ? registry.resolveSidepanelCapabilities({
             activeFlowId: state?.activeFlowId || latestState?.activeFlowId,
-            panelMode: state?.panelMode || latestState?.panelMode,
+            targetId: typeof getSelectedTargetIdForState === 'function'
+              ? getSelectedTargetIdForState({
+                ...(latestState || {}),
+                ...(state || {}),
+              }, state?.activeFlowId || latestState?.activeFlowId || DEFAULT_ACTIVE_FLOW_ID)
+              : (state?.targetId || latestState?.targetId),
             signupMethod: selectedMethod,
             state: {
               ...(latestState || {}),
@@ -9991,13 +10356,44 @@ async function openPlusManualConfirmationDialog(options = {}) {
   const method = String(options.method || '').trim().toLowerCase();
   const gopayValue = typeof PLUS_PAYMENT_METHOD_GOPAY !== 'undefined' ? PLUS_PAYMENT_METHOD_GOPAY : 'gopay';
   const activeFlowId = String(latestState?.activeFlowId || latestState?.flowId || 'openai').trim().toLowerCase();
-  const panelMode = String(latestState?.panelMode || latestState?.openaiIntegrationTargetId || '').trim().toLowerCase();
+  const normalizeTargetIdForFlowSafe = typeof normalizeTargetIdForFlow === 'function'
+    ? normalizeTargetIdForFlow
+    : ((flowId, targetId = '', fallback = '') => {
+      const normalizedFlowId = String(flowId || '').trim().toLowerCase() || 'openai';
+      if (normalizedFlowId === 'openai') {
+        const normalizedTargetId = String(targetId || fallback || '').trim().toLowerCase();
+        return normalizedTargetId === 'sub2api' || normalizedTargetId === 'codex2api' ? normalizedTargetId : 'cpa';
+      }
+      const normalizedTargetId = String(targetId || '').trim().toLowerCase();
+      return normalizedTargetId || String(fallback || '').trim().toLowerCase() || 'kiro-rs';
+    });
+  const getDefaultTargetIdForFlowSafe = typeof getDefaultTargetIdForFlow === 'function'
+    ? getDefaultTargetIdForFlow
+    : ((flowId = 'openai') => (String(flowId || '').trim().toLowerCase() === 'openai' ? 'cpa' : 'kiro-rs'));
+  const normalizePlusStrategyTargetIdSafe = typeof normalizePlusStrategyTargetId === 'function'
+    ? normalizePlusStrategyTargetId
+    : ((value = '') => {
+      const normalized = String(value || '').trim().toLowerCase();
+      if (normalized === 'sub2api' || normalized === 'codex2api') {
+        return normalized;
+      }
+      return 'cpa';
+    });
+  const targetId = normalizePlusStrategyTargetIdSafe(
+    typeof getSelectedTargetIdForState === 'function'
+      ? getSelectedTargetIdForState(latestState, activeFlowId)
+      : normalizeTargetIdForFlowSafe(
+        activeFlowId,
+        latestState?.targetId || '',
+        getDefaultTargetIdForFlowSafe(activeFlowId)
+      )
+  );
   const signupMethod = String(latestState?.resolvedSignupMethod || latestState?.signupMethod || 'email').trim().toLowerCase();
   const plusModeEnabled = latestState?.plusModeEnabled === undefined ? true : Boolean(latestState.plusModeEnabled);
   const plusAccountAccessStrategy = String(latestState?.plusAccountAccessStrategy || 'oauth').trim().toLowerCase();
   const useSub2ApiSessionImport = plusModeEnabled
     && activeFlowId === 'openai'
-    && panelMode === 'sub2api'
+    && targetId === 'sub2api'
     && signupMethod === 'email'
     && plusAccountAccessStrategy === 'sub2api_codex_session';
   const continuationActionLabel = useSub2ApiSessionImport
@@ -10062,13 +10458,44 @@ async function syncPlusManualConfirmationDialog() {
   const step = Number(latestState?.plusManualConfirmationStep) || 0;
   const method = String(latestState?.plusManualConfirmationMethod || '').trim().toLowerCase();
   const activeFlowId = String(latestState?.activeFlowId || latestState?.flowId || 'openai').trim().toLowerCase();
-  const panelMode = String(latestState?.panelMode || latestState?.openaiIntegrationTargetId || '').trim().toLowerCase();
+  const normalizeTargetIdForFlowSafe = typeof normalizeTargetIdForFlow === 'function'
+    ? normalizeTargetIdForFlow
+    : ((flowId, targetId = '', fallback = '') => {
+      const normalizedFlowId = String(flowId || '').trim().toLowerCase() || 'openai';
+      if (normalizedFlowId === 'openai') {
+        const normalizedTargetId = String(targetId || fallback || '').trim().toLowerCase();
+        return normalizedTargetId === 'sub2api' || normalizedTargetId === 'codex2api' ? normalizedTargetId : 'cpa';
+      }
+      const normalizedTargetId = String(targetId || '').trim().toLowerCase();
+      return normalizedTargetId || String(fallback || '').trim().toLowerCase() || 'kiro-rs';
+    });
+  const getDefaultTargetIdForFlowSafe = typeof getDefaultTargetIdForFlow === 'function'
+    ? getDefaultTargetIdForFlow
+    : ((flowId = 'openai') => (String(flowId || '').trim().toLowerCase() === 'openai' ? 'cpa' : 'kiro-rs'));
+  const normalizePlusStrategyTargetIdSafe = typeof normalizePlusStrategyTargetId === 'function'
+    ? normalizePlusStrategyTargetId
+    : ((value = '') => {
+      const normalized = String(value || '').trim().toLowerCase();
+      if (normalized === 'sub2api' || normalized === 'codex2api') {
+        return normalized;
+      }
+      return 'cpa';
+    });
+  const targetId = normalizePlusStrategyTargetIdSafe(
+    typeof getSelectedTargetIdForState === 'function'
+      ? getSelectedTargetIdForState(latestState, activeFlowId)
+      : normalizeTargetIdForFlowSafe(
+        activeFlowId,
+        latestState?.targetId || '',
+        getDefaultTargetIdForFlowSafe(activeFlowId)
+      )
+  );
   const signupMethod = String(latestState?.resolvedSignupMethod || latestState?.signupMethod || 'email').trim().toLowerCase();
   const plusModeEnabled = latestState?.plusModeEnabled === undefined ? true : Boolean(latestState.plusModeEnabled);
   const plusAccountAccessStrategy = String(latestState?.plusAccountAccessStrategy || 'oauth').trim().toLowerCase();
   const useSub2ApiSessionImport = plusModeEnabled
     && activeFlowId === 'openai'
-    && panelMode === 'sub2api'
+    && targetId === 'sub2api'
     && signupMethod === 'email'
     && plusAccountAccessStrategy === 'sub2api_codex_session';
   const continuationActionLabel = useSub2ApiSessionImport
@@ -10368,8 +10795,7 @@ function applyAutoRunStatus(payload = currentAutoRun) {
   const runLabel = getAutoRunLabel(currentAutoRun);
   const locked = isAutoRunLockedPhase();
   const paused = isAutoRunPausedPhase();
-  const scheduled = isAutoRunScheduledPhase();
-  const settingsCardLocked = scheduled || locked;
+  const settingsCardLocked = locked;
 
   setSettingsCardLocked(settingsCardLocked);
   setFreePhoneReuseControlsLocked(settingsCardLocked);
@@ -10390,14 +10816,14 @@ function applyAutoRunStatus(payload = currentAutoRun) {
   if (typeof inputSub2ApiAccountPriority !== 'undefined' && inputSub2ApiAccountPriority) {
     inputSub2ApiAccountPriority.disabled = locked;
   }
-  inputAutoSkipFailures.disabled = scheduled;
+  inputAutoSkipFailures.disabled = locked;
 
   const lockedRunCount = typeof getLockedRunCountFromEmailPool === 'function'
     ? getLockedRunCountFromEmailPool()
     : 0;
   const isSyncPhase = typeof isAutoRunSourceSyncPhase === 'function'
     ? isAutoRunSourceSyncPhase
-    : (phase) => ['scheduled', 'running', 'waiting_step', 'waiting_email', 'retrying', 'waiting_interval'].includes(phase);
+    : (phase) => ['running', 'waiting_step', 'waiting_email', 'retrying', 'waiting_interval'].includes(phase);
   const shouldSyncRunCount = typeof shouldSyncRunCountFromAutoRunSource === 'function'
     ? shouldSyncRunCountFromAutoRunSource(currentAutoRun)
     : (currentAutoRun.autoRunning || isSyncPhase(currentAutoRun.phase));
@@ -10408,10 +10834,6 @@ function applyAutoRunStatus(payload = currentAutoRun) {
   }
 
   switch (currentAutoRun.phase) {
-    case 'scheduled':
-      autoContinueBar.style.display = 'none';
-      btnAutoRun.innerHTML = `已计划${runLabel}`;
-      break;
     case 'waiting_step':
       autoContinueBar.style.display = 'none';
       btnAutoRun.innerHTML = `等待中${runLabel}`;
@@ -10442,10 +10864,9 @@ function applyAutoRunStatus(payload = currentAutoRun) {
       break;
   }
 
-  updateAutoDelayInputState();
   updateFallbackThreadIntervalInputState();
-  syncScheduledCountdownTicker();
-  updateStopButtonState(scheduled || paused || locked || Object.values(getStepStatuses()).some(status => status === 'running'));
+  syncAutoRunCountdownTicker();
+  updateStopButtonState(paused || locked || Object.values(getStepStatuses()).some(status => status === 'running'));
   updateConfigMenuControls();
   renderContributionMode();
 }
@@ -10527,6 +10948,9 @@ function syncStepDefinitionsForMode(plusModeEnabled = false, plusPaymentMethodOr
       || defaultStrategy
   );
   const nextSignupMethod = normalizeSignupMethod(options.signupMethod || currentSignupMethod || DEFAULT_SIGNUP_METHOD);
+  const nextPhoneVerificationEnabled = Boolean(options.phoneVerificationEnabled ?? (typeof inputPhoneVerificationEnabled !== 'undefined' && inputPhoneVerificationEnabled
+    ? inputPhoneVerificationEnabled.checked
+    : (typeof latestState !== 'undefined' ? latestState?.phoneVerificationEnabled : false)));
   const nextPhoneSignupReloginAfterBindEmailEnabled = Boolean(
     options.phoneSignupReloginAfterBindEmailEnabled
       ?? (typeof inputPhoneSignupReloginAfterBindEmail !== 'undefined' && inputPhoneSignupReloginAfterBindEmail
@@ -10554,6 +10978,7 @@ function syncStepDefinitionsForMode(plusModeEnabled = false, plusPaymentMethodOr
     plusPaymentMethod: nextPaymentMethod,
     plusAccountAccessStrategy: nextPlusAccountAccessStrategy,
     signupMethod: nextSignupMethod,
+    phoneVerificationEnabled: nextPhoneVerificationEnabled,
     phoneSignupReloginAfterBindEmailEnabled: nextPhoneSignupReloginAfterBindEmailEnabled,
   });
   const paymentTitleChanged = Boolean(nextPlusModeEnabled && currentPaymentStep && nextPaymentTitle && currentPaymentStep.title !== nextPaymentTitle);
@@ -10562,6 +10987,7 @@ function syncStepDefinitionsForMode(plusModeEnabled = false, plusPaymentMethodOr
     || nextPaymentMethod !== currentPlusPaymentMethod
     || nextPlusAccountAccessStrategy !== currentPlusAccountAccessStrategy
     || nextSignupMethod !== currentSignupMethod
+    || nextPhoneVerificationEnabled !== currentPhoneVerificationEnabled
     || nextPhoneSignupReloginAfterBindEmailEnabled !== currentPhoneSignupReloginAfterBindEmailEnabled
     || nextAccountContributionEnabled !== Boolean(typeof latestState !== 'undefined' ? latestState?.accountContributionEnabled : false)
     || nextActiveFlowId !== currentFlowId
@@ -10575,6 +11001,7 @@ function syncStepDefinitionsForMode(plusModeEnabled = false, plusPaymentMethodOr
     plusPaymentMethod: nextPaymentMethod,
     plusAccountAccessStrategy: nextPlusAccountAccessStrategy,
     signupMethod: nextSignupMethod,
+    phoneVerificationEnabled: nextPhoneVerificationEnabled,
     phoneSignupReloginAfterBindEmailEnabled: nextPhoneSignupReloginAfterBindEmailEnabled,
     accountContributionEnabled: nextAccountContributionEnabled,
   });
@@ -10589,7 +11016,7 @@ function syncStepDefinitionsFromUiState(stateOverrides = {}) {
   const stepDefinitionState = typeof resolveStepDefinitionCapabilityState === 'function'
     ? resolveStepDefinitionCapabilityState(nextState, {
       activeFlowId: nextState?.activeFlowId,
-      panelMode: nextState?.panelMode,
+      targetId: nextState?.targetId,
       signupMethod: nextState?.signupMethod,
       state: nextState,
     })
@@ -10602,6 +11029,7 @@ function syncStepDefinitionsFromUiState(stateOverrides = {}) {
     plusPaymentMethod: getSelectedPlusPaymentMethod(nextState),
     plusAccountAccessStrategy: stepDefinitionState.plusAccountAccessStrategy,
     signupMethod: stepDefinitionState.signupMethod,
+    phoneVerificationEnabled: Boolean(stepDefinitionState.phoneVerificationEnabled),
     phoneSignupReloginAfterBindEmailEnabled: Boolean(nextState?.phoneSignupReloginAfterBindEmailEnabled),
     accountContributionEnabled: Boolean(nextState?.accountContributionEnabled),
   });
@@ -10626,6 +11054,7 @@ function applySettingsState(state) {
       activeFlowId: state?.activeFlowId || state?.flowId,
       plusPaymentMethod: state?.plusPaymentMethod,
       signupMethod: stepDefinitionState.signupMethod,
+      phoneVerificationEnabled: Boolean(stepDefinitionState.phoneVerificationEnabled),
       phoneSignupReloginAfterBindEmailEnabled: Boolean(state?.phoneSignupReloginAfterBindEmailEnabled),
       accountContributionEnabled: Boolean(state?.accountContributionEnabled),
     });
@@ -10682,7 +11111,7 @@ function applySettingsState(state) {
     ? syncFlowSelectorsFromState(state)
     : {
       activeFlowId: String(state?.activeFlowId || state?.flowId || defaultActiveFlowId).trim().toLowerCase() || defaultActiveFlowId,
-      targetId: String(state?.panelMode || 'cpa').trim().toLowerCase() || 'cpa',
+      targetId: String(state?.targetId || 'cpa').trim().toLowerCase() || 'cpa',
     };
   if (typeof applyOperationDelayState === 'function') {
     applyOperationDelayState(state);
@@ -10813,31 +11242,52 @@ function applySettingsState(state) {
   if (typeof inputKiroRsKey !== 'undefined' && inputKiroRsKey) {
     inputKiroRsKey.value = String(state?.kiroRsKey || '');
   }
+  if (typeof inputGrokWebchat2ApiUrl !== 'undefined' && inputGrokWebchat2ApiUrl) {
+    inputGrokWebchat2ApiUrl.value = String(state?.grokWebchat2ApiUrl || '').trim();
+  }
+  if (typeof inputGrokWebchat2ApiKey !== 'undefined' && inputGrokWebchat2ApiKey) {
+    inputGrokWebchat2ApiKey.value = String(state?.grokWebchat2ApiAdminKey || '');
+  }
   if (typeof displayKiroRsTestStatus !== 'undefined' && displayKiroRsTestStatus) {
     displayKiroRsTestStatus.textContent = kiroRsConnectionTestStatusText;
   }
+  const resolveKiroRuntimeState = typeof getKiroRuntimeState === 'function'
+    ? getKiroRuntimeState
+    : ((value = {}) => {
+      const runtimeState = value?.runtimeState?.flowState?.kiro;
+      if (runtimeState && typeof runtimeState === 'object' && !Array.isArray(runtimeState)) {
+        return runtimeState;
+      }
+      const flowState = value?.flowState?.kiro;
+      if (flowState && typeof flowState === 'object' && !Array.isArray(flowState)) {
+        return flowState;
+      }
+      return {};
+    });
+  const kiroRuntimeState = resolveKiroRuntimeState(state);
   if (typeof displayKiroWebStatus !== 'undefined' && displayKiroWebStatus) {
     const kiroWebStatus = String(
-      state?.kiroRuntime?.webAuth?.status
-      || state?.kiroRuntime?.register?.status
+      kiroRuntimeState?.webAuth?.status
+      || kiroRuntimeState?.register?.status
       || ''
     ).trim();
     displayKiroWebStatus.textContent = kiroWebStatus || '未开始';
   }
   if (typeof displayKiroLoginUrl !== 'undefined' && displayKiroLoginUrl) {
     const kiroLoginUrl = String(
-      state?.kiroRuntime?.register?.loginUrl
+      kiroRuntimeState?.register?.loginUrl
       || ''
     ).trim();
     displayKiroLoginUrl.textContent = kiroLoginUrl || '未打开';
   }
   if (typeof displayKiroUploadStatus !== 'undefined' && displayKiroUploadStatus) {
     const kiroUploadStatus = String(
-      state?.kiroRuntime?.upload?.status
+      kiroRuntimeState?.upload?.status
       || ''
     ).trim();
     displayKiroUploadStatus.textContent = getKiroUploadStatusLabel(kiroUploadStatus);
   }
+  renderGrokRuntimeState(state);
   const normalizedIpProxyService = resolveIpProxyService(state?.ipProxyService);
   const normalizedIpProxyServiceProfiles = typeof normalizeIpProxyServiceProfiles === 'function'
     ? normalizeIpProxyServiceProfiles(state?.ipProxyServiceProfiles || {}, state || {})
@@ -11027,14 +11477,7 @@ function applySettingsState(state) {
   if (typeof inputStep6CookieCleanupEnabled !== 'undefined' && inputStep6CookieCleanupEnabled) {
     inputStep6CookieCleanupEnabled.checked = Boolean(state?.step6CookieCleanupEnabled);
   }
-  inputAutoDelayEnabled.checked = Boolean(state?.autoRunDelayEnabled);
-  inputAutoDelayMinutes.value = String(normalizeAutoDelayMinutes(state?.autoRunDelayMinutes));
   inputAutoStepDelaySeconds.value = formatAutoStepDelayInputValue(state?.autoStepDelaySeconds);
-  if (typeof inputOAuthFlowTimeoutEnabled !== 'undefined' && inputOAuthFlowTimeoutEnabled) {
-    inputOAuthFlowTimeoutEnabled.checked = state?.oauthFlowTimeoutEnabled !== undefined
-      ? Boolean(state.oauthFlowTimeoutEnabled)
-      : true;
-  }
   if (inputVerificationResendCount) {
     const restoredVerificationResendCount = state?.verificationResendCount !== undefined
       ? state.verificationResendCount
@@ -11074,7 +11517,7 @@ function applySettingsState(state) {
   updatePhoneSmsProviderOrderSummary(restoredPhoneSmsProviderOrder);
   if (previousPhoneSmsProvider !== restoredPhoneSmsProvider) {
     heroSmsCountrySelectionOrder = [];
-    loadHeroSmsCountries({ silent: true, preferFallbackOnly: true }).catch(() => { });
+    loadHeroSmsCountries({ silent: true }).catch(() => { });
   }
   if (inputHeroSmsApiKey) {
     inputHeroSmsApiKey.value = restoredPhoneSmsProvider === PHONE_SMS_PROVIDER_FIVE_SIM
@@ -11203,7 +11646,7 @@ function applySettingsState(state) {
   }
   const isSyncPhase = typeof isAutoRunSourceSyncPhase === 'function'
     ? isAutoRunSourceSyncPhase
-    : (phase) => ['scheduled', 'running', 'waiting_step', 'waiting_email', 'retrying', 'waiting_interval'].includes(phase);
+    : (phase) => ['running', 'waiting_step', 'waiting_email', 'retrying', 'waiting_interval'].includes(phase);
   const shouldSyncInitialRunCount = typeof shouldSyncRunCountFromAutoRunSource === 'function'
     ? shouldSyncRunCountFromAutoRunSource(state)
     : (Boolean(state?.autoRunning) || isSyncPhase(state?.autoRunPhase ?? state?.phase));
@@ -11213,7 +11656,6 @@ function applySettingsState(state) {
 
   applyAutoRunStatus(state);
   markSettingsDirty(false);
-  updateAutoDelayInputState();
   updateFallbackThreadIntervalInputState();
   updateAccountRunHistorySettingsUI();
   updatePhoneVerificationSettingsUI();
@@ -12472,7 +12914,9 @@ function updateMailProviderUI() {
     : latestState?.icloudHostPreference;
   const capabilityState = typeof resolveCurrentSidepanelCapabilities === 'function'
     ? resolveCurrentSidepanelCapabilities({
-      panelMode: typeof getSelectedPanelMode === 'function' ? getSelectedPanelMode() : latestState?.panelMode,
+      targetId: typeof getSelectedTargetId === 'function'
+        ? getSelectedTargetId(getSelectedFlowId(latestState))
+        : latestState?.targetId,
       state: latestState || {},
     })
     : null;
@@ -13116,23 +13560,16 @@ function updatePanelModeUI() {
     : normalizeFlowId(latestState?.activeFlowId || latestState?.flowId || DEFAULT_ACTIVE_FLOW_ID);
   const targetId = typeof getSelectedTargetId === 'function'
     ? getSelectedTargetId(activeFlowId)
-    : (activeFlowId === DEFAULT_ACTIVE_FLOW_ID
-      ? normalizePanelMode(selectPanelMode?.value || latestState?.panelMode || 'cpa')
-      : String(selectPanelMode?.value || latestState?.kiroTargetId || 'kiro-rs').trim().toLowerCase() || 'kiro-rs');
-  const rawPanelMode = activeFlowId === DEFAULT_ACTIVE_FLOW_ID
-    ? normalizePanelMode(targetId || latestState?.panelMode || 'cpa')
-    : normalizePanelMode(latestState?.panelMode || 'cpa');
+    : normalizeTargetIdForFlow(activeFlowId, selectPanelMode?.value || latestState?.targetId || '', getDefaultTargetIdForFlow(activeFlowId));
   const capabilityState = typeof resolveCurrentSidepanelCapabilities === 'function'
     ? resolveCurrentSidepanelCapabilities({
       activeFlowId,
       targetId,
-      panelMode: rawPanelMode,
       state: {
         ...(latestState || {}),
         activeFlowId,
-        ...(activeFlowId === DEFAULT_ACTIVE_FLOW_ID
-          ? { panelMode: rawPanelMode }
-          : { kiroTargetId: targetId }),
+        flowId: activeFlowId,
+        targetId,
       },
     })
     : null;
@@ -13157,12 +13594,16 @@ function updatePanelModeUI() {
   if (typeof updatePhoneVerificationSettingsUI === 'function') {
     updatePhoneVerificationSettingsUI();
   }
-  const panelMode = capabilityState?.effectivePanelMode || capabilityState?.panelMode || rawPanelMode;
+  const displayTargetId = normalizePanelMode(
+    activeFlowId === DEFAULT_ACTIVE_FLOW_ID
+      ? (capabilityState?.effectiveTargetId || targetId)
+      : getSelectedPanelMode(latestState)
+  );
 
-  const useCodex2Api = panelMode === 'codex2api';
+  const useCodex2Api = displayTargetId === 'codex2api';
   const step9Btn = document.querySelector('.step-btn[data-step-key="platform-verify"]');
   if (step9Btn && activeFlowId === DEFAULT_ACTIVE_FLOW_ID) {
-    step9Btn.textContent = panelMode === 'sub2api'
+    step9Btn.textContent = displayTargetId === 'sub2api'
       ? 'SUB2API 回调验证'
       : (useCodex2Api ? 'Codex2API 回调验证' : 'CPA 回调验证');
   }
@@ -13263,7 +13704,6 @@ function updateButtonStates() {
   const statuses = getNodeStatuses();
   const anyRunning = Object.values(statuses).some(s => s === 'running');
   const autoLocked = isAutoRunLockedPhase();
-  const autoScheduled = isAutoRunScheduledPhase();
   const enabledNodeIds = getEnabledNodeIdsForStepExecutionRange(latestState);
   const icloudTargetMailboxTypeValue = typeof selectIcloudTargetMailboxType !== 'undefined'
     ? selectIcloudTargetMailboxType?.value
@@ -13277,7 +13717,7 @@ function updateButtonStates() {
 
     if (currentStatus === 'disabled') {
       btn.disabled = true;
-    } else if (anyRunning || autoLocked || autoScheduled) {
+    } else if (anyRunning || autoLocked) {
       btn.disabled = true;
     } else if (enabledNodeIds.indexOf(nodeId) === 0) {
       btn.disabled = false;
@@ -13297,7 +13737,7 @@ function updateButtonStates() {
     const prevNodeId = currentIndex > 0 ? enabledNodeIds[currentIndex - 1] : null;
     const prevStatus = prevNodeId === null ? 'completed' : statuses[prevNodeId];
 
-    if (!SKIPPABLE_NODES.has(nodeId) || currentStatus === 'disabled' || anyRunning || autoLocked || autoScheduled || currentStatus === 'running' || isDoneStatus(currentStatus)) {
+    if (!SKIPPABLE_NODES.has(nodeId) || currentStatus === 'disabled' || anyRunning || autoLocked || currentStatus === 'running' || isDoneStatus(currentStatus)) {
       btn.style.display = 'none';
       btn.disabled = true;
       btn.title = '当前不可跳过';
@@ -13316,8 +13756,8 @@ function updateButtonStates() {
     btn.title = `跳过节点 ${nodeId}`;
   });
 
-  btnReset.disabled = anyRunning || autoScheduled || isAutoRunPausedPhase() || autoLocked;
-  const disableIcloudControls = anyRunning || autoScheduled || autoLocked;
+  btnReset.disabled = anyRunning || isAutoRunPausedPhase() || autoLocked;
+  const disableIcloudControls = anyRunning || autoLocked;
   if (btnIcloudRefresh) btnIcloudRefresh.disabled = disableIcloudControls;
   if (btnIcloudDeleteUsed) btnIcloudDeleteUsed.disabled = disableIcloudControls || !hasDeletableUsedIcloudAliases();
   if (selectIcloudHostPreference) selectIcloudHostPreference.disabled = disableIcloudControls;
@@ -13339,7 +13779,7 @@ function updateButtonStates() {
   if (checkboxAutoDeleteIcloud) checkboxAutoDeleteIcloud.disabled = disableIcloudControls;
   if (btnContributionMode) btnContributionMode.disabled = isContributionButtonLocked();
   applyStepExecutionRangeState(latestState);
-  updateStopButtonState(anyRunning || autoScheduled || isAutoRunPausedPhase() || autoLocked);
+  updateStopButtonState(anyRunning || isAutoRunPausedPhase() || autoLocked);
   renderContributionMode();
 }
 
@@ -13359,18 +13799,7 @@ function updateStatusDisplay(state) {
     displayStatus.textContent = remainingMs > 0
       ? `${countdown.title}，剩余 ${formatCountdown(remainingMs)}`
       : `${countdown.title}，即将结束...`;
-    statusBar.classList.add(countdown.tone === 'scheduled' ? 'scheduled' : 'running');
-    return;
-  }
-
-  if (isAutoRunScheduledPhase()) {
-    const remainingMs = Number.isFinite(currentAutoRun.scheduledAt)
-      ? currentAutoRun.scheduledAt - Date.now()
-      : 0;
-    displayStatus.textContent = remainingMs > 0
-      ? `自动计划中，剩余 ${formatCountdown(remainingMs)}`
-      : '倒计时即将结束，正在准备启动...';
-    statusBar.classList.add('scheduled');
+    statusBar.classList.add('running');
     return;
   }
 
@@ -13713,6 +14142,47 @@ async function copyTextToClipboard(text) {
   }
   await navigator.clipboard.writeText(value);
 }
+
+btnCopyGrokSso?.addEventListener('click', async () => {
+  try {
+    const cookies = normalizeGrokSsoCookies(latestState);
+    await copyTextToClipboard(cookies.join('\n'));
+    showToast('Grok SSO Cookie 已复制。', 'success');
+  } catch (error) {
+    showToast(error?.message || '复制 Grok SSO Cookie 失败。', 'error');
+  }
+});
+
+btnClearGrokSso?.addEventListener('click', async () => {
+  try {
+    const cookies = normalizeGrokSsoCookies(latestState);
+    if (!cookies.length) {
+      showToast('当前没有 Grok SSO Cookie。', 'info');
+      return;
+    }
+    const response = await chrome.runtime.sendMessage({
+      type: 'CLEAR_GROK_SSO_COOKIES',
+      source: 'sidepanel',
+      payload: {},
+    });
+    if (response?.error) {
+      throw new Error(response.error);
+    }
+    if (response?.state) {
+      syncLatestState(response.state);
+    } else {
+      syncLatestState({
+        grokSsoCookie: '',
+        grokSsoCookies: [],
+        grokSsoExtractedAt: 0,
+      });
+    }
+    renderGrokRuntimeState(latestState);
+    showToast('Grok SSO Cookie 已清空。', 'success');
+  } catch (error) {
+    showToast(error?.message || '清空 Grok SSO Cookie 失败。', 'error');
+  }
+});
 
 const hotmailManager = window.SidepanelHotmailManager?.createHotmailManager({
   state: {
@@ -14112,7 +14582,7 @@ const accountContributionManager = window.SidepanelContributionMode?.createContr
       : String(latestState?.activeFlowId || latestState?.flowId || DEFAULT_ACTIVE_FLOW_ID).trim().toLowerCase() || DEFAULT_ACTIVE_FLOW_ID),
     getSelectedTargetId: (flowId, state = latestState) => (typeof getSelectedTargetIdForState === 'function'
       ? getSelectedTargetIdForState(state, flowId)
-      : (String(state?.panelMode || state?.kiroTargetId || 'cpa').trim().toLowerCase() || 'cpa')),
+      : normalizeTargetIdForFlow(flowId, state?.targetId || '', getDefaultTargetIdForFlow(flowId))),
     isModeSwitchBlocked: isContributionModeSwitchBlocked,
     openConfirmModal,
     openExternalUrl,
@@ -14362,7 +14832,9 @@ stepsList?.addEventListener('click', async (event) => {
     if (step === gpcCreateStep && !(await ensureGpcApiKeyReadyForStart())) {
       return;
     }
-    const shouldPersistSharedPassword = nodeId === 'fill-password' || nodeId === 'kiro-submit-password';
+    const shouldPersistSharedPassword = nodeId === 'fill-password'
+      || nodeId === 'kiro-submit-password'
+      || nodeId === 'grok-submit-profile';
     if (shouldPersistSharedPassword && inputPassword.value !== (latestState?.customPassword || '')) {
       await chrome.runtime.sendMessage({
         type: 'SAVE_SETTING',
@@ -14538,7 +15010,7 @@ btnSaveSettings.addEventListener('click', async () => {
 btnStop.addEventListener('click', async () => {
   btnStop.disabled = true;
   await chrome.runtime.sendMessage({ type: 'STOP_FLOW', source: 'sidepanel', payload: {} });
-  showToast(isAutoRunScheduledPhase() ? '正在取消倒计时计划...' : '正在停止当前流程...', 'warn', 2000);
+  showToast(currentAutoRun.phase === 'waiting_interval' ? '正在取消等待中的倒计时...' : '正在停止当前流程...', 'warn', 2000);
 });
 
 btnConfigMenu?.addEventListener('click', (event) => {
@@ -14640,7 +15112,9 @@ async function startAutoRunFromCurrentSettings() {
     }
     const validationState = {
       ...(latestState || {}),
-      panelMode: typeof getSelectedPanelMode === 'function' ? getSelectedPanelMode() : latestState?.panelMode,
+      targetId: typeof getSelectedTargetId === 'function'
+        ? getSelectedTargetId(getSelectedFlowId(latestState))
+        : latestState?.targetId,
       signupMethod: typeof getSelectedSignupMethod === 'function' ? getSelectedSignupMethod() : latestState?.signupMethod,
       phoneVerificationEnabled: typeof inputPhoneVerificationEnabled !== 'undefined' && inputPhoneVerificationEnabled
         ? Boolean(inputPhoneVerificationEnabled.checked)
@@ -14652,7 +15126,7 @@ async function startAutoRunFromCurrentSettings() {
     };
     return registry.validateAutoRunStart({
       activeFlowId: validationState.activeFlowId,
-      panelMode: validationState.panelMode,
+      targetId: validationState.targetId,
       signupMethod: validationState.signupMethod,
       state: validationState,
     });
@@ -14716,28 +15190,18 @@ async function startAutoRunFromCurrentSettings() {
 
   btnAutoRun.disabled = true;
   inputRunCount.disabled = true;
-  const delayEnabled = inputAutoDelayEnabled.checked;
-  const delayMinutes = normalizeAutoDelayMinutes(inputAutoDelayMinutes.value);
   const activeFlowId = typeof getSelectedFlowId === 'function'
     ? getSelectedFlowId(latestState)
     : (String(latestState?.activeFlowId || latestState?.flowId || DEFAULT_ACTIVE_FLOW_ID).trim().toLowerCase() || DEFAULT_ACTIVE_FLOW_ID);
   const targetId = typeof getSelectedTargetId === 'function'
     ? getSelectedTargetId(activeFlowId)
-    : (
-      activeFlowId === DEFAULT_ACTIVE_FLOW_ID
-        ? normalizePanelMode(latestState?.panelMode || 'cpa')
-        : (String(latestState?.kiroTargetId || 'kiro-rs').trim().toLowerCase() || 'kiro-rs')
-    );
-  inputAutoDelayMinutes.value = String(delayMinutes);
-  btnAutoRun.innerHTML = delayEnabled
-    ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> 计划中...'
-    : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> 运行中...';
+    : normalizeTargetIdForFlow(activeFlowId, latestState?.targetId || '', getDefaultTargetIdForFlow(activeFlowId));
+  btnAutoRun.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> 运行中...';
   const response = await sendSidepanelMessage({
-    type: delayEnabled ? 'SCHEDULE_AUTO_RUN' : 'AUTO_RUN',
+    type: 'AUTO_RUN',
     source: 'sidepanel',
     payload: {
       totalRuns,
-      delayMinutes,
       activeFlowId,
       targetId,
       autoRunSkipFailures,
@@ -14783,31 +15247,16 @@ btnAutoContinue.addEventListener('click', async () => {
 btnAutoRunNow?.addEventListener('click', async () => {
   try {
     btnAutoRunNow.disabled = true;
-    const waitingInterval = currentAutoRun.phase === 'waiting_interval';
     await sendSidepanelMessage({
-      type: waitingInterval ? 'SKIP_AUTO_RUN_COUNTDOWN' : 'START_SCHEDULED_AUTO_RUN_NOW',
+      type: 'SKIP_AUTO_RUN_COUNTDOWN',
       source: 'sidepanel',
       payload: {},
     });
-    if (waitingInterval) {
-      showToast('已跳过当前倒计时，自动流程将立即继续。', 'info', 1800);
-    }
+    showToast('已跳过当前倒计时，自动流程将立即继续。', 'info', 1800);
   } catch (err) {
     showToast(err.message, 'error');
   } finally {
     btnAutoRunNow.disabled = false;
-  }
-});
-
-btnAutoCancelSchedule?.addEventListener('click', async () => {
-  try {
-    btnAutoCancelSchedule.disabled = true;
-    await chrome.runtime.sendMessage({ type: 'CANCEL_SCHEDULED_AUTO_RUN', source: 'sidepanel', payload: {} });
-    showToast('已取消倒计时计划。', 'info', 1800);
-  } catch (err) {
-    showToast(err.message, 'error');
-  } finally {
-    btnAutoCancelSchedule.disabled = false;
   }
 });
 
@@ -14840,7 +15289,6 @@ btnReset.addEventListener('click', async () => {
     autoRunCurrentRun: 0,
     autoRunTotalRuns: 1,
     autoRunAttemptRun: 0,
-    scheduledAutoRunAt: null,
     autoRunCountdownAt: null,
     autoRunCountdownTitle: '',
     autoRunCountdownNote: '',
@@ -15038,6 +15486,10 @@ btnGpcHelperConvertApiKey?.addEventListener('click', () => {
 
 btnOpenKiroRsGithub?.addEventListener('click', () => {
   openExternalUrl('https://github.com/QLHazyCoder/kiro.rs');
+});
+
+btnOpenWebchat2ApiGithub?.addEventListener('click', () => {
+  openExternalUrl('https://github.com/zqbxdev/webchat2api');
 });
 
 btnGpcHelperBalance?.addEventListener('click', async () => {
@@ -15313,9 +15765,7 @@ selectPanelMode.addEventListener('change', async () => {
     : (activeFlowId === DEFAULT_ACTIVE_FLOW_ID ? 'cpa' : 'kiro-rs');
   const previousTargetId = typeof getSelectedTargetIdForState === 'function'
     ? getSelectedTargetIdForState(latestState, activeFlowId)
-    : (activeFlowId === DEFAULT_ACTIVE_FLOW_ID
-      ? normalizePanelMode(latestState?.panelMode || defaultTargetId)
-      : String(latestState?.kiroTargetId || defaultTargetId).trim().toLowerCase() || defaultTargetId);
+    : normalizeTargetIdForFlow(activeFlowId, latestState?.targetId || '', defaultTargetId);
   let nextTargetId = typeof normalizeTargetIdForFlow === 'function'
     ? normalizeTargetIdForFlow(activeFlowId, selectPanelMode.value, defaultTargetId)
     : (activeFlowId === DEFAULT_ACTIVE_FLOW_ID
@@ -15326,7 +15776,7 @@ selectPanelMode.addEventListener('change', async () => {
     selectPanelMode.value = nextPanelMode;
     const confirmed = await confirmCpaPhoneSignupIfNeeded({
       signupMethod: getSelectedSignupMethod(),
-      panelMode: nextPanelMode,
+      targetId: nextPanelMode,
     });
     if (!confirmed) {
       selectPanelMode.value = previousTargetId;
@@ -15337,7 +15787,7 @@ selectPanelMode.addEventListener('change', async () => {
     syncLatestState({
       activeFlowId,
       flowId: activeFlowId,
-      panelMode: nextPanelMode,
+      targetId: nextPanelMode,
     });
     if (
       typeof selectPlusAccountAccessStrategy !== 'undefined'
@@ -15361,7 +15811,7 @@ selectPanelMode.addEventListener('change', async () => {
     syncLatestState({
       activeFlowId,
       flowId: activeFlowId,
-      kiroTargetId: nextTargetId,
+      targetId: nextTargetId,
     });
   }
   updatePanelModeUI();
@@ -15388,7 +15838,7 @@ selectPlusAccountAccessStrategy?.addEventListener('change', () => {
   selectPlusAccountAccessStrategy.value = nextUiValue;
   selectPlusAccountAccessStrategy.dataset.requestedValue = resolvePlusAccountAccessStrategyForTarget(
     nextUiValue,
-    typeof getSelectedPanelMode === 'function' ? getSelectedPanelMode() : latestState?.panelMode
+    typeof getSelectedPanelMode === 'function' ? getSelectedPanelMode(latestState) : latestState?.targetId
   );
   updatePlusModeUI();
   markSettingsDirty(true);
@@ -15399,6 +15849,16 @@ selectPlusAccountAccessStrategy?.addEventListener('change', () => {
   input?.addEventListener('input', () => {
     markSettingsDirty(true);
     setKiroRsConnectionTestStatus('未测试');
+    scheduleSettingsAutoSave();
+  });
+  input?.addEventListener('blur', () => {
+    saveSettings({ silent: true }).catch(() => { });
+  });
+});
+
+[inputGrokWebchat2ApiUrl, inputGrokWebchat2ApiKey].forEach((input) => {
+  input?.addEventListener('input', () => {
+    markSettingsDirty(true);
     scheduleSettingsAutoSave();
   });
   input?.addEventListener('blur', () => {
@@ -16148,12 +16608,6 @@ inputAutoSkipFailuresThreadIntervalMinutes.addEventListener('blur', () => {
   saveSettings({ silent: true }).catch(() => { });
 });
 
-inputAutoDelayEnabled.addEventListener('change', () => {
-  updateAutoDelayInputState();
-  markSettingsDirty(true);
-  saveSettings({ silent: true }).catch(() => { });
-});
-
 inputStep6CookieCleanupEnabled?.addEventListener('change', () => {
   markSettingsDirty(true);
   saveSettings({ silent: true }).catch(() => { });
@@ -16183,19 +16637,13 @@ selectFlow?.addEventListener('change', () => {
     : (nextActiveFlowId === DEFAULT_ACTIVE_FLOW_ID ? 'cpa' : 'kiro-rs');
   const nextTargetId = typeof getSelectedTargetIdForState === 'function'
     ? getSelectedTargetIdForState(nextStateBase, nextActiveFlowId)
-    : (nextActiveFlowId === DEFAULT_ACTIVE_FLOW_ID
-      ? normalizePanelMode(nextStateBase?.panelMode || defaultTargetId)
-      : String(nextStateBase?.kiroTargetId || defaultTargetId).trim().toLowerCase() || defaultTargetId);
+    : normalizeTargetIdForFlow(nextActiveFlowId, nextStateBase?.targetId || '', defaultTargetId);
   syncLatestState({
     activeFlowId: nextActiveFlowId,
     flowId: nextActiveFlowId,
-    ...(nextActiveFlowId === DEFAULT_ACTIVE_FLOW_ID
-      ? { panelMode: normalizePanelMode(nextTargetId || defaultTargetId) }
-      : {
-        kiroTargetId: typeof normalizeTargetIdForFlow === 'function'
-          ? normalizeTargetIdForFlow(nextActiveFlowId, nextTargetId, defaultTargetId)
-          : (String(nextTargetId || defaultTargetId).trim().toLowerCase() || defaultTargetId),
-      }),
+    targetId: typeof normalizeTargetIdForFlow === 'function'
+      ? normalizeTargetIdForFlow(nextActiveFlowId, nextTargetId, defaultTargetId)
+      : (String(nextTargetId || defaultTargetId).trim().toLowerCase() || defaultTargetId),
   });
   updatePanelModeUI();
   if (typeof syncStepDefinitionsFromUiState === 'function') {
@@ -16232,17 +16680,6 @@ selectFlow?.addEventListener('change', () => {
     saveSettings({ silent: true }).catch(() => { });
   });
 });
-
-inputAutoDelayMinutes.addEventListener('input', () => {
-  markSettingsDirty(true);
-  scheduleSettingsAutoSave();
-});
-inputAutoDelayMinutes.addEventListener('blur', () => {
-  inputAutoDelayMinutes.value = String(normalizeAutoDelayMinutes(inputAutoDelayMinutes.value));
-  saveSettings({ silent: true }).catch(() => { });
-});
-
-
 
 function getPhoneSmsCountrySelectionForProvider(provider = getSelectedPhoneSmsProvider(), options = {}) {
   const normalizedProvider = normalizePhoneSmsProvider(provider);
@@ -16391,6 +16828,10 @@ inputPhoneVerificationEnabled?.addEventListener('change', () => {
     updatePhoneVerificationSettingsUI();
     showToast('已切回邮箱注册', 'info', 1600);
   }
+  syncStepDefinitionsFromUiState({
+    phoneVerificationEnabled: Boolean(inputPhoneVerificationEnabled.checked),
+    signupMethod: getSelectedSignupMethod(),
+  });
   markSettingsDirty(true);
   saveSettings({ silent: true }).catch(() => { });
 });
@@ -16403,7 +16844,7 @@ signupMethodButtons.forEach((button) => {
     const nextSignupMethod = normalizeSignupMethod(button.dataset.signupMethod);
     const confirmed = await confirmCpaPhoneSignupIfNeeded({
       signupMethod: nextSignupMethod,
-      panelMode: getSelectedPanelMode(),
+      targetId: getSelectedPanelMode(latestState),
     });
     if (!confirmed) {
       updateSignupMethodUI();
@@ -17035,7 +17476,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         password: null,
         nodeStatuses: NODE_DEFAULT_STATUSES,
         logs: [],
-        scheduledAutoRunAt: null,
         autoRunCountdownAt: null,
         autoRunCountdownTitle: '',
         autoRunCountdownNote: '',
@@ -17070,7 +17510,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         autoRunCurrentRun: 0,
         autoRunTotalRuns: 1,
         autoRunAttemptRun: 0,
-        scheduledAutoRunAt: null,
         autoRunCountdownAt: null,
         autoRunCountdownTitle: '',
         autoRunCountdownNote: '',
@@ -17128,19 +17567,33 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       ) {
         syncPasswordField(latestState || {});
       }
+      if (
+        message.payload.grokRegisterStatus !== undefined
+        || message.payload.grokCompletedAt !== undefined
+        || message.payload.grokSsoCookie !== undefined
+        || message.payload.grokSsoCookies !== undefined
+        || message.payload.grokSsoExtractedAt !== undefined
+        || message.payload.runtimeState !== undefined
+        || message.payload.flowState !== undefined
+      ) {
+        renderGrokRuntimeState(latestState);
+      }
       if (message.payload.localCpaStep9Mode !== undefined) {
         setLocalCpaStep9Mode(message.payload.localCpaStep9Mode);
       }
       if (
-        message.payload.panelMode !== undefined
+        message.payload.targetId !== undefined
         || message.payload.activeFlowId !== undefined
         || message.payload.flowId !== undefined
-        || message.payload.kiroTargetId !== undefined
       ) {
         if (typeof syncFlowSelectorsFromState === 'function') {
           syncFlowSelectorsFromState(latestState);
-        } else if (message.payload.panelMode !== undefined) {
-          selectPanelMode.value = normalizePanelMode(message.payload.panelMode || 'cpa');
+        } else if (message.payload.targetId !== undefined) {
+          selectPanelMode.value = normalizeTargetIdForFlow(
+            latestState?.activeFlowId || latestState?.flowId || DEFAULT_ACTIVE_FLOW_ID,
+            message.payload.targetId || '',
+            getDefaultTargetIdForFlow(latestState?.activeFlowId || latestState?.flowId || DEFAULT_ACTIVE_FLOW_ID)
+          );
         }
         updatePanelModeUI();
       }
@@ -17492,10 +17945,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         inputAutoSkipFailures.checked = Boolean(message.payload.autoRunSkipFailures);
         updateFallbackThreadIntervalInputState();
       }
-      if (message.payload.autoRunDelayEnabled !== undefined) {
-        inputAutoDelayEnabled.checked = Boolean(message.payload.autoRunDelayEnabled);
-        updateAutoDelayInputState();
-      }
       if (
         message.payload.step6CookieCleanupEnabled !== undefined
         && typeof inputStep6CookieCleanupEnabled !== 'undefined'
@@ -17511,9 +17960,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         renderStepStatuses(latestState);
         updateButtonStates();
       }
-      if (message.payload.autoRunDelayMinutes !== undefined) {
-        inputAutoDelayMinutes.value = String(normalizeAutoDelayMinutes(message.payload.autoRunDelayMinutes));
-      }
       if (message.payload.autoRunFallbackThreadIntervalMinutes !== undefined) {
         inputAutoSkipFailuresThreadIntervalMinutes.value = String(
           normalizeAutoRunThreadIntervalMinutes(message.payload.autoRunFallbackThreadIntervalMinutes)
@@ -17522,9 +17968,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       }
       if (message.payload.autoStepDelaySeconds !== undefined) {
         inputAutoStepDelaySeconds.value = formatAutoStepDelayInputValue(message.payload.autoStepDelaySeconds);
-      }
-      if (message.payload.oauthFlowTimeoutEnabled !== undefined && typeof inputOAuthFlowTimeoutEnabled !== 'undefined' && inputOAuthFlowTimeoutEnabled) {
-        inputOAuthFlowTimeoutEnabled.checked = Boolean(message.payload.oauthFlowTimeoutEnabled);
       }
       if (
         (
@@ -17676,6 +18119,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       }
       if (message.payload.phoneVerificationEnabled !== undefined || message.payload.signupMethod !== undefined) {
         updatePhoneVerificationSettingsUI();
+        syncStepDefinitionsFromUiState({
+          phoneVerificationEnabled: inputPhoneVerificationEnabled
+            ? Boolean(inputPhoneVerificationEnabled.checked)
+            : Boolean(latestState?.phoneVerificationEnabled),
+          signupMethod: typeof getSelectedSignupMethod === 'function'
+            ? getSelectedSignupMethod()
+            : latestState?.signupMethod,
+        });
       }
       const activePhoneSmsProvider = normalizePhoneSmsProviderValue(
         message.payload.phoneSmsProvider !== undefined
@@ -17805,12 +18256,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
     case 'AUTO_RUN_STATUS': {
       syncLatestState({
-        autoRunning: ['scheduled', 'running', 'waiting_step', 'waiting_email', 'retrying', 'waiting_interval'].includes(message.payload.phase),
+        autoRunning: ['running', 'waiting_step', 'waiting_email', 'retrying', 'waiting_interval'].includes(message.payload.phase),
         autoRunPhase: message.payload.phase,
         autoRunCurrentRun: message.payload.currentRun,
         autoRunTotalRuns: message.payload.totalRuns,
         autoRunAttemptRun: message.payload.attemptRun,
-        scheduledAutoRunAt: message.payload.scheduledAt ?? null,
         autoRunCountdownAt: message.payload.countdownAt ?? null,
         autoRunCountdownTitle: message.payload.countdownTitle ?? '',
         autoRunCountdownNote: message.payload.countdownNote ?? '',
@@ -17818,7 +18268,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       applyAutoRunStatus(message.payload);
       updateStatusDisplay(latestState);
       updateButtonStates();
-      if (!['scheduled', 'running', 'waiting_step', 'waiting_email', 'retrying', 'waiting_interval'].includes(message.payload.phase)) {
+      if (!['running', 'waiting_step', 'waiting_email', 'retrying', 'waiting_interval'].includes(message.payload.phase)) {
         scheduleAccountRunHistoryRefresh();
       }
       break;
@@ -17939,21 +18389,21 @@ initializeReleaseInfo().catch((err) => {
   console.error('Failed to initialize release info:', err);
 });
 Promise.allSettled([
-  loadHeroSmsCountries({ silent: true, preferFallbackOnly: true }),
-  loadFiveSimCountries({ silent: true, preferFallbackOnly: true }),
+  loadHeroSmsCountries({ silent: true }),
+  loadFiveSimCountries({ silent: true }),
   loadNexSmsCountries(),
 ]).then((results) => {
   const heroResult = results[0];
   const fiveSimResult = results[1];
   const nexSmsResult = results[2];
   if (heroResult?.status === 'rejected') {
-    console.debug('HeroSMS country list startup fallback skipped:', heroResult.reason);
+    console.debug('HeroSMS country list startup load skipped:', heroResult.reason);
   }
   if (fiveSimResult?.status === 'rejected') {
-    console.debug('5sim country list startup fallback skipped:', fiveSimResult.reason);
+    console.debug('5sim country list startup load skipped:', fiveSimResult.reason);
   }
   if (nexSmsResult?.status === 'rejected') {
-    console.debug('NexSMS country list startup fallback skipped:', nexSmsResult.reason);
+    console.debug('NexSMS country list startup load skipped:', nexSmsResult.reason);
   }
   return restoreState().then(() => {
     syncPasswordToggleLabel();

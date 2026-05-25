@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const test = require('node:test');
 
 test('platform verify module supports codex2api protocol callback exchange', async () => {
-  const source = fs.readFileSync('background/steps/platform-verify.js', 'utf8');
+  const source = fs.readFileSync('flows/openai/background/steps/platform-verify.js', 'utf8');
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url, options = {}) => {
       assert.equal(url, 'http://localhost:8080/api/admin/oauth/exchange-code');
@@ -81,7 +81,7 @@ test('platform verify module supports codex2api protocol callback exchange', asy
 });
 
 test('platform verify retries transient SUB2API oauth/token exchange errors before succeeding', async () => {
-  const source = fs.readFileSync('background/steps/platform-verify.js', 'utf8');
+  const source = fs.readFileSync('flows/openai/background/steps/platform-verify.js', 'utf8');
   const api = new Function('self', `${source}; return self.MultiPageBackgroundStep10;`)({});
 
   const logs = [];
@@ -150,7 +150,7 @@ test('platform verify retries transient SUB2API oauth/token exchange errors befo
 });
 
 test('platform verify retries transient SUB2API token_exchange_user_error before succeeding', async () => {
-  const source = fs.readFileSync('background/steps/platform-verify.js', 'utf8');
+  const source = fs.readFileSync('flows/openai/background/steps/platform-verify.js', 'utf8');
   const api = new Function('self', `${source}; return self.MultiPageBackgroundStep10;`)({});
 
   const logs = [];

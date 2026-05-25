@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
 function loadPhoneCountryUtils() {
-  const source = fs.readFileSync('content/phone-country-utils.js', 'utf8');
+  const source = fs.readFileSync('flows/openai/content/phone-country-utils.js', 'utf8');
   const root = {};
   return new Function('self', `${source}; return self.MultiPagePhoneCountryUtils;`)(root);
 }
@@ -43,21 +43,21 @@ test('phone country utils is loaded before phone auth content scripts', () => {
   ));
 
   assert.ok(authScript, 'missing auth content script');
-  assert.ok(authScript.js.includes('content/phone-country-utils.js'));
+  assert.ok(authScript.js.includes('flows/openai/content/phone-country-utils.js'));
   assert.ok(
-    authScript.js.indexOf('content/phone-country-utils.js') < authScript.js.indexOf('content/phone-auth.js'),
+    authScript.js.indexOf('flows/openai/content/phone-country-utils.js') < authScript.js.indexOf('flows/openai/content/phone-auth.js'),
     'phone-country-utils.js must load before phone-auth.js'
   );
   assert.ok(
-    authScript.js.indexOf('content/phone-country-utils.js') < authScript.js.indexOf('content/signup-page.js'),
-    'phone-country-utils.js must load before signup-page.js'
+    authScript.js.indexOf('flows/openai/content/phone-country-utils.js') < authScript.js.indexOf('flows/openai/content/openai-auth.js'),
+    'phone-country-utils.js must load before openai-auth.js'
   );
 
   const background = fs.readFileSync('background.js', 'utf8');
-  const injectLine = background.match(/const\s+SIGNUP_PAGE_INJECT_FILES\s*=\s*\[[^\n]+\]/)?.[0] || '';
-  assert.ok(injectLine.includes("'content/phone-country-utils.js'"));
+  const injectLine = background.match(/const\s+OPENAI_AUTH_INJECT_FILES\s*=\s*\[[^\n]+\]/)?.[0] || '';
+  assert.ok(injectLine.includes("'flows/openai/content/phone-country-utils.js'"));
   assert.ok(
-    injectLine.indexOf("'content/phone-country-utils.js'") < injectLine.indexOf("'content/phone-auth.js'"),
+    injectLine.indexOf("'flows/openai/content/phone-country-utils.js'") < injectLine.indexOf("'flows/openai/content/phone-auth.js'"),
     'dynamic signup injection must load phone-country-utils.js before phone-auth.js'
   );
 });

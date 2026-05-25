@@ -3,14 +3,14 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
 function loadRuntimeStateApi() {
-  const source = fs.readFileSync('background/runtime-state.js', 'utf8');
+  const source = fs.readFileSync('core/flow-kernel/runtime-state.js', 'utf8');
   const globalScope = {};
   return new Function('self', `${source}; return self.MultiPageBackgroundRuntimeState;`)(globalScope);
 }
 
 test('background imports runtime-state module and wires state view helpers', () => {
   const source = fs.readFileSync('background.js', 'utf8');
-  assert.match(source, /background\/runtime-state\.js/);
+  assert.match(source, /core\/flow-kernel\/runtime-state\.js/);
   assert.match(source, /createRuntimeStateHelpers/);
   assert.match(source, /buildStateViewWithRuntimeState/);
   assert.match(source, /buildStatePatchWithRuntimeState/);
@@ -46,10 +46,10 @@ test('runtime-state view preserves canonical flow metadata from node state', () 
       phoneNumber: '+447700900123',
     },
     tabRegistry: {
-      'signup-page': { tabId: 12 },
+      'openai-auth': { tabId: 12 },
     },
     sourceLastUrls: {
-      'signup-page': 'https://auth.example.com/start',
+      'openai-auth': 'https://auth.example.com/start',
     },
     flowStartTime: 12345,
   });
@@ -72,10 +72,10 @@ test('runtime-state view preserves canonical flow metadata from node state', () 
   });
   assert.deepStrictEqual(view.sharedState, {
     tabRegistry: {
-      'signup-page': { tabId: 12 },
+      'openai-auth': { tabId: 12 },
     },
     sourceLastUrls: {
-      'signup-page': 'https://auth.example.com/start',
+      'openai-auth': 'https://auth.example.com/start',
     },
     flowStartTime: 12345,
   });
@@ -170,4 +170,54 @@ test('runtime-state patch prefers explicit activeFlowId over stale legacy flowId
     'open-chatgpt': 'pending',
     'kiro-open-register-page': 'running',
   });
+});
+
+test('runtime-state patch preserves canonical nested kiro flow state without projecting a top-level alias', () => {
+  const api = loadRuntimeStateApi();
+  const helpers = api.createRuntimeStateHelpers({
+    DEFAULT_ACTIVE_FLOW_ID: 'openai',
+    defaultNodeStatuses: {
+      'open-chatgpt': 'pending',
+      'kiro-open-register-page': 'pending',
+    },
+  });
+
+  const patch = helpers.buildSessionStatePatch({
+    runtimeState: {
+      activeFlowId: 'kiro',
+      flowState: {
+        kiro: {
+          session: {
+            currentStage: 'register',
+          },
+          register: {
+            email: 'old-user@example.com',
+          },
+        },
+      },
+    },
+  }, {
+    runtimeState: {
+      flowState: {
+        kiro: {
+          register: {
+            email: 'aws-user@example.com',
+          },
+          upload: {
+            status: 'uploaded',
+          },
+        },
+      },
+    },
+  });
+
+  assert.equal(Object.prototype.hasOwnProperty.call(patch, 'kiroRuntime'), false);
+  assert.equal(patch.runtimeState.flowState.kiro.session.currentStage, 'register');
+  assert.equal(patch.runtimeState.flowState.kiro.register.email, 'aws-user@example.com');
+  assert.equal(patch.runtimeState.flowState.kiro.upload.status, 'uploaded');
+
+  const view = helpers.buildStateView(patch);
+  assert.equal(Object.prototype.hasOwnProperty.call(view, 'kiroRuntime'), false);
+  assert.equal(view.flowState.kiro.register.email, 'aws-user@example.com');
+  assert.equal(view.flowState.kiro.upload.status, 'uploaded');
 });

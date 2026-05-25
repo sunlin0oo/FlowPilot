@@ -70,6 +70,7 @@ function createProviderApi(options = {}) {
     extractFunction('throwIfStopped'),
     extractFunction('normalizeCloudflareTempEmailLookupMode'),
     extractFunction('normalizeCloudflareTempEmailReceiveMailbox'),
+    extractFunction('resolveCloudflareTempEmailEffectiveLookupMode'),
     extractFunction('resolveCloudflareTempEmailPollTargetEmail'),
     extractFunction('summarizeCloudflareTempEmailMessagesForLog'),
     extractFunction('pollCloudflareTempEmailVerificationCode'),
@@ -82,6 +83,8 @@ const CLOUDFLARE_TEMP_EMAIL_DEFAULT_PAGE_SIZE = 20;
 const CLOUDFLARE_TEMP_EMAIL_LOOKUP_MODE_RECEIVE_MAILBOX = 'receive-mailbox';
 const CLOUDFLARE_TEMP_EMAIL_LOOKUP_MODE_REGISTRATION_EMAIL = 'registration-email';
 const DEFAULT_CLOUDFLARE_TEMP_EMAIL_LOOKUP_MODE = CLOUDFLARE_TEMP_EMAIL_LOOKUP_MODE_RECEIVE_MAILBOX;
+const CLOUDFLARE_TEMP_EMAIL_PROVIDER = 'cloudflare-temp-email';
+const CLOUDFLARE_TEMP_EMAIL_GENERATOR = 'cloudflare-temp-email';
 const logs = [];
 const listCalls = [];
 const messages = options.messages;
@@ -231,6 +234,41 @@ test('pollCloudflareTempEmailVerificationCode ignores stale receive mailbox when
 
   assert.equal(result.code, '246810');
   assert.deepEqual(api.snapshot().listCalls.map((call) => call.address), ['generated@email.20021108.xyz']);
+});
+
+test('pollCloudflareTempEmailVerificationCode ignores stale registration lookup mode for generated CFTE mailboxes', async () => {
+  const api = createProviderApi({
+    receiveMailbox: 'forward-box@email.20021108.xyz',
+    lookupMode: 'registration-email',
+    messages: [{
+      id: 'mail-4',
+      address: 'generated@email.20021108.xyz',
+      originalRecipient: '',
+      receivedDateTime: '2026-04-13T11:30:00.000Z',
+      subject: 'Signup verification code',
+      from: { emailAddress: { address: 'noreply@tm.openai.com' } },
+      bodyPreview: 'Your verification code is 975310.',
+    }],
+  });
+
+  const result = await api.pollCloudflareTempEmailVerificationCode(4, {
+    email: 'generated@email.20021108.xyz',
+    mailProvider: 'cloudflare-temp-email',
+    emailGenerator: 'cloudflare-temp-email',
+    cloudflareTempEmailLookupMode: 'registration-email',
+    cloudflareTempEmailReceiveMailbox: 'forward-box@email.20021108.xyz',
+  }, {
+    targetEmail: 'generated@email.20021108.xyz',
+    maxAttempts: 1,
+    intervalMs: 1,
+  });
+
+  assert.equal(result.code, '975310');
+  assert.deepEqual(api.snapshot().listCalls, [{
+    address: 'generated@email.20021108.xyz',
+    lookupMode: 'receive-mailbox',
+    originalRecipient: 'generated@email.20021108.xyz',
+  }]);
 });
 
 test('pollCloudflareTempEmailVerificationCode filters by original recipient in registration lookup mode', async () => {

@@ -3,11 +3,15 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
 function loadPublisherApi() {
-  const stateSource = fs.readFileSync('background/kiro/state.js', 'utf8');
-  const publisherSource = fs.readFileSync('background/kiro/publisher-kiro-rs.js', 'utf8');
+  const stateSource = fs.readFileSync('flows/kiro/background/state.js', 'utf8');
+  const publisherSource = fs.readFileSync('flows/kiro/background/publisher-kiro-rs.js', 'utf8');
   const globalScope = {};
   new Function('self', `${stateSource}; ${publisherSource}; return self;`)(globalScope);
   return globalScope.MultiPageBackgroundKiroPublisherKiroRs;
+}
+
+function getKiroRuntime(state = {}) {
+  return state?.runtimeState?.flowState?.kiro || {};
 }
 
 test('kiro publisher exposes a factory and upload payload helpers', () => {
@@ -20,7 +24,7 @@ test('kiro publisher exposes a factory and upload payload helpers', () => {
 test('kiro publisher builds kiro.rs payload from desktop auth runtime with BuilderId profileArn', async () => {
   const api = loadPublisherApi();
   const payload = api.buildKiroRsPayload({
-    kiroTargetId: 'kiro-rs',
+    targetId: 'kiro-rs',
     kiroRsUrl: 'https://kiro.example.com/admin',
     kiroRsKey: 'demo-key',
     ipProxyEnabled: true,
@@ -29,18 +33,22 @@ test('kiro publisher builds kiro.rs payload from desktop auth runtime with Build
     ipProxyProtocol: 'http',
     ipProxyUsername: 'proxy-user',
     ipProxyPassword: 'proxy-pass',
-    kiroRuntime: {
-      register: {
-        email: 'aws-user@example.com',
-      },
-      desktopAuth: {
-        region: 'us-east-1',
-        clientId: 'client-001',
-        clientSecret: 'secret-001',
-        refreshToken: 'refresh-token-001',
-      },
-      upload: {
-        targetId: 'kiro-rs',
+    runtimeState: {
+      flowState: {
+        kiro: {
+          register: {
+            email: 'aws-user@example.com',
+          },
+          desktopAuth: {
+            region: 'us-east-1',
+            clientId: 'client-001',
+            clientSecret: 'secret-001',
+            refreshToken: 'refresh-token-001',
+          },
+          upload: {
+            targetId: 'kiro-rs',
+          },
+        },
       },
     },
   });
@@ -69,22 +77,26 @@ test('kiro publisher reads latest kiro.rs key from background state instead of s
   const api = loadPublisherApi();
   const requests = [];
   let liveState = {
-    kiroTargetId: 'kiro-rs',
+    targetId: 'kiro-rs',
     kiroRsUrl: 'https://kiro.example.com/admin',
     kiroRsKey: 'live-key',
     email: 'aws-user@example.com',
-    kiroRuntime: {
-      register: {
-        email: 'aws-user@example.com',
-      },
-      desktopAuth: {
-        region: 'us-east-1',
-        clientId: 'client-001',
-        clientSecret: 'secret-001',
-        refreshToken: 'refresh-token-001',
-      },
-      upload: {
-        targetId: 'kiro-rs',
+    runtimeState: {
+      flowState: {
+        kiro: {
+          register: {
+            email: 'aws-user@example.com',
+          },
+          desktopAuth: {
+            region: 'us-east-1',
+            clientId: 'client-001',
+            clientSecret: 'secret-001',
+            refreshToken: 'refresh-token-001',
+          },
+          upload: {
+            targetId: 'kiro-rs',
+          },
+        },
       },
     },
     settingsState: {
@@ -180,19 +192,23 @@ test('kiro publisher routes step 9 through public contribution upload when contr
     flowId: 'kiro',
     accountContributionEnabled: true,
     contributionAdapterId: 'kiro-builder-id',
-    kiroTargetId: 'kiro-rs',
-    kiroRuntime: {
-      register: {
-        email: 'aws-user@example.com',
-      },
-      desktopAuth: {
-        region: 'us-east-1',
-        clientId: 'client-001',
-        clientSecret: 'secret-001',
-        refreshToken: 'refresh-token-001',
-      },
-      upload: {
-        targetId: 'kiro-rs',
+    targetId: 'kiro-rs',
+    runtimeState: {
+      flowState: {
+        kiro: {
+          register: {
+            email: 'aws-user@example.com',
+          },
+          desktopAuth: {
+            region: 'us-east-1',
+            clientId: 'client-001',
+            clientSecret: 'secret-001',
+            refreshToken: 'refresh-token-001',
+          },
+          upload: {
+            targetId: 'kiro-rs',
+          },
+        },
       },
     },
   };
@@ -224,10 +240,10 @@ test('kiro publisher routes step 9 through public contribution upload when contr
   assert.equal(requests.length, 0);
   assert.equal(completed.length, 1);
   assert.equal(completed[0].nodeId, 'kiro-upload-credential');
-  assert.equal(completed[0].payload.kiroRuntime.upload.targetId, 'contribution');
-  assert.equal(completed[0].payload.kiroRuntime.upload.status, 'uploaded');
-  assert.equal(completed[0].payload.kiroRuntime.upload.credentialId, 'kiro-contribution-009');
-  assert.equal(completed[0].payload.kiroRuntime.upload.lastMessage, '贡献链路成功:kiro-step-9');
+  assert.equal(getKiroRuntime(completed[0].payload).upload.targetId, 'contribution');
+  assert.equal(getKiroRuntime(completed[0].payload).upload.status, 'uploaded');
+  assert.equal(getKiroRuntime(completed[0].payload).upload.credentialId, 'kiro-contribution-009');
+  assert.equal(getKiroRuntime(completed[0].payload).upload.lastMessage, '贡献链路成功:kiro-step-9');
 });
 
 test('kiro publisher trims api key and includes fallback Authorization header during connection check', async () => {

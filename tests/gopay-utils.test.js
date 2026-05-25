@@ -25,6 +25,8 @@ test('GoPay utils keeps GPC helper payment method distinct', () => {
   const api = loadGoPayUtils();
   assert.equal(api.normalizePlusPaymentMethod('paypal-hosted'), 'paypal-hosted');
   assert.equal(api.normalizePlusPaymentMethod('paypal_direct'), 'paypal-hosted');
+  assert.equal(api.normalizePlusPaymentMethod('none'), 'none');
+  assert.equal(api.normalizePlusPaymentMethod('no-payment'), 'none');
   assert.equal(api.normalizePlusPaymentMethod('gpc-helper'), 'gpc-helper');
   assert.equal(api.normalizePlusPaymentMethod('gopay'), 'gopay');
   assert.equal(api.normalizePlusPaymentMethod('unknown'), 'paypal');

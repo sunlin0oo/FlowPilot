@@ -2,7 +2,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
-const step9ModuleSource = fs.readFileSync('background/steps/confirm-oauth.js', 'utf8');
+const step9ModuleSource = fs.readFileSync('flows/openai/background/steps/confirm-oauth.js', 'utf8');
 
 test('step9 observes disabled oauth timeout while waiting for localhost callback', async () => {
   const api = new Function('step9ModuleSource', `

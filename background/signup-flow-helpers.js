@@ -26,7 +26,7 @@
       setEmailState,
       setState,
       SIGNUP_ENTRY_URL,
-      SIGNUP_PAGE_INJECT_FILES,
+      OPENAI_AUTH_INJECT_FILES,
       waitForTabStableComplete = null,
       waitForTabUrlMatch,
     } = deps;
@@ -57,16 +57,16 @@
     }
 
     async function openSignupEntryTab(step = 1) {
-      const tabId = await reuseOrCreateTab('signup-page', SIGNUP_ENTRY_URL, {
-        inject: SIGNUP_PAGE_INJECT_FILES,
-        injectSource: 'signup-page',
+      const tabId = await reuseOrCreateTab('openai-auth', SIGNUP_ENTRY_URL, {
+        inject: OPENAI_AUTH_INJECT_FILES,
+        injectSource: 'openai-auth',
       });
 
       await waitForSignupEntryTabToSettle(tabId, step);
 
-      await ensureContentScriptReadyOnTab('signup-page', tabId, {
-        inject: SIGNUP_PAGE_INJECT_FILES,
-        injectSource: 'signup-page',
+      await ensureContentScriptReadyOnTab('openai-auth', tabId, {
+        inject: OPENAI_AUTH_INJECT_FILES,
+        injectSource: 'openai-auth',
         timeoutMs: 45000,
         retryDelayMs: 900,
         logMessage: `步骤 ${step}：ChatGPT 官网仍在加载，正在重试连接内容脚本...`,
@@ -77,7 +77,7 @@
 
     async function ensureSignupEntryPageReady(step = 1) {
       const tabId = await openSignupEntryTab(step);
-      const result = await sendToContentScriptResilient('signup-page', {
+      const result = await sendToContentScriptResilient('openai-auth', {
         type: 'ENSURE_SIGNUP_ENTRY_READY',
         step,
         source: 'background',
@@ -186,9 +186,9 @@
         }
       }
 
-      await ensureContentScriptReadyOnTab('signup-page', tabId, {
-        inject: SIGNUP_PAGE_INJECT_FILES,
-        injectSource: 'signup-page',
+      await ensureContentScriptReadyOnTab('openai-auth', tabId, {
+        inject: OPENAI_AUTH_INJECT_FILES,
+        injectSource: 'openai-auth',
         timeoutMs: 45000,
         retryDelayMs: 900,
         logMessage: landingState === 'password_page'
@@ -204,7 +204,7 @@
         };
       }
 
-      const result = await sendToContentScriptResilient('signup-page', {
+      const result = await sendToContentScriptResilient('openai-auth', {
         type: 'ENSURE_SIGNUP_PASSWORD_PAGE_READY',
         step,
         source: 'background',
@@ -244,9 +244,9 @@
         throw new Error(`认证页面标签页已关闭，无法完成步骤 ${step} 的提交后确认。`);
       }
 
-      await ensureContentScriptReadyOnTab('signup-page', tabId, {
-        inject: SIGNUP_PAGE_INJECT_FILES,
-        injectSource: 'signup-page',
+      await ensureContentScriptReadyOnTab('openai-auth', tabId, {
+        inject: OPENAI_AUTH_INJECT_FILES,
+        injectSource: 'openai-auth',
         timeoutMs: 45000,
         retryDelayMs: 900,
         logMessage: `步骤 ${step}：认证页仍在切换，正在等待页面恢复后继续确认提交流程...`,
@@ -254,7 +254,7 @@
 
       let result;
       try {
-        result = await sendToContentScriptResilient('signup-page', {
+        result = await sendToContentScriptResilient('openai-auth', {
           type: 'PREPARE_SIGNUP_VERIFICATION',
           step,
           source: 'background',

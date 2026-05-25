@@ -39,7 +39,7 @@ test('signup flow helper allocates mail2925 account before generating alias emai
       calls.setEmail.push(email);
     },
     SIGNUP_ENTRY_URL: 'https://chatgpt.com/',
-    SIGNUP_PAGE_INJECT_FILES: [],
+    OPENAI_AUTH_INJECT_FILES: [],
     waitForTabUrlMatch: async () => null,
   });
 
@@ -87,7 +87,7 @@ test('signup flow helper skips mail2925 account allocation when account pool swi
     sendToContentScriptResilient: async () => ({}),
     setEmailState: async () => {},
     SIGNUP_ENTRY_URL: 'https://chatgpt.com/',
-    SIGNUP_PAGE_INJECT_FILES: [],
+    OPENAI_AUTH_INJECT_FILES: [],
     waitForTabUrlMatch: async () => null,
   });
 

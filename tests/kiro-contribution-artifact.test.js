@@ -3,12 +3,16 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
 function loadKiroContributionModules() {
-  const stateSource = fs.readFileSync('background/kiro/state.js', 'utf8');
-  const artifactSource = fs.readFileSync('background/kiro/credential-artifact.js', 'utf8');
+  const stateSource = fs.readFileSync('flows/kiro/background/state.js', 'utf8');
+  const artifactSource = fs.readFileSync('flows/kiro/background/credential-artifact.js', 'utf8');
   const adapterSource = fs.readFileSync('background/contribution/adapters/kiro-builder-id.js', 'utf8');
   const globalScope = {};
   new Function('self', `${stateSource}; ${artifactSource}; ${adapterSource}; return self;`)(globalScope);
   return globalScope;
+}
+
+function getKiroRuntime(state = {}) {
+  return state?.runtimeState?.flowState?.kiro || {};
 }
 
 function buildAuthorizedKiroState(overrides = {}) {
@@ -19,20 +23,24 @@ function buildAuthorizedKiroState(overrides = {}) {
     contributionAdapterId: 'kiro-builder-id',
     contributionNickname: '贡献者',
     contributionQq: '123456',
-    kiroRuntime: {
-      register: {
-        email: 'kiro-user@example.com',
-      },
-      desktopAuth: {
-        region: 'us-east-1',
-        clientId: 'client-id-001',
-        clientSecret: 'client-secret-super-long',
-        refreshToken: 'refresh-token-super-secret',
-        tokenSource: 'desktop_authorization_code_pkce',
-        authorizedAt: 1760000000000,
-      },
-      upload: {
-        targetId: 'kiro-rs',
+    runtimeState: {
+      flowState: {
+        kiro: {
+          register: {
+            email: 'kiro-user@example.com',
+          },
+          desktopAuth: {
+            region: 'us-east-1',
+            clientId: 'client-id-001',
+            clientSecret: 'client-secret-super-long',
+            refreshToken: 'refresh-token-super-secret',
+            tokenSource: 'desktop_authorization_code_pkce',
+            authorizedAt: 1760000000000,
+          },
+          upload: {
+            targetId: 'kiro-rs',
+          },
+        },
       },
     },
     ...overrides,
@@ -65,11 +73,15 @@ test('Kiro Builder ID artifact builder rejects missing required fields', () => {
 
   assert.throws(
     () => api.buildKiroBuilderIdArtifact(buildAuthorizedKiroState({
-      kiroRuntime: {
-        ...buildAuthorizedKiroState().kiroRuntime,
-        desktopAuth: {
-          ...buildAuthorizedKiroState().kiroRuntime.desktopAuth,
-          refreshToken: '',
+      runtimeState: {
+        flowState: {
+          kiro: {
+            ...getKiroRuntime(buildAuthorizedKiroState()),
+            desktopAuth: {
+              ...getKiroRuntime(buildAuthorizedKiroState()).desktopAuth,
+              refreshToken: '',
+            },
+          },
         },
       },
     })),
@@ -77,11 +89,15 @@ test('Kiro Builder ID artifact builder rejects missing required fields', () => {
   );
   assert.throws(
     () => api.buildKiroBuilderIdArtifact(buildAuthorizedKiroState({
-      kiroRuntime: {
-        ...buildAuthorizedKiroState().kiroRuntime,
-        desktopAuth: {
-          ...buildAuthorizedKiroState().kiroRuntime.desktopAuth,
-          clientId: '',
+      runtimeState: {
+        flowState: {
+          kiro: {
+            ...getKiroRuntime(buildAuthorizedKiroState()),
+            desktopAuth: {
+              ...getKiroRuntime(buildAuthorizedKiroState()).desktopAuth,
+              clientId: '',
+            },
+          },
         },
       },
     })),
@@ -89,11 +105,15 @@ test('Kiro Builder ID artifact builder rejects missing required fields', () => {
   );
   assert.throws(
     () => api.buildKiroBuilderIdArtifact(buildAuthorizedKiroState({
-      kiroRuntime: {
-        ...buildAuthorizedKiroState().kiroRuntime,
-        desktopAuth: {
-          ...buildAuthorizedKiroState().kiroRuntime.desktopAuth,
-          clientSecret: '',
+      runtimeState: {
+        flowState: {
+          kiro: {
+            ...getKiroRuntime(buildAuthorizedKiroState()),
+            desktopAuth: {
+              ...getKiroRuntime(buildAuthorizedKiroState()).desktopAuth,
+              clientSecret: '',
+            },
+          },
         },
       },
     })),
@@ -101,9 +121,13 @@ test('Kiro Builder ID artifact builder rejects missing required fields', () => {
   );
   assert.throws(
     () => api.buildKiroBuilderIdArtifact(buildAuthorizedKiroState({
-      kiroRuntime: {
-        ...buildAuthorizedKiroState().kiroRuntime,
-        register: { email: '' },
+      runtimeState: {
+        flowState: {
+          kiro: {
+            ...getKiroRuntime(buildAuthorizedKiroState()),
+            register: { email: '' },
+          },
+        },
       },
       email: '',
       accountIdentifier: '',
@@ -167,11 +191,15 @@ test('Kiro contribution adapter skips invalid artifacts without sending secrets'
   });
 
   const result = await adapter.maybeSubmitFlowContribution(buildAuthorizedKiroState({
-    kiroRuntime: {
-      ...buildAuthorizedKiroState().kiroRuntime,
-      desktopAuth: {
-        ...buildAuthorizedKiroState().kiroRuntime.desktopAuth,
-        refreshToken: '',
+    runtimeState: {
+      flowState: {
+        kiro: {
+          ...getKiroRuntime(buildAuthorizedKiroState()),
+          desktopAuth: {
+            ...getKiroRuntime(buildAuthorizedKiroState()).desktopAuth,
+            refreshToken: '',
+          },
+        },
       },
     },
   }));
@@ -211,8 +239,8 @@ test('Kiro contribution adapter redacts server errors that echo submitted secret
 });
 
 test('Kiro public contribution is triggered from step 9 instead of step 8', () => {
-  const desktopSource = fs.readFileSync('background/kiro/desktop-authorize-runner.js', 'utf8');
-  const publisherSource = fs.readFileSync('background/kiro/publisher-kiro-rs.js', 'utf8');
+  const desktopSource = fs.readFileSync('flows/kiro/background/desktop-authorize-runner.js', 'utf8');
+  const publisherSource = fs.readFileSync('flows/kiro/background/publisher-kiro-rs.js', 'utf8');
   assert.doesNotMatch(desktopSource, /trigger:\s*'kiro-step-8'/);
   assert.match(publisherSource, /maybeSubmitFlowContribution/);
   assert.match(publisherSource, /trigger:\s*'kiro-step-9'/);

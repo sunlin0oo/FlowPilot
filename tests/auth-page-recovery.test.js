@@ -2,8 +2,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
-const { createAuthPageRecovery } = require('../content/auth-page-recovery.js');
-const source = fs.readFileSync('content/auth-page-recovery.js', 'utf8');
+const { createAuthPageRecovery } = require('../flows/openai/content/auth-page-recovery.js');
+const source = fs.readFileSync('flows/openai/content/auth-page-recovery.js', 'utf8');
 
 function extractFunction(sourceText, name) {
   const start = sourceText.indexOf(`function ${name}(`);

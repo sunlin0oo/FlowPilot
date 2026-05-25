@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 
-const source = fs.readFileSync('content/plus-checkout.js', 'utf8');
+const source = fs.readFileSync('flows/openai/content/plus-checkout.js', 'utf8');
 
 test('plus checkout content script can be injected repeatedly on the same page', () => {
   const attrs = new Map();

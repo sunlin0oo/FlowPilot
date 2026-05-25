@@ -1,8 +1,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const { readFlowRegistryBundle } = require('./helpers/script-bundles.js');
 
-const flowRegistrySource = fs.readFileSync('shared/flow-registry.js', 'utf8');
+const flowRegistrySource = readFlowRegistryBundle();
 const contributionRegistrySource = fs.readFileSync('shared/contribution-registry.js', 'utf8');
 
 function loadApi() {
@@ -68,9 +69,23 @@ test('contribution registry resolves the combined tutorial entry per flow', () =
   );
 });
 
+test('contribution registry keeps Grok SSO export flow out of published contribution checks', () => {
+  const api = loadApi();
+
+  assert.equal(api.getContributionTutorialEntry('grok'), null);
+  assert.deepEqual(api.getContributionAdapterIds('grok'), []);
+  assert.deepEqual(api.getPublishedContributionFlowIds(['openai', 'kiro', 'grok']), ['openai', 'kiro']);
+  assert.throws(
+    () => api.assertPublishedFlowsHaveContributionAdapters(['grok']),
+    /缺少账号贡献适配器：grok/
+  );
+});
+
 test('contribution registry fails fast when a published flow has no adapter', () => {
   const api = loadApi();
 
+  assert.deepEqual(api.getPublishedContributionFlowIds(), ['openai', 'kiro']);
+  assert.equal(api.assertPublishedFlowsHaveContributionAdapters(), true);
   assert.equal(api.assertPublishedFlowsHaveContributionAdapters(['openai', 'kiro']), true);
   assert.throws(
     () => api.assertPublishedFlowsHaveContributionAdapters(['openai', 'missing-flow']),

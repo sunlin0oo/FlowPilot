@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
 const backgroundSource = fs.readFileSync('background.js', 'utf8');
-const step8Source = fs.readFileSync('background/steps/fetch-login-code.js', 'utf8');
+const step8Source = fs.readFileSync('flows/openai/background/steps/fetch-login-code.js', 'utf8');
 const step8GlobalScope = {};
 const step8Api = new Function('self', `${step8Source}; return self.MultiPageBackgroundStep8;`)(step8GlobalScope);
 

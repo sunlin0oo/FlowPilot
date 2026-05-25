@@ -93,7 +93,7 @@
 - 步骤文件应优先使用语义化名称，不再使用 `stepX.js` 命名。
 - 步骤顺序统一由：
   - [data/step-definitions.js](./data/step-definitions.js)
-  - [background/steps/registry.js](./background/steps/registry.js)
+  - [core/flow-kernel/step-registry.js](./core/flow-kernel/step-registry.js)
   共同管理。
 - 步骤显示和执行必须以 `key / nodeId` 为主，不得重新回到硬编码步骤号驱动流程的写法。
 - 同一个可见步骤号在不同模式下可能代表不同业务位置；日志、完成信号、错误恢复和 UI 渲染必须按当前步骤定义解析。
@@ -171,6 +171,7 @@
 - `resolvedSignupMethod` 是当前轮冻结结果，不等同于用户此刻 UI 上选择的 `signupMethod`。
 - 强制绑定邮箱后重登用邮箱身份，只能通过单次执行参数覆盖登录身份，不能持久改写 `signupMethod`。
 - flow 能力不足时必须在步骤定义层或启动校验层处理，不能等执行到不存在的节点后才报错。
+- flow 私有远程上传、发布型 flow、贡献型 flow 必须显式区分：只有声明了 `publicationTargets` 或明确支持贡献能力的 flow 才能进入发布/贡献 adapter 校验；例如 Grok / `webchat2api` SSO Cookie 上传属于 Grok flow 自己的收尾节点，不是 publication target，也不能因为有 target 就默认接入贡献模式。
 
 ### 1.7 日志步骤号原则
 
@@ -230,7 +231,7 @@
 
 - 如果新增来源本身已经提供稳定的后台协议接口，可以直接走协议分支接入：
   - 步骤 7 通过 `background/panel-bridge.js` 生成 `auth_url`
-  - 步骤 10 通过 `background/steps/platform-verify.js` 直接提交 localhost callback
+  - 步骤 10 通过 `flows/openai/background/steps/platform-verify.js` 直接提交 localhost callback
 - 这类来源优先复用现有 OpenAI 授权页与 localhost callback 主链，不要为了“看起来统一”再额外新增一套页面 DOM 自动点击内容脚本。
 - 只有当目标来源没有可用协议接口、必须依赖后台页面按钮时，才新增对应的 panel content script。
 
@@ -285,6 +286,7 @@
 - 贡献流程的后台公开 OAuth 状态机应优先收敛到独立模块，例如 `background/contribution-oauth.js`
 - 贡献模式的侧栏按钮、状态展示和轮询调度应优先收敛到独立 manager，例如 `sidepanel/contribution-mode.js`
 - 如果服务端当前返回“无需手动提交 callback”，扩展端必须把它当兼容成功态处理，不能简单按 HTTP 非 200 直接视为失败
+- 如果新增 flow 只是私有收尾产物，例如 Cookie、JSON、会话文件、手动复制值，或只上传到该 flow 自己的专属远端服务，必须保持 `publicationTargets` 为空并关闭 `supportsAccountContribution`；如果后续产品决定把它纳入正式发布 / 贡献体系，必须先设计 publication target、贡献 adapter、敏感字段脱敏和测试，再打开能力开关。
 
 ### 3.4.1 iCloud Hide My Email 维护补充
 
@@ -304,10 +306,10 @@
 - session import 节点必须直接完成目标平台接入，不得再经过 `platform-verify`，也不得混入普通 OAuth callback 状态机。
 - 相关改动必须同步检查：
   - `data/step-definitions.js`
-  - `shared/flow-capabilities.js`
-  - `shared/settings-schema.js`
+  - `core/flow-kernel/flow-capabilities.js`
+  - `core/flow-kernel/settings-schema.js`
   - `background/message-router.js`
-  - 对应 session import executor 与 `background/steps/platform-verify.js`
+  - 对应 session import executor 与 `flows/openai/background/steps/platform-verify.js`
   - `sidepanel/sidepanel.html` 与 `sidepanel/sidepanel.js`
   - 手动跳过、自动运行、最终完成节点判断、日志 step 映射与测试
 
@@ -495,6 +497,7 @@ npm test
 15. 如果创建了 `docs/md/` 方案文件，我有没有确认它是否应被提交？
 16. 如果改动涉及 flow、步骤、模式切换，我有没有同时检查 `getSteps / getNodes / getWorkflow`、后台 registry、sidepanel `workflowNodes` 和 node 状态？
 17. 我有没有新增任何用数字步骤判断业务含义的代码？如果有，是否能改为 `key / nodeId`？
+18. 如果新增或调整 flow target，我有没有确认它到底是 flow 私有收尾目标、正式发布目标还是贡献 flow，并同步检查 `publicationTargets / supportsAccountContribution / contributionAdapterIds / shared/contribution-registry.js`？
 
 ## 9. 完成标准
 

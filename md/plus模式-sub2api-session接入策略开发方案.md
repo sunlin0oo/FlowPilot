@@ -21,21 +21,21 @@
 主仓库 `codex注册扩展` 已重点阅读：
 
 - `data/step-definitions.js`
-- `shared/flow-capabilities.js`
-- `shared/flow-registry.js`
-- `shared/settings-schema.js`
+- `core/flow-kernel/flow-capabilities.js`
+- `core/flow-kernel/flow-registry.js`
+- `core/flow-kernel/settings-schema.js`
 - `sidepanel/sidepanel.html`
 - `sidepanel/sidepanel.js`
 - `background.js`
-- `background/runtime-state.js`
+- `core/flow-kernel/runtime-state.js`
 - `background/message-router.js`
 - `background/panel-bridge.js`
 - `background/sub2api-api.js`
-- `background/steps/platform-verify.js`
-- `background/steps/create-plus-checkout.js`
-- `background/steps/fill-plus-checkout.js`
-- `background/steps/plus-return-confirm.js`
-- `content/plus-checkout.js`
+- `flows/openai/background/steps/platform-verify.js`
+- `flows/openai/background/steps/create-plus-checkout.js`
+- `flows/openai/background/steps/fill-plus-checkout.js`
+- `flows/openai/background/steps/plus-return-confirm.js`
+- `flows/openai/content/plus-checkout.js`
 - `tests/step-definitions-module.test.js`
 - `tests/sidepanel-plus-payment-method.test.js`
 - `tests/flow-capabilities-module.test.js`
@@ -125,7 +125,7 @@
 1. 通过 `background/panel-bridge.js` 请求 `background/sub2api-api.js` 生成 OAuth URL
 2. 保存 `oauthUrl / sub2apiSessionId / sub2apiOAuthState`
 3. 页面完成 OAuth 回调，拿到 `localhostUrl`
-4. `background/steps/platform-verify.js` 调 `submitOpenAiCallback`
+4. `flows/openai/background/steps/platform-verify.js` 调 `submitOpenAiCallback`
 5. SUB2API 用 `exchange-code` 交换 OAuth code，再创建账号
 
 这条链路是“完整 OAuth 账号创建”，不是导入现有 ChatGPT Web session。
@@ -140,8 +140,8 @@
 
 现成能力位置：
 
-- `content/plus-checkout.js`
-- `background/steps/create-plus-checkout.js`
+- `flows/openai/content/plus-checkout.js`
+- `flows/openai/background/steps/create-plus-checkout.js`
 
 这意味着新功能不需要再发明“如何拿 session”，只需要把这份能力接到 Plus 尾链上。
 
@@ -258,7 +258,7 @@
 - `select-plus-account-access-strategy`
 - `plus-account-access-strategy-caption`
 
-`shared/flow-registry.js` 的 `openai-plus` 设置组应扩展为同时包含：
+`core/flow-kernel/flow-registry.js` 的 `openai-plus` 设置组应扩展为同时包含：
 
 - `row-plus-mode`
 - `row-plus-payment-method`
@@ -364,13 +364,13 @@ Session 导入策略生效时，替换锚点如下：
 
 建议新增后台执行器文件：
 
-- `background/steps/sub2api-session-import.js`
+- `flows/openai/background/steps/sub2api-session-import.js`
 
 执行器职责：
 
 1. 定位当前 Plus 会话页对应 tab
 2. 确认当前 tab 已回到 ChatGPT / OpenAI 域名页面，且可访问 `/api/auth/session`
-3. 通过现有 `content/plus-checkout.js` 能力读取：
+3. 通过现有 `flows/openai/content/plus-checkout.js` 能力读取：
    - `session`
    - `accessToken`
 4. 用现有 `background/sub2api-api.js` 登录 SUB2API
@@ -477,13 +477,13 @@ Session 导入策略生效时，替换锚点如下：
 
 而不是去复用旧的：
 
-- `content/sub2api-panel.js`
+- `flows/openai/content/sub2api-panel.js`
 
 原因：
 
 1. 当前主链路已迁移到 `background/sub2api-api.js`
 2. session 导入需要登录、查分组、查代理、发导入请求，这些都属于后台 API 编排
-3. 继续往 `content/sub2api-panel.js` 塞逻辑会造成双实现
+3. 继续往 `flows/openai/content/sub2api-panel.js` 塞逻辑会造成双实现
 
 建议新增 API 方法：
 
@@ -503,7 +503,7 @@ Session 导入策略生效时，替换锚点如下：
 
 - `background/panel-bridge.js` 继续只负责“跨 target 的 OAuth URL 申请桥接”
 - session 导入不要硬塞进 `requestOAuthUrlFromPanel`
-- `background/steps/platform-verify.js` 继续只处理 callback 型平台验证
+- `flows/openai/background/steps/platform-verify.js` 继续只处理 callback 型平台验证
 - `sub2api-session-import` 走独立后台执行器，不混进 `platform-verify`
 
 ## 5.7 后台总控与运行态设计
@@ -599,7 +599,7 @@ Session 导入策略生效时，替换锚点如下：
 
 ### 5.8.1 settings-schema
 
-`shared/settings-schema.js` 需要在：
+`core/flow-kernel/settings-schema.js` 需要在：
 
 - `flows.openai.plus`
 
@@ -647,7 +647,7 @@ Session 导入策略生效时，替换锚点如下：
 
 ### 5.9.1 不要把策略可用性写死在 UI
 
-应扩展 `shared/flow-capabilities.js`，让它输出：
+应扩展 `core/flow-kernel/flow-capabilities.js`，让它输出：
 
 - `requestedPlusAccountAccessStrategy`
 - `effectivePlusAccountAccessStrategy`
@@ -821,9 +821,9 @@ session strategy 下这些逻辑全部不适用。
 
 ### 涉及文件
 
-- `shared/settings-schema.js`
-- `shared/flow-capabilities.js`
-- `shared/flow-registry.js`
+- `core/flow-kernel/settings-schema.js`
+- `core/flow-kernel/flow-capabilities.js`
+- `core/flow-kernel/flow-registry.js`
 - `sidepanel/sidepanel.html`
 - `sidepanel/sidepanel.js`
 - `background.js`
@@ -889,10 +889,10 @@ session strategy 下这些逻辑全部不适用。
 ### 涉及文件
 
 - `background/sub2api-api.js`
-- `background/steps/sub2api-session-import.js`
-- `background/steps/registry.js` 或后台节点注册处
-- `content/plus-checkout.js`
-- `background/steps/create-plus-checkout.js`
+- `flows/openai/background/steps/sub2api-session-import.js`
+- `core/flow-kernel/step-registry.js` 或后台节点注册处
+- `flows/openai/content/plus-checkout.js`
+- `flows/openai/background/steps/create-plus-checkout.js`
 
 ### 完成标准
 
@@ -920,9 +920,9 @@ session strategy 下这些逻辑全部不适用。
 ### 涉及文件
 
 - `background.js`
-- `background/runtime-state.js`
+- `core/flow-kernel/runtime-state.js`
 - `background/message-router.js`
-- `background/steps/platform-verify.js`
+- `flows/openai/background/steps/platform-verify.js`
 - `background/panel-bridge.js`
 - 自动运行 / auth-chain 相关测试
 

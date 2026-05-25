@@ -67,19 +67,16 @@ const latestState = {
   accountContributionEnabled: false,
   activeFlowId: 'openai',
   flowId: 'openai',
-  panelMode: 'cpa',
-  kiroTargetId: 'kiro-rs',
+  targetId: 'cpa',
 };
 const inputAutoSkipFailures = { checked: false };
 const inputContributionNickname = { value: 'tester' };
 const inputContributionQq = { value: '123456' };
 const inputAutoSkipFailuresThreadIntervalMinutes = { value: '5' };
-const inputAutoDelayEnabled = { checked: false };
-const inputAutoDelayMinutes = { value: '30' };
 const btnAutoRun = { disabled: false, innerHTML: '' };
 const inputRunCount = { disabled: false };
 const selectFlow = { value: latestState.activeFlowId };
-const selectPanelMode = { value: latestState.panelMode };
+const selectPanelMode = { value: latestState.targetId };
 let runCountValue = ${Math.max(1, Number(runCount) || 1)};
 let pendingAutoRunStartTotalRuns = 0;
 let pendingAutoRunStartExpiresAt = 0;
@@ -121,8 +118,8 @@ function getSelectedFlowId(state = latestState) {
 function getSelectedTargetId(flowId = getSelectedFlowId()) {
   return String(
     flowId === 'kiro'
-      ? (selectPanelMode.value || latestState.kiroTargetId || 'kiro-rs')
-      : normalizePanelMode(selectPanelMode.value || latestState.panelMode || 'cpa')
+      ? (selectPanelMode.value || latestState.targetId || 'kiro-rs')
+      : normalizePanelMode(selectPanelMode.value || latestState.targetId || 'cpa')
   ).trim().toLowerCase() || (flowId === 'kiro' ? 'kiro-rs' : 'cpa');
 }
 function shouldOfferAutoModeChoice() { return false; }
@@ -133,7 +130,6 @@ function shouldWarnAutoRunFallbackRisk() { return false; }
 function isAutoRunFallbackRiskPromptDismissed() { return false; }
 async function openAutoRunFallbackRiskConfirmModal() { throw new Error('should not be called'); }
 function setAutoRunFallbackRiskPromptDismissed() {}
-function normalizeAutoDelayMinutes(value) { return Number(value) || 30; }
 async function refreshContributionContentHint() {
   events.push({ type: 'refresh' });
   ${refreshImpl ? 'return (' + refreshImpl + ')();' : 'return null;'}
@@ -239,7 +235,7 @@ test('startAutoRunFromCurrentSettings sends current flow selection with auto run
       selectPanelMode.value = 'kiro-rs';
       latestState.activeFlowId = 'openai';
       latestState.flowId = 'openai';
-      latestState.kiroTargetId = 'kiro-rs';
+      latestState.targetId = 'kiro-rs';
       events.push({ type: 'flow-switch-race' });
     }`,
   });
@@ -264,7 +260,7 @@ test('startAutoRunFromCurrentSettings blocks when shared flow capability validat
 const events = [];
 const latestState = {
   activeFlowId: 'site-a',
-  panelMode: 'cpa',
+  targetId: 'cpa',
   signupMethod: 'phone',
   accountContributionEnabled: false,
   phoneVerificationEnabled: true,
@@ -273,8 +269,6 @@ const inputAutoSkipFailures = { checked: false };
 const inputContributionNickname = { value: 'tester' };
 const inputContributionQq = { value: '123456' };
 const inputAutoSkipFailuresThreadIntervalMinutes = { value: '5' };
-const inputAutoDelayEnabled = { checked: false };
-const inputAutoDelayMinutes = { value: '30' };
 const btnAutoRun = { disabled: false, innerHTML: '' };
 const inputRunCount = { disabled: false, value: '1' };
 const inputPhoneVerificationEnabled = { checked: true };
@@ -325,7 +319,6 @@ function shouldWarnAutoRunFallbackRisk() { return false; }
 function isAutoRunFallbackRiskPromptDismissed() { return false; }
 async function openAutoRunFallbackRiskConfirmModal() { throw new Error('should not be called'); }
 function setAutoRunFallbackRiskPromptDismissed() {}
-function normalizeAutoDelayMinutes(value) { return Number(value) || 30; }
 async function refreshContributionContentHint() {
   events.push({ type: 'refresh' });
   return null;

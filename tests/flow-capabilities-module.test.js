@@ -1,18 +1,12 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
+const { readFlowCapabilitiesBundle } = require('./helpers/script-bundles.js');
 
-const flowRegistrySource = fs.readFileSync('shared/flow-registry.js', 'utf8');
-const contributionRegistrySource = fs.readFileSync('shared/contribution-registry.js', 'utf8');
-const settingsSchemaSource = fs.readFileSync('shared/settings-schema.js', 'utf8');
-const source = fs.readFileSync('shared/flow-capabilities.js', 'utf8');
+const source = readFlowCapabilitiesBundle();
 
 function loadApi() {
   const scope = {};
-  return new Function(
-    'self',
-    `${flowRegistrySource}; ${contributionRegistrySource}; ${settingsSchemaSource}; ${source}; return self.MultiPageFlowCapabilities;`
-  )(scope);
+  return new Function('self', `${source}; return self.MultiPageFlowCapabilities;`)(scope);
 }
 
 test('flow capability registry keeps OpenAI phone signup available only when runtime locks allow it', () => {
@@ -22,7 +16,7 @@ test('flow capability registry keeps OpenAI phone signup available only when run
   const enabledState = registry.resolveSidepanelCapabilities({
     state: {
       activeFlowId: 'openai',
-      openaiIntegrationTargetId: 'cpa',
+      targetId: 'cpa',
       phoneVerificationEnabled: true,
       plusModeEnabled: false,
       accountContributionEnabled: false,
@@ -33,12 +27,14 @@ test('flow capability registry keeps OpenAI phone signup available only when run
   assert.equal(enabledState.canUsePhoneSignup, true);
   assert.equal(enabledState.effectiveSignupMethod, 'phone');
   assert.equal(enabledState.shouldWarnCpaPhoneSignup, true);
+  assert.equal(enabledState.targetCapabilities.usesOauthTimeoutBudget, true);
+  assert.equal(enabledState.stepDefinitionOptions.phoneVerificationEnabled, true);
   assert.deepEqual(enabledState.effectiveSignupMethods, ['email', 'phone']);
 
   const plusLockedState = registry.resolveSidepanelCapabilities({
     state: {
       activeFlowId: 'openai',
-      openaiIntegrationTargetId: 'sub2api',
+      targetId: 'sub2api',
       phoneVerificationEnabled: true,
       plusModeEnabled: true,
       accountContributionEnabled: false,
@@ -48,7 +44,9 @@ test('flow capability registry keeps OpenAI phone signup available only when run
 
   assert.equal(plusLockedState.canUsePhoneSignup, false);
   assert.equal(plusLockedState.effectiveSignupMethod, 'email');
+  assert.equal(plusLockedState.stepDefinitionOptions.phoneVerificationEnabled, true);
   assert.equal(plusLockedState.shouldWarnCpaPhoneSignup, false);
+  assert.equal(plusLockedState.targetCapabilities.usesOauthTimeoutBudget, false);
   assert.deepEqual(plusLockedState.effectiveSignupMethods, ['email']);
 });
 
@@ -59,7 +57,7 @@ test('flow capability registry defaults unknown flows to minimal non-phone capab
   const capabilityState = registry.resolveSidepanelCapabilities({
     state: {
       activeFlowId: 'site-a',
-      openaiIntegrationTargetId: 'codex2api',
+      targetId: 'codex2api',
       phoneVerificationEnabled: true,
       plusModeEnabled: true,
       accountContributionEnabled: true,
@@ -73,7 +71,7 @@ test('flow capability registry defaults unknown flows to minimal non-phone capab
   assert.equal(capabilityState.canShowLuckmail, false);
   assert.equal(capabilityState.canUsePhoneSignup, false);
   assert.equal(capabilityState.effectiveSignupMethod, 'email');
-  assert.equal(capabilityState.panelMode, 'codex2api');
+  assert.equal(capabilityState.effectiveTargetId, 'codex2api');
   assert.deepEqual(capabilityState.supportedTargetIds, []);
 });
 
@@ -84,8 +82,7 @@ test('flow capability registry exposes Kiro as an independent flow with its own 
   const capabilityState = registry.resolveSidepanelCapabilities({
     state: {
       activeFlowId: 'kiro',
-      kiroTargetId: 'kiro-rs',
-      openaiIntegrationTargetId: 'sub2api',
+      targetId: 'kiro-rs',
       signupMethod: 'phone',
       plusModeEnabled: true,
       phoneVerificationEnabled: true,
@@ -101,7 +98,37 @@ test('flow capability registry exposes Kiro as an independent flow with its own 
   assert.deepEqual(capabilityState.flowCapabilities.contributionAdapterIds, ['kiro-builder-id']);
   assert.deepEqual(
     capabilityState.visibleGroupIds,
-    ['kiro-runtime-status', 'kiro-target-kiro-rs', 'service-account', 'service-email', 'service-proxy']
+    ['kiro-runtime-status', 'shared-auto-run', 'shared-settings-actions', 'kiro-target-kiro-rs', 'service-account', 'service-email', 'service-proxy']
+  );
+});
+
+test('flow capability registry exposes Grok as an independent SSO flow without OpenAI-only modes', () => {
+  const api = loadApi();
+  const registry = api.createFlowCapabilityRegistry();
+
+  const capabilityState = registry.resolveSidepanelCapabilities({
+    state: {
+      activeFlowId: 'grok',
+      targetId: 'webchat2api',
+      signupMethod: 'phone',
+      plusModeEnabled: true,
+      phoneVerificationEnabled: true,
+      accountContributionEnabled: true,
+    },
+  });
+
+  assert.equal(capabilityState.activeFlowId, 'grok');
+  assert.equal(capabilityState.canShowPhoneSettings, false);
+  assert.equal(capabilityState.canShowPlusSettings, false);
+  assert.equal(capabilityState.canShowContributionMode, false);
+  assert.equal(capabilityState.canShowLuckmail, false);
+  assert.equal(capabilityState.effectiveSignupMethod, 'email');
+  assert.equal(capabilityState.effectiveTargetId, 'webchat2api');
+  assert.deepEqual(capabilityState.supportedTargetIds, ['webchat2api']);
+  assert.deepEqual(capabilityState.flowCapabilities.contributionAdapterIds, []);
+  assert.deepEqual(
+    capabilityState.visibleGroupIds,
+    ['grok-runtime-status', 'shared-auto-run', 'shared-settings-actions', 'grok-target-webchat2api', 'service-account', 'service-email', 'service-proxy']
   );
 });
 
@@ -120,7 +147,7 @@ test('flow capability registry exposes shared auto-run validation for phone lock
   const plusLockedResult = registry.validateAutoRunStart({
     state: {
       activeFlowId: 'openai',
-      openaiIntegrationTargetId: 'cpa',
+      targetId: 'cpa',
       signupMethod: 'phone',
       phoneVerificationEnabled: true,
       plusModeEnabled: true,
@@ -134,7 +161,7 @@ test('flow capability registry exposes shared auto-run validation for phone lock
   const unsupportedPanelResult = registry.validateAutoRunStart({
     state: {
       activeFlowId: 'site-a',
-      openaiIntegrationTargetId: 'sub2api',
+      targetId: 'sub2api',
       signupMethod: 'email',
     },
   });
@@ -158,14 +185,14 @@ test('flow capability registry normalizes unsupported mode switches back to the 
   const validation = registry.validateModeSwitch({
     state: {
       activeFlowId: 'site-a',
-      openaiIntegrationTargetId: 'sub2api',
+      targetId: 'sub2api',
       signupMethod: 'phone',
       phoneVerificationEnabled: true,
       plusModeEnabled: true,
       accountContributionEnabled: true,
     },
     changedKeys: [
-      'openaiIntegrationTargetId',
+      'targetId',
       'signupMethod',
       'phoneVerificationEnabled',
       'plusModeEnabled',
@@ -175,9 +202,7 @@ test('flow capability registry normalizes unsupported mode switches back to the 
 
   assert.equal(validation.ok, false);
   assert.deepEqual(validation.normalizedUpdates, {
-    panelMode: 'cpa',
-    openaiIntegrationTargetId: 'cpa',
-    kiroTargetId: 'cpa',
+    targetId: 'cpa',
     signupMethod: 'email',
     phoneVerificationEnabled: false,
     plusModeEnabled: false,
@@ -203,7 +228,7 @@ test('flow capability registry exposes editable Plus account access strategies f
   const capabilityState = registry.resolveSidepanelCapabilities({
     state: {
       activeFlowId: 'openai',
-      openaiIntegrationTargetId: 'sub2api',
+      targetId: 'sub2api',
       signupMethod: 'email',
       plusModeEnabled: true,
       plusAccountAccessStrategy: 'sub2api_codex_session',
@@ -227,7 +252,7 @@ test('flow capability registry maps session import to the current source target'
   const capabilityState = registry.resolveSidepanelCapabilities({
     state: {
       activeFlowId: 'openai',
-      openaiIntegrationTargetId: 'sub2api',
+      targetId: 'sub2api',
       signupMethod: 'email',
       plusModeEnabled: true,
       plusAccountAccessStrategy: 'cpa_codex_session',
@@ -250,7 +275,7 @@ test('flow capability registry exposes editable Plus account access strategies f
   const capabilityState = registry.resolveSidepanelCapabilities({
     state: {
       activeFlowId: 'openai',
-      openaiIntegrationTargetId: 'cpa',
+      targetId: 'cpa',
       signupMethod: 'email',
       plusModeEnabled: true,
       plusAccountAccessStrategy: 'cpa_codex_session',
@@ -274,7 +299,7 @@ test('flow capability registry falls back to OAuth when the current source canno
   const capabilityState = registry.resolveSidepanelCapabilities({
     state: {
       activeFlowId: 'openai',
-      openaiIntegrationTargetId: 'codex2api',
+      targetId: 'codex2api',
       signupMethod: 'email',
       plusModeEnabled: true,
       plusAccountAccessStrategy: 'cpa_codex_session',
@@ -298,7 +323,7 @@ test('flow capability registry forces SUB2API session import only for contributi
   const capabilityState = registry.resolveSidepanelCapabilities({
     state: {
       activeFlowId: 'openai',
-      openaiIntegrationTargetId: 'cpa',
+      targetId: 'cpa',
       signupMethod: 'email',
       plusModeEnabled: true,
       accountContributionEnabled: true,

@@ -1,9 +1,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const { readFlowRegistryBundle } = require('./helpers/script-bundles.js');
 
-const flowRegistrySource = fs.readFileSync('shared/flow-registry.js', 'utf8');
-const settingsSchemaSource = fs.readFileSync('shared/settings-schema.js', 'utf8');
+const flowRegistrySource = readFlowRegistryBundle();
+const settingsSchemaSource = fs.readFileSync('core/flow-kernel/settings-schema.js', 'utf8');
 const backgroundSource = fs.readFileSync('background.js', 'utf8');
 
 function extractFunction(name) {
@@ -59,9 +60,7 @@ const DEFAULT_ACTIVE_FLOW_ID = 'openai';
 const DEFAULT_SUB2API_GROUP_NAMES = ['codex', 'openai-plus'];
 const SETTINGS_SCHEMA_VIEW_KEYS = Object.freeze([
   'activeFlowId',
-  'openaiIntegrationTargetId',
-  'panelMode',
-  'kiroTargetId',
+  'targetId',
   'vpsUrl',
   'vpsPassword',
   'localCpaStep9Mode',
@@ -92,7 +91,7 @@ const SETTINGS_SCHEMA_VIEW_KEYS = Object.freeze([
 const SETTINGS_SCHEMA_VIEW_KEY_SET = new Set(SETTINGS_SCHEMA_VIEW_KEYS);
 const PERSISTED_SETTING_DEFAULTS = {
   activeFlowId: DEFAULT_ACTIVE_FLOW_ID,
-  panelMode: 'cpa',
+  targetId: 'cpa',
   signupMethod: 'email',
   plusModeEnabled: false,
   plusPaymentMethod: 'paypal',
@@ -102,7 +101,6 @@ const PERSISTED_SETTING_DEFAULTS = {
   ipProxyEnabled: false,
   ipProxyService: '711proxy',
   ipProxyMode: 'account',
-  kiroTargetId: 'kiro-rs',
   kiroRsUrl: '',
   kiroRsKey: '',
   stepExecutionRangeByFlow: {},
@@ -203,13 +201,13 @@ test('buildPersistentSettingsPayload writes canonical settings schema into persi
   }, { fillDefaults: true });
 
   assert.equal(payload.activeFlowId, 'kiro');
-  assert.equal(payload.kiroTargetId, 'kiro-rs');
+  assert.equal(payload.targetId, 'kiro-rs');
   assert.equal(payload.kiroRsUrl, 'https://kiro.example.com/admin');
   assert.equal(payload.kiroRsKey, 'secret-key');
   assert.equal(Object.prototype.hasOwnProperty.call(payload, 'kiroRegion'), false);
-  assert.equal(payload.settingsSchemaVersion, 4);
+  assert.equal(payload.settingsSchemaVersion, 5);
   assert.equal(payload.settingsState.activeFlowId, 'kiro');
-  assert.equal(payload.settingsState.flows.kiro.targetId, 'kiro-rs');
+  assert.equal(payload.settingsState.flows.kiro.selectedTargetId, 'kiro-rs');
   assert.equal(
     payload.settingsState.flows.kiro.targets['kiro-rs'].baseUrl,
     'https://kiro.example.com/admin'
@@ -220,7 +218,7 @@ test('buildPersistentSettingsPayload accepts schema-only input when requireKnown
   const api = buildHarness();
 
   const payload = api.buildPersistentSettingsPayload({
-    settingsSchemaVersion: 4,
+    settingsSchemaVersion: 5,
     settingsState: {
       activeFlowId: 'kiro',
       services: {
@@ -230,8 +228,8 @@ test('buildPersistentSettingsPayload accepts schema-only input when requireKnown
       },
       flows: {
         openai: {
-          integrationTargetId: 'cpa',
-          integrationTargets: {
+          selectedTargetId: 'cpa',
+          targets: {
             cpa: {
               vpsUrl: '',
               vpsPassword: '',
@@ -266,7 +264,7 @@ test('buildPersistentSettingsPayload accepts schema-only input when requireKnown
           },
         },
         kiro: {
-          targetId: 'kiro-rs',
+          selectedTargetId: 'kiro-rs',
           targets: {
             'kiro-rs': {
               baseUrl: 'https://kiro.example.com/admin',
@@ -282,11 +280,11 @@ test('buildPersistentSettingsPayload accepts schema-only input when requireKnown
   }, { requireKnownKeys: true });
 
   assert.equal(payload.activeFlowId, 'kiro');
-  assert.equal(payload.kiroTargetId, 'kiro-rs');
+  assert.equal(payload.targetId, 'kiro-rs');
   assert.equal(payload.kiroRsUrl, 'https://kiro.example.com/admin');
   assert.equal(payload.kiroRsKey, 'schema-only-key');
   assert.equal(Object.prototype.hasOwnProperty.call(payload, 'kiroRegion'), false);
-  assert.equal(payload.settingsSchemaVersion, 4);
+  assert.equal(payload.settingsSchemaVersion, 5);
   assert.equal(payload.settingsState.flows.openai.plus.plusAccountAccessStrategy, 'oauth');
 });
 
@@ -313,7 +311,7 @@ function getRequestedKeys() {
   assert.ok(api.getRequestedKeys().includes('settingsSchemaVersion'));
   assert.ok(api.getRequestedKeys().includes('settingsState'));
   assert.ok(api.getRequestedKeys().includes('plusAccountAccessStrategy'));
-  assert.equal(state.settingsSchemaVersion, 4);
+  assert.equal(state.settingsSchemaVersion, 5);
   assert.equal(state.settingsState.activeFlowId, 'openai');
 });
 
@@ -324,7 +322,7 @@ const chrome = {
     local: {
       async get() {
         return {
-          settingsSchemaVersion: 4,
+          settingsSchemaVersion: 5,
           settingsState: {
             activeFlowId: 'kiro',
             services: {
@@ -334,8 +332,8 @@ const chrome = {
             },
             flows: {
               openai: {
-                integrationTargetId: 'sub2api',
-                integrationTargets: {
+                selectedTargetId: 'sub2api',
+                targets: {
                   cpa: {
                     vpsUrl: '',
                     vpsPassword: '',
@@ -370,7 +368,7 @@ const chrome = {
                 },
               },
               kiro: {
-                targetId: 'kiro-rs',
+                selectedTargetId: 'kiro-rs',
                 targets: {
                   'kiro-rs': {
                     baseUrl: 'https://kiro.example.com/admin',
@@ -393,7 +391,8 @@ const chrome = {
   const state = await api.getPersistedSettings();
 
   assert.equal(state.activeFlowId, 'kiro');
-  assert.equal(state.panelMode, 'sub2api');
+  assert.equal(state.targetId, 'kiro-rs');
+  assert.equal(state.settingsState.flows.openai.selectedTargetId, 'sub2api');
   assert.equal(state.mailProvider, 'hotmail');
   assert.equal(state.ipProxyEnabled, true);
   assert.equal(state.kiroRsUrl, 'https://kiro.example.com/admin');
@@ -435,7 +434,7 @@ function getRemovedKeys() {
 `);
 
   const persisted = await api.setPersistentSettings({
-    settingsSchemaVersion: 4,
+    settingsSchemaVersion: 5,
     settingsState: {
       activeFlowId: 'kiro',
       services: {
@@ -445,8 +444,8 @@ function getRemovedKeys() {
       },
       flows: {
         openai: {
-          integrationTargetId: 'cpa',
-          integrationTargets: {
+          selectedTargetId: 'cpa',
+          targets: {
             cpa: {
               vpsUrl: '',
               vpsPassword: '',
@@ -481,7 +480,7 @@ function getRemovedKeys() {
           },
         },
         kiro: {
-          targetId: 'kiro-rs',
+          selectedTargetId: 'kiro-rs',
           targets: {
             'kiro-rs': {
               baseUrl: 'https://kiro.example.com/admin',
@@ -499,21 +498,20 @@ function getRemovedKeys() {
   const write = api.getPersistedWrites().at(-1);
 
   assert.equal(persisted.activeFlowId, 'kiro');
-  assert.equal(persisted.kiroTargetId, 'kiro-rs');
+  assert.equal(persisted.targetId, 'kiro-rs');
   assert.equal(persisted.kiroRsUrl, 'https://kiro.example.com/admin');
   assert.equal(persisted.kiroRsKey, 'nested-only-key');
   assert.equal(persisted.plusAccountAccessStrategy, 'sub2api_codex_session');
   assert.equal(Object.prototype.hasOwnProperty.call(persisted, 'kiroRegion'), false);
-  assert.equal(persisted.settingsSchemaVersion, 4);
+  assert.equal(persisted.settingsSchemaVersion, 5);
   assert.equal(Object.prototype.hasOwnProperty.call(write, 'activeFlowId'), false);
   assert.equal(Object.prototype.hasOwnProperty.call(write, 'kiroRsUrl'), false);
   assert.equal(Object.prototype.hasOwnProperty.call(write, 'kiroRsKey'), false);
   assert.equal(Object.prototype.hasOwnProperty.call(write, 'kiroRegion'), false);
-  assert.equal(write.settingsSchemaVersion, 4);
+  assert.equal(write.settingsSchemaVersion, 5);
   assert.equal(write.settingsState.activeFlowId, 'kiro');
   assert.equal(write.settingsState.flows.openai.plus.plusAccountAccessStrategy, 'sub2api_codex_session');
-  assert.equal(write.settingsState.flows.kiro.targetId, 'kiro-rs');
-  assert.ok(api.getRemovedKeys().includes('panelMode'));
+  assert.equal(write.settingsState.flows.kiro.selectedTargetId, 'kiro-rs');
   assert.ok(api.getRemovedKeys().includes('kiroRsUrl'));
 });
 
@@ -526,7 +524,7 @@ const chrome = {
     local: {
       async get() {
         return {
-          settingsSchemaVersion: 4,
+          settingsSchemaVersion: 5,
           settingsState: {
             activeFlowId: 'openai',
             services: {
@@ -575,7 +573,7 @@ const chrome = {
     local: {
       async get() {
         return {
-          settingsSchemaVersion: 4,
+          settingsSchemaVersion: 5,
           settingsState: {
             activeFlowId: 'openai',
             services: {
@@ -585,8 +583,8 @@ const chrome = {
             },
             flows: {
               openai: {
-                integrationTargetId: 'cpa',
-                integrationTargets: {
+                selectedTargetId: 'cpa',
+                targets: {
                   cpa: {
                     vpsUrl: 'https://old-cpa.example.com',
                     vpsPassword: 'old-vps-password',
@@ -621,7 +619,7 @@ const chrome = {
                 },
               },
               kiro: {
-                targetId: 'kiro-rs',
+                selectedTargetId: 'kiro-rs',
                 targets: {
                   'kiro-rs': {
                     baseUrl: 'https://kiro.example.com/admin',
@@ -654,7 +652,7 @@ function getRemovedKeys() {
 `);
 
   const persisted = await api.setPersistentSettings({
-    panelMode: 'sub2api',
+    targetId: 'sub2api',
     mailProvider: 'cloudflare-temp-email',
     ipProxyEnabled: true,
     ipProxyMode: 'api',
@@ -664,7 +662,7 @@ function getRemovedKeys() {
   });
   const write = api.getPersistedWrites().at(-1);
 
-  assert.equal(persisted.panelMode, 'sub2api');
+  assert.equal(persisted.targetId, 'sub2api');
   assert.equal(persisted.mailProvider, 'cloudflare-temp-email');
   assert.equal(persisted.ipProxyEnabled, true);
   assert.equal(persisted.ipProxyMode, 'api');
@@ -673,7 +671,7 @@ function getRemovedKeys() {
     fromStep: 2,
     toStep: 4,
   });
-  assert.equal(write.settingsState.flows.openai.integrationTargetId, 'sub2api');
+  assert.equal(write.settingsState.flows.openai.selectedTargetId, 'sub2api');
   assert.equal(write.settingsState.services.email.provider, 'cloudflare-temp-email');
   assert.equal(write.settingsState.services.proxy.enabled, true);
   assert.equal(write.settingsState.services.proxy.mode, 'api');
@@ -682,8 +680,8 @@ function getRemovedKeys() {
     fromStep: 2,
     toStep: 4,
   });
-  assert.equal(write.settingsState.flows.openai.integrationTargets.sub2api.sub2apiUrl, 'https://sub2api.example.com');
-  assert.equal(write.settingsState.flows.openai.integrationTargets.sub2api.sub2apiEmail, 'owner@example.com');
+  assert.equal(write.settingsState.flows.openai.targets.sub2api.sub2apiUrl, 'https://sub2api.example.com');
+  assert.equal(write.settingsState.flows.openai.targets.sub2api.sub2apiEmail, 'owner@example.com');
   assert.equal(write.settingsState.flows.kiro.targets['kiro-rs'].apiKey, 'kiro-key');
   assert.equal(Object.prototype.hasOwnProperty.call(write, 'mailProvider'), false);
   assert.equal(Object.prototype.hasOwnProperty.call(write, 'panelMode'), false);

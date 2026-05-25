@@ -1,10 +1,11 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const { readFlowRegistryBundle } = require('./helpers/script-bundles.js');
 
 const html = fs.readFileSync('sidepanel/sidepanel.html', 'utf8');
 const source = fs.readFileSync('sidepanel/sidepanel.js', 'utf8');
-const flowRegistrySource = fs.readFileSync('shared/flow-registry.js', 'utf8');
+const flowRegistrySource = readFlowRegistryBundle();
 
 test('sidepanel exposes SUB2API account priority below group setting', () => {
   assert.match(html, /id="row-sub2api-account-priority"/);
@@ -25,6 +26,10 @@ test('sidepanel exposes SUB2API account priority below group setting', () => {
 });
 
 test('sidepanel persists and locks SUB2API account priority setting', () => {
+  const flowRegistryApi = new Function(
+    'self',
+    `${flowRegistrySource}; return self.MultiPageFlowRegistry;`
+  )({});
   assert.match(
     source,
     /const rowSub2ApiAccountPriority = document\.getElementById\('row-sub2api-account-priority'\);/
@@ -41,7 +46,10 @@ test('sidepanel persists and locks SUB2API account priority setting', () => {
     /inputSub2ApiAccountPriority\.value = String\(normalizeSub2ApiAccountPriorityValue\(state\?\.sub2apiAccountPriority\)\);/
   );
   assert.match(source, /applyFlowSettingsGroupVisibility\(visibleGroupIds\);/);
-  assert.match(flowRegistrySource, /'openai-target-sub2api': \{[\s\S]*'row-sub2api-account-priority'/);
+  assert.deepStrictEqual(
+    flowRegistryApi.getSettingsGroupDefinition('openai-target-sub2api')?.rowIds?.includes('row-sub2api-account-priority'),
+    true
+  );
   assert.match(source, /inputSub2ApiAccountPriority\.disabled = locked;/);
   assert.match(
     source,

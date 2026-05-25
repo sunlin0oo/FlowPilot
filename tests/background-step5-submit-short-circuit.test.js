@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
-const source = fs.readFileSync('background/steps/fill-profile.js', 'utf8');
+const source = fs.readFileSync('flows/openai/background/steps/fill-profile.js', 'utf8');
 const globalScope = {};
 const api = new Function('self', `${source}; return self.MultiPageBackgroundStep5;`)(globalScope);
 
@@ -28,7 +28,7 @@ test('step 5 forwards generated profile data and relies on completion signal flo
 
   assert.deepStrictEqual(events.messages, [
     {
-      source: 'signup-page',
+      source: 'openai-auth',
       message: {
         type: 'EXECUTE_NODE',
         nodeId: 'fill-profile',

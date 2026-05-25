@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
-const source = fs.readFileSync('background/steps/platform-verify.js', 'utf8');
+const source = fs.readFileSync('flows/openai/background/steps/platform-verify.js', 'utf8');
 const api = new Function('self', `${source}; return self.MultiPageBackgroundStep10;`)({});
 
 function createExecutor(overrides = {}) {

@@ -82,7 +82,7 @@ function isGpcAutoModePermissionDenied() {
   return false;
 }
 function getSelectedPanelMode() {
-  return latestState?.panelMode || 'cpa';
+  return latestState?.targetId || 'cpa';
 }
 function resolveCurrentSidepanelCapabilities() {
   return ${capabilityStateSource};
@@ -141,7 +141,7 @@ test('sidepanel keeps requested Plus account strategy while contribution mode fo
     }`,
     `{
       activeFlowId: 'openai',
-      panelMode: 'cpa',
+      targetId: 'cpa',
       plusPaymentMethod: 'paypal',
       accountContributionEnabled: true,
       plusAccountAccessStrategy: 'cpa_codex_session',
@@ -168,7 +168,7 @@ test('sidepanel maps generic session import to SUB2API when the current source i
     }`,
     `{
       activeFlowId: 'openai',
-      panelMode: 'sub2api',
+      targetId: 'sub2api',
       plusPaymentMethod: 'paypal',
       plusAccountAccessStrategy: 'sub2api_codex_session',
     }`
@@ -190,12 +190,12 @@ test('sidepanel maps generic session import to CPA when the current source is CP
       runtimeLocks: { plusModeEnabled: true },
       canEditPlusAccountAccessStrategy: true,
       availablePlusAccountAccessStrategies: ['oauth', 'cpa_codex_session'],
-      effectivePanelMode: 'cpa',
+      effectiveTargetId: 'cpa',
       effectivePlusAccountAccessStrategy: 'cpa_codex_session',
     }`,
     `{
       activeFlowId: 'openai',
-      panelMode: 'cpa',
+      targetId: 'cpa',
       plusPaymentMethod: 'paypal',
       plusAccountAccessStrategy: 'cpa_codex_session',
     }`
@@ -217,12 +217,12 @@ test('sidepanel falls back to OAuth when the current source cannot import sessio
       runtimeLocks: { plusModeEnabled: true },
       canEditPlusAccountAccessStrategy: false,
       availablePlusAccountAccessStrategies: ['oauth'],
-      effectivePanelMode: 'codex2api',
+      effectiveTargetId: 'codex2api',
       effectivePlusAccountAccessStrategy: 'oauth',
     }`,
     `{
       activeFlowId: 'openai',
-      panelMode: 'codex2api',
+      targetId: 'codex2api',
       plusPaymentMethod: 'paypal',
       plusAccountAccessStrategy: 'cpa_codex_session',
     }`
@@ -263,6 +263,7 @@ const window = {
   },
 };
 let latestState = { activeFlowId: 'openai' };
+const inputPhoneVerificationEnabled = { checked: false };
 let currentPlusModeEnabled = false;
 let currentPlusPaymentMethod = 'paypal';
 const PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH = 'oauth';
@@ -270,6 +271,7 @@ const PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION = 'sub2api_codex_sessio
 const PLUS_ACCOUNT_ACCESS_STRATEGY_CPA_CODEX_SESSION = 'cpa_codex_session';
 let currentPlusAccountAccessStrategy = 'oauth';
 let currentSignupMethod = 'email';
+let currentPhoneVerificationEnabled = false;
 let currentPhoneSignupReloginAfterBindEmailEnabled = false;
 let currentStepDefinitionFlowId = 'openai';
 const DEFAULT_ACTIVE_FLOW_ID = 'openai';
@@ -326,6 +328,7 @@ return {
         plusPaymentMethod: 'paypal',
         plusAccountAccessStrategy: 'sub2api_codex_session',
         signupMethod: 'email',
+        phoneVerificationEnabled: false,
         phoneSignupReloginAfterBindEmailEnabled: false,
         accountContributionEnabled: false,
       },
@@ -338,6 +341,7 @@ return {
         plusPaymentMethod: 'paypal',
         plusAccountAccessStrategy: 'sub2api_codex_session',
         signupMethod: 'email',
+        phoneVerificationEnabled: false,
         phoneSignupReloginAfterBindEmailEnabled: false,
         accountContributionEnabled: false,
       },

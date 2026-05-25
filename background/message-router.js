@@ -11,12 +11,12 @@
       buildPersistentSettingsPayload,
       broadcastDataUpdate,
       applyIpProxySettingsFromState,
-      cancelScheduledAutoRun,
       checkIcloudSession,
       clearAccountRunHistory,
       deleteAccountRunHistoryRecords,
       clearAutoRunTimerAlarm,
       clearFreeReusablePhoneActivation,
+      clearGrokSsoCookies,
       clearLuckmailRuntimeState,
       clearYydsMailRuntimeState,
       clearStopRequest,
@@ -40,6 +40,7 @@
       testKiroRsConnection,
       finalizePhoneActivationAfterSuccessfulFlow,
       finalizeStep3Completion,
+      finalizeStep5Completion = null,
       finalizeIcloudAliasAfterSuccessfulFlow,
       findHotmailAccount,
       findPayPalAccount,
@@ -91,7 +92,7 @@
         }
         return capabilityRegistry.validateAutoRunStart({
           activeFlowId: options?.activeFlowId ?? validationState?.activeFlowId,
-          panelMode: options?.panelMode ?? validationState?.panelMode,
+          targetId: options?.targetId ?? validationState?.targetId,
           signupMethod: options?.signupMethod ?? validationState?.signupMethod,
           state: validationState,
         });
@@ -113,7 +114,7 @@
         return capabilityRegistry.validateModeSwitch({
           activeFlowId: options?.activeFlowId ?? validationState?.activeFlowId,
           changedKeys: options?.changedKeys,
-          panelMode: options?.panelMode ?? validationState?.panelMode,
+          targetId: options?.targetId ?? validationState?.targetId,
           signupMethod: options?.signupMethod ?? validationState?.signupMethod,
           state: validationState,
         });
@@ -146,7 +147,6 @@
         .map((item) => String(item || '').trim().toLowerCase())
         .filter((item) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(item)),
       normalizeRunCount,
-      AUTO_RUN_TIMER_KIND_SCHEDULED_START,
       notifyNodeComplete,
       notifyNodeError,
       patchMail2925Account,
@@ -159,7 +159,6 @@
       handleCloudflareSecurityBlocked,
       resetState,
       resumeAutoRun,
-      scheduleAutoRun,
       selectLuckmailPurchase,
       switchIpProxy,
       changeIpProxyExit,
@@ -220,10 +219,6 @@
       return String(targetId || fallbackSourceId).trim().toLowerCase() || fallbackSourceId;
     }
 
-    function mapAutoRunTargetIdToPanelMode(targetId = '', fallback = 'cpa') {
-      return String(targetId || fallback || 'cpa').trim().toLowerCase() || 'cpa';
-    }
-
     function buildAutoRunFlowStateUpdates(payload = {}) {
       const hasActiveFlowId = Object.prototype.hasOwnProperty.call(payload, 'activeFlowId');
       const hasTargetId = Object.prototype.hasOwnProperty.call(payload, 'targetId');
@@ -236,11 +231,11 @@
         flowId: activeFlowId,
       };
       if (hasTargetId) {
-        if (activeFlowId === 'kiro') {
-          updates.kiroTargetId = normalizeMessageTargetId('kiro', payload.targetId, 'kiro-rs');
-        } else {
-          updates.panelMode = mapAutoRunTargetIdToPanelMode(payload.targetId, 'cpa');
-        }
+        updates.targetId = normalizeMessageTargetId(
+          activeFlowId,
+          payload.targetId,
+          activeFlowId === 'kiro' ? 'kiro-rs' : 'cpa'
+        );
       }
       return updates;
     }
@@ -292,23 +287,6 @@
       }
 
       return appendAccountRunRecord(status, state, reason);
-    }
-
-    async function ensureManualStepPrerequisites(step) {
-      if (step !== 4) {
-        return;
-      }
-
-      const signupTabId = typeof getTabId === 'function'
-        ? await getTabId('signup-page')
-        : null;
-      const signupTabAlive = signupTabId && typeof isTabAlive === 'function'
-        ? await isTabAlive('signup-page')
-        : Boolean(signupTabId);
-
-      if (!signupTabId || !signupTabAlive) {
-        throw new Error('手动执行步骤 4 前，请先执行步骤 1 或步骤 2，确保认证页仍然打开并停留在验证码页。');
-      }
     }
 
     const DEFAULT_OPENAI_NODE_BY_STEP = Object.freeze({
@@ -582,6 +560,12 @@
 
     function normalizePlusPaymentMethodForDisplay(value = '') {
       const normalized = String(value || '').trim().toLowerCase();
+      if (normalized === 'none' || normalized === 'no-payment' || normalized === 'skip-payment') {
+        return 'none';
+      }
+      if (normalized === 'paypal-hosted' || normalized === 'paypal_direct' || normalized === 'paypal-direct') {
+        return 'paypal-hosted';
+      }
       if (normalized === 'gpc-helper') {
         return 'gpc-helper';
       }
@@ -590,6 +574,12 @@
 
     function getPlusPaymentMethodLabel(value = '') {
       const method = normalizePlusPaymentMethodForDisplay(value);
+      if (method === 'none') {
+        return '无需支付';
+      }
+      if (method === 'paypal-hosted') {
+        return 'PayPal 无卡直绑';
+      }
       if (method === 'gpc-helper') {
         return 'GPC';
       }
@@ -1002,13 +992,21 @@
             return { ok: true, error: errorMessage };
           }
 
+          const deferCompletionUntilBackgroundValidation = nodeId === 'fill-profile';
           const completionStateCandidate = await getState();
           const nodeIds = typeof getNodeIdsForState === 'function' ? getNodeIdsForState(completionStateCandidate) : [];
           const lastNodeId = nodeIds[nodeIds.length - 1] || '';
           const isFinalNode = nodeId === lastNodeId;
           const completionState = isFinalNode ? completionStateCandidate : null;
-          await setNodeStatus(nodeId, 'completed');
-          await addLog('已完成', 'ok', { nodeId });
+          if (!deferCompletionUntilBackgroundValidation) {
+            await setNodeStatus(nodeId, 'completed');
+            await addLog('已完成', 'ok', { nodeId });
+          } else {
+            await addLog('步骤 5：已收到资料页完成信号，等待后台最终复核后再标记完成。', 'info', {
+              step: 5,
+              stepKey: nodeId,
+            });
+          }
           await handleStepData(resolvedStep, message.payload);
           if (isFinalNode && typeof appendAccountRunRecord === 'function') {
             await appendAccountRunRecord('success', completionState);
@@ -1151,6 +1149,13 @@
           return await clearFreeReusablePhoneActivation();
         }
 
+        case 'CLEAR_GROK_SSO_COOKIES': {
+          if (typeof clearGrokSsoCookies !== 'function') {
+            throw new Error('Grok SSO 清空能力未接入。');
+          }
+          return await clearGrokSsoCookies();
+        }
+
         case 'SET_FREE_REUSABLE_PHONE': {
           if (typeof setFreeReusablePhoneActivation !== 'function') {
             throw new Error('白嫖复用手机号记录能力未接入。');
@@ -1265,9 +1270,6 @@
             assertNodeExecutionAllowedForState(nodeId, requestState, '手动执行节点');
           }
           if (message.source === 'sidepanel') {
-            await ensureManualStepPrerequisites(resolvedStep);
-          }
-          if (message.source === 'sidepanel') {
             await invalidateDownstreamAfterStepRestart(resolvedStep, { logLabel: `节点 ${nodeId} 重新执行` });
           }
           if (message.payload.email) {
@@ -1279,7 +1281,10 @@
           }
           const executionState = await getState();
           if (doesNodeUseCompletionSignal(nodeId, executionState)) {
-            await executeNodeViaCompletionSignal(nodeId);
+            const completionPayload = await executeNodeViaCompletionSignal(nodeId);
+            if (nodeId === 'fill-profile' && typeof finalizeStep5Completion === 'function') {
+              await finalizeStep5Completion(completionPayload || {});
+            }
           } else {
             await executeNode(nodeId);
           }
@@ -1312,14 +1317,14 @@
           const state = await getState();
           const autoRunStartValidation = validateAutoRunStart(state, {
             activeFlowId: autoRunFlowStateUpdates.activeFlowId ?? state?.activeFlowId,
-            panelMode: autoRunFlowStateUpdates.panelMode ?? state?.panelMode,
+            targetId: autoRunFlowStateUpdates.targetId ?? state?.targetId,
             state,
           });
           if (autoRunStartValidation?.ok === false) {
             throw new Error(autoRunStartValidation.errors?.[0]?.message || '当前设置不支持启动自动流程。');
           }
           if (getPendingAutoRunTimerPlan(state)) {
-            throw new Error('已有自动运行倒计时计划，请先取消或立即开始。');
+            throw new Error('已有线程间隔等待，请先停止或立即继续。');
           }
           const totalRuns = normalizeRunCount(message.payload?.totalRuns || 1);
           const autoRunSkipFailures = Boolean(message.payload?.autoRunSkipFailures);
@@ -1460,7 +1465,7 @@
             Object.prototype.hasOwnProperty.call(updates, 'phoneVerificationEnabled')
             || Object.prototype.hasOwnProperty.call(updates, 'plusModeEnabled')
             || Object.prototype.hasOwnProperty.call(updates, 'signupMethod')
-            || Object.prototype.hasOwnProperty.call(updates, 'panelMode')
+            || Object.prototype.hasOwnProperty.call(updates, 'targetId')
             || Object.prototype.hasOwnProperty.call(updates, 'activeFlowId')
             || Object.prototype.hasOwnProperty.call(updates, 'accountContributionEnabled')
           ) {
@@ -1489,16 +1494,10 @@
             || (nextPlusModeEnabled && plusPaymentChanged)
             || (nextPlusModeEnabled && plusAccountAccessStrategyChanged)
             || phoneSignupReloginAfterBindEmailChanged;
-          const oauthFlowTimeoutDisabled = Object.prototype.hasOwnProperty.call(updates, 'oauthFlowTimeoutEnabled')
-            && updates.oauthFlowTimeoutEnabled === false;
           const canonicalSettingsUpdates = await setPersistentSettings(updates);
           const stateUpdates = {
             ...canonicalSettingsUpdates,
             ...sessionUpdates,
-            ...(oauthFlowTimeoutDisabled ? {
-              oauthFlowDeadlineAt: null,
-              oauthFlowDeadlineSourceUrl: null,
-            } : {}),
           };
           if (Object.prototype.hasOwnProperty.call(canonicalSettingsUpdates, 'activeFlowId')
             && !Object.prototype.hasOwnProperty.call(stateUpdates, 'flowId')) {
@@ -1609,10 +1608,8 @@
             );
             const selectedPlusAccountAccessStrategy = getPlusAccountAccessStrategyLabel(
               stateUpdates.plusAccountAccessStrategy ?? currentState?.plusAccountAccessStrategy ?? 'oauth',
-              stateUpdates.panelMode
-                ?? currentState?.panelMode
-                ?? stateUpdates.openaiIntegrationTargetId
-                ?? currentState?.openaiIntegrationTargetId
+              stateUpdates.targetId
+                ?? currentState?.targetId
                 ?? 'cpa'
             );
             await addLog(
@@ -1629,10 +1626,8 @@
           } else if (plusAccountAccessStrategyChanged && nextPlusModeEnabled) {
             const selectedPlusAccountAccessStrategy = getPlusAccountAccessStrategyLabel(
               stateUpdates.plusAccountAccessStrategy ?? currentState?.plusAccountAccessStrategy ?? 'oauth',
-              stateUpdates.panelMode
-                ?? currentState?.panelMode
-                ?? stateUpdates.openaiIntegrationTargetId
-                ?? currentState?.openaiIntegrationTargetId
+              stateUpdates.targetId
+                ?? currentState?.targetId
                 ?? 'cpa'
             );
             await addLog(`Plus 账号接入策略已切换为 ${selectedPlusAccountAccessStrategy}，已更新对应的 Plus 尾链。`, 'info');
@@ -1670,7 +1665,7 @@
           );
           const targetId = normalizeMessageTargetId(
             activeFlowId,
-            message.payload?.targetId || currentState?.kiroTargetId || 'kiro-rs',
+            message.payload?.targetId || currentState?.targetId || 'kiro-rs',
             'kiro-rs'
           );
           const nestedTargetConfig = currentState?.settingsState?.flows?.kiro?.targets?.[targetId]

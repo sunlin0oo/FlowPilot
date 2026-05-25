@@ -16,7 +16,7 @@ function loadSub2ApiApiModule() {
 }
 
 function loadSub2ApiSessionImportModule() {
-  const source = fs.readFileSync('background/steps/sub2api-session-import.js', 'utf8');
+  const source = fs.readFileSync('flows/openai/background/steps/sub2api-session-import.js', 'utf8');
   return new Function('self', `${source}; return self.MultiPageBackgroundSub2ApiSessionImport;`)({});
 }
 
@@ -331,7 +331,7 @@ test('session import step reads current ChatGPT session and completes node', asy
   assert.deepStrictEqual(ensureCalls[0].options.inject, [
     'content/utils.js',
     'content/operation-delay.js',
-    'content/plus-checkout.js',
+    'flows/openai/content/plus-checkout.js',
   ]);
   assert.deepStrictEqual(sentMessages, [{
     tabId: 91,

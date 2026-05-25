@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
-const source = fs.readFileSync('background/steps/gopay-manual-confirm.js', 'utf8');
+const source = fs.readFileSync('flows/openai/background/steps/gopay-manual-confirm.js', 'utf8');
 const globalScope = {};
 const api = new Function('self', `${source}; return self.MultiPageBackgroundGoPayManualConfirm;`)(globalScope);
 

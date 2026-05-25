@@ -3,7 +3,7 @@ const fs = require('fs');
 
 const helperSource = fs.readFileSync('background.js', 'utf8');
 const messageRouterSource = fs.readFileSync('background/message-router.js', 'utf8');
-const tabRuntimeSource = fs.readFileSync('background/tab-runtime.js', 'utf8');
+const tabRuntimeSource = fs.readFileSync('core/flow-kernel/tab-runtime.js', 'utf8');
 
 function extractFunction(source, name) {
   const markers = [`async function ${name}(`, `function ${name}(`];
@@ -68,7 +68,7 @@ const MAIL_2925_MODE_RECEIVE = 'receive';
 const DEFAULT_MAIL_2925_MODE = MAIL_2925_MODE_PROVIDE;
 let currentState = {
   tabRegistry: {
-    'signup-page': { tabId: 1, ready: true },
+    'openai-auth': { tabId: 1, ready: true },
     'vps-panel': { tabId: 99, ready: true },
   },
 };
@@ -205,7 +205,7 @@ return {
       { id: 4, url: authCallbackUrl },
     ],
     tabRegistry: {
-      'signup-page': { tabId: 1, ready: true },
+      'openai-auth': { tabId: 1, ready: true },
       'vps-panel': { tabId: 99, ready: true },
     },
   });
@@ -213,7 +213,7 @@ return {
   await api.handleStepData(10, { localhostUrl: codexCallbackUrl });
   let snapshot = api.snapshot();
   assert.deepStrictEqual(snapshot.removedBatches, [[1], [2]]);
-  assert.strictEqual(snapshot.currentState.tabRegistry['signup-page'], null);
+  assert.strictEqual(snapshot.currentState.tabRegistry['openai-auth'], null);
   assert.deepStrictEqual(snapshot.currentState.tabRegistry['vps-panel'], { tabId: 99, ready: true });
 
   api.reset({

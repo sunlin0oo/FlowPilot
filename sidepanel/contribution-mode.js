@@ -77,7 +77,7 @@
     }
 
     function getContributionSource(currentState = getLatestState()) {
-      return normalizeContributionSource(currentState.contributionSource || currentState.panelMode);
+      return normalizeContributionSource(currentState.contributionSource || getActiveTargetId(currentState));
     }
 
     function getContributionSourceLabel(currentState = getLatestState()) {
@@ -107,10 +107,8 @@
       if (selectedTargetId) {
         return selectedTargetId;
       }
-      if (activeFlowId === 'kiro') {
-        return normalizeString(currentState.kiroTargetId || currentState.targetId || 'kiro-rs').toLowerCase() || 'kiro-rs';
-      }
-      return normalizeString(currentState.openaiIntegrationTargetId || currentState.panelMode || currentState.targetId || 'cpa').toLowerCase() || 'cpa';
+      return normalizeString(currentState.targetId).toLowerCase()
+        || (activeFlowId === 'kiro' ? 'kiro-rs' : 'cpa');
     }
 
     function applySelectedFlowToState(nextState = {}, flowId = 'openai', targetId = '') {
@@ -122,14 +120,14 @@
           ...baseState,
           activeFlowId: selectedFlowId,
           flowId: selectedFlowId,
-          panelMode: selectedTargetId || normalizeString(baseState.panelMode).toLowerCase() || 'cpa',
+          targetId: selectedTargetId || normalizeString(baseState.targetId).toLowerCase() || 'cpa',
         };
       }
       return {
         ...baseState,
         activeFlowId: selectedFlowId,
         flowId: selectedFlowId,
-        kiroTargetId: selectedTargetId || normalizeString(baseState.kiroTargetId || baseState.targetId).toLowerCase() || 'kiro-rs',
+        targetId: selectedTargetId || normalizeString(baseState.targetId).toLowerCase() || 'kiro-rs',
       };
     }
 
@@ -164,7 +162,7 @@
       if (registry?.resolveSidepanelCapabilities) {
         return Boolean(registry.resolveSidepanelCapabilities({
           activeFlowId: getActiveFlowId(currentState),
-          panelMode: currentState?.panelMode,
+          targetId: getActiveTargetId(currentState),
           state: currentState,
         })?.canShowContributionMode);
       }

@@ -94,9 +94,9 @@
 
 文件：
 
-1. `background/kiro/state.js`
-2. `background/kiro/desktop-authorize-runner.js`
-3. `background/kiro/publisher-kiro-rs.js`
+1. `flows/kiro/background/state.js`
+2. `flows/kiro/background/desktop-authorize-runner.js`
+3. `flows/kiro/background/publisher-kiro-rs.js`
 4. `data/step-definitions.js`
 
 当前事实：
@@ -434,7 +434,7 @@ const FLOW_CONTRIBUTION_ADAPTERS = {
 };
 ```
 
-### 4.2 修改 `shared/flow-registry.js`
+### 4.2 修改 `core/flow-kernel/flow-registry.js`
 
 新增 capability：
 
@@ -449,7 +449,7 @@ supportsAccountContribution: true
 3. `supportsContributionMode` 仅作为迁移字段映射到 `supportsAccountContribution`。
 4. 新增 flow 只有在注册 adapter 后才能设置 `supportsAccountContribution: true`。
 
-### 4.3 修改 `shared/flow-capabilities.js`
+### 4.3 修改 `core/flow-kernel/flow-capabilities.js`
 
 处理规则：
 
@@ -499,7 +499,7 @@ flowContributionRuntime: {
 新增文件：
 
 ```text
-background/kiro/credential-artifact.js
+flows/kiro/background/credential-artifact.js
 ```
 
 职责：
@@ -515,8 +515,8 @@ background/kiro/credential-artifact.js
 
 修改位置：
 
-1. `background/kiro/desktop-authorize-runner.js`
-2. `background/kiro/publisher-kiro-rs.js`
+1. `flows/kiro/background/desktop-authorize-runner.js`
+2. `flows/kiro/background/publisher-kiro-rs.js`
 3. Kiro runner 调度处
 
 处理规则：
@@ -782,7 +782,7 @@ POLL_FLOW_CONTRIBUTION_STATUS
 
 开发内容：
 
-1. 新增 `background/kiro/credential-artifact.js`。
+1. 新增 `flows/kiro/background/credential-artifact.js`。
 2. 新增 `background/contribution/adapters/kiro-builder-id.js`。
 3. 复用 Kiro runtime 产物构建 artifact。
 4. 增加本地校验。

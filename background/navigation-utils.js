@@ -42,10 +42,10 @@
     }
 
     function getPanelMode(state = {}) {
-      if (state.panelMode === 'sub2api') {
+      if (state.targetId === 'sub2api') {
         return 'sub2api';
       }
-      if (state.panelMode === 'codex2api') {
+      if (state.targetId === 'codex2api') {
         return 'codex2api';
       }
       return 'cpa';
@@ -128,7 +128,6 @@
 
       switch (source) {
         case 'openai-auth':
-        case 'signup-page':
           return isSignupPageHost(candidate.hostname) || isSignupEntryHost(candidate.hostname);
         case 'duck-mail':
           return candidate.hostname === 'duckduckgo.com' && candidate.pathname.startsWith('/email/');

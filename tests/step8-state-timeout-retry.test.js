@@ -34,13 +34,13 @@ const bundle = [
 const api = new Function(`${bundle}; return { isRetryableContentScriptTransportError };`)();
 
 assert.strictEqual(
-  api.isRetryableContentScriptTransportError(new Error('Content script on signup-page did not respond in 2s. Try refreshing the tab and retry.')),
+  api.isRetryableContentScriptTransportError(new Error('Content script on openai-auth did not respond in 2s. Try refreshing the tab and retry.')),
   true,
   'Step 8 状态探测短超时应被视为可重试错误'
 );
 
 assert.strictEqual(
-  api.isRetryableContentScriptTransportError(new Error('Content script on signup-page did not respond in 30s. Try refreshing the tab and retry.')),
+  api.isRetryableContentScriptTransportError(new Error('Content script on openai-auth did not respond in 30s. Try refreshing the tab and retry.')),
   true,
   '普通内容脚本超时也应沿用可重试分支'
 );

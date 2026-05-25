@@ -1,7 +1,7 @@
 ﻿const assert = require('assert');
 const fs = require('fs');
 
-const step9ModuleSource = fs.readFileSync('background/steps/confirm-oauth.js', 'utf8');
+const step9ModuleSource = fs.readFileSync('flows/openai/background/steps/confirm-oauth.js', 'utf8');
 
 const api = new Function('step9ModuleSource', `
 const self = {};

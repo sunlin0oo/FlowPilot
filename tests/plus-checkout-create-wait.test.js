@@ -3,8 +3,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 
-const source = fs.readFileSync('background/steps/create-plus-checkout.js', 'utf8');
-const plusCheckoutSource = fs.readFileSync('content/plus-checkout.js', 'utf8');
+const source = fs.readFileSync('flows/openai/background/steps/create-plus-checkout.js', 'utf8');
+const plusCheckoutSource = fs.readFileSync('flows/openai/content/plus-checkout.js', 'utf8');
 const gopayUtilsSource = fs.readFileSync('gopay-utils.js', 'utf8');
 const globalScope = {};
 new Function('self', `${gopayUtilsSource};`)(globalScope);

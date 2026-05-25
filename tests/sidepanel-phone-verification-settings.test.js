@@ -148,7 +148,7 @@ test('sidepanel html exposes phone verification toggle and multi-provider SMS ro
   assert.doesNotMatch(html, /id="input-account-run-history-text-enabled"/);
 });
 
-test('sidepanel loads SMS country lists silently during startup fallback', () => {
+test('sidepanel loads live SMS country lists silently during startup', () => {
   const heroLoader = extractFunction('loadHeroSmsCountries');
   const fiveSimLoader = extractFunction('loadFiveSimCountries');
 
@@ -158,9 +158,11 @@ test('sidepanel loads SMS country lists silently during startup fallback', () =>
   assert.match(fiveSimLoader, /const preferFallbackOnly = Boolean\(options\?\.preferFallbackOnly\)/);
   assert.doesNotMatch(heroLoader, /console\.(?:warn|error)\('加载 (?:5sim|HeroSMS) 国家列表失败：'/);
   assert.doesNotMatch(fiveSimLoader, /console\.(?:warn|error)\('加载 5sim 国家列表失败：'/);
-  assert.match(sidepanelSource, /loadHeroSmsCountries\(\{ silent: true, preferFallbackOnly: true \}\)/);
-  assert.match(sidepanelSource, /loadFiveSimCountries\(\{ silent: true, preferFallbackOnly: true \}\)/);
+  assert.match(sidepanelSource, /loadHeroSmsCountries\(\{ silent: true \}\)/);
+  assert.match(sidepanelSource, /loadFiveSimCountries\(\{ silent: true \}\)/);
   assert.match(sidepanelSource, /await loadHeroSmsCountries\(\{ silent: true \}\);/);
+  assert.doesNotMatch(sidepanelSource, /loadHeroSmsCountries\(\{ silent: true, preferFallbackOnly: true \}\)/);
+  assert.doesNotMatch(sidepanelSource, /loadFiveSimCountries\(\{ silent: true, preferFallbackOnly: true \}\)/);
   assert.doesNotMatch(sidepanelSource, /console\.error\('加载 (?:HeroSMS|5sim|NexSMS) 国家列表失败：'/);
 });
 
@@ -254,11 +256,11 @@ test('sidepanel source wires runtime signup phone field to background sync messa
 test('sidepanel warns once before using phone signup with CPA source', async () => {
   assert.match(
     sidepanelSource,
-    /signupMethodButtons\.forEach\(\(button\) => \{[\s\S]*await confirmCpaPhoneSignupIfNeeded\(\{[\s\S]*signupMethod: nextSignupMethod,[\s\S]*panelMode: getSelectedPanelMode\(\),/
+    /signupMethodButtons\.forEach\(\(button\) => \{[\s\S]*await confirmCpaPhoneSignupIfNeeded\(\{[\s\S]*signupMethod: nextSignupMethod,[\s\S]*targetId: getSelectedPanelMode\(latestState\),/
   );
   assert.match(
     sidepanelSource,
-    /selectPanelMode\.addEventListener\('change', async \(\) => \{[\s\S]*await confirmCpaPhoneSignupIfNeeded\(\{[\s\S]*signupMethod: getSelectedSignupMethod\(\),[\s\S]*panelMode: nextPanelMode,/
+    /selectPanelMode\.addEventListener\('change', async \(\) => \{[\s\S]*await confirmCpaPhoneSignupIfNeeded\(\{[\s\S]*signupMethod: getSelectedSignupMethod\(\),[\s\S]*targetId: nextPanelMode,/
   );
 
   const bundle = [
@@ -277,6 +279,7 @@ test('sidepanel warns once before using phone signup with CPA source', async () 
 const SIGNUP_METHOD_PHONE = 'phone';
 const SIGNUP_METHOD_EMAIL = 'email';
 const DEFAULT_SIGNUP_METHOD = SIGNUP_METHOD_EMAIL;
+const DEFAULT_ACTIVE_FLOW_ID = 'openai';
 const CPA_PHONE_SIGNUP_PROMPT_DISMISSED_STORAGE_KEY = 'multipage-cpa-phone-signup-prompt-dismissed';
 const CPA_PHONE_SIGNUP_WARNING_MESSAGE = '请确保打开手机接码设置中的“绑定后重登”开关，不然可能无法使用（有些版本无需开启）';
 const storage = new Map();
@@ -291,6 +294,11 @@ const localStorage = {
     storage.delete(key);
   },
 };
+let latestState = {
+  activeFlowId: 'openai',
+  flowId: 'openai',
+  targetId: 'cpa',
+};
 let selectedSignupMethod = 'phone';
 let selectedPanelMode = 'cpa';
 let capturedOptions = null;
@@ -299,6 +307,12 @@ function getSelectedSignupMethod() {
   return selectedSignupMethod;
 }
 function getSelectedPanelMode() {
+  return selectedPanelMode;
+}
+function getSelectedTargetId() {
+  return selectedPanelMode;
+}
+function getSelectedTargetIdForState() {
   return selectedPanelMode;
 }
 async function openConfirmModalWithOption(options) {
@@ -326,7 +340,7 @@ return {
   assert.equal(api.shouldWarnCpaPhoneSignup('phone', 'sub2api'), false);
   assert.equal(api.shouldWarnCpaPhoneSignup('phone', 'codex2api'), false);
 
-  const firstResult = await api.confirmCpaPhoneSignupIfNeeded({ signupMethod: 'phone', panelMode: 'cpa' });
+  const firstResult = await api.confirmCpaPhoneSignupIfNeeded({ signupMethod: 'phone', targetId: 'cpa' });
   assert.equal(firstResult, true);
   assert.equal(api.getCapturedOptions().title, 'CPA 手机号注册提醒');
   assert.equal(api.getCapturedOptions().message, '请确保打开手机接码设置中的“绑定后重登”开关，不然可能无法使用（有些版本无需开启）');
@@ -335,7 +349,7 @@ return {
   assert.equal(api.getDismissed(), null);
 
   api.setModalResult({ confirmed: false, optionChecked: true });
-  const secondResult = await api.confirmCpaPhoneSignupIfNeeded({ signupMethod: 'phone', panelMode: 'cpa' });
+  const secondResult = await api.confirmCpaPhoneSignupIfNeeded({ signupMethod: 'phone', targetId: 'cpa' });
   assert.equal(secondResult, false);
   assert.equal(api.getDismissed(), '1');
   assert.equal(api.shouldWarnCpaPhoneSignup('phone', 'cpa'), false);
@@ -354,11 +368,11 @@ const window = {
   MultiPageFlowCapabilities: {
     createFlowCapabilityRegistry() {
       return {
-        resolveSidepanelCapabilities({ state = {}, panelMode = 'cpa', signupMethod = 'email' } = {}) {
+        resolveSidepanelCapabilities({ state = {}, targetId = 'cpa', signupMethod = 'email' } = {}) {
           const phoneAllowed = String(state?.activeFlowId || '').trim().toLowerCase() === 'openai';
           return {
             canSelectPhoneSignup: phoneAllowed,
-            shouldWarnCpaPhoneSignup: phoneAllowed && signupMethod === 'phone' && panelMode === 'cpa',
+            shouldWarnCpaPhoneSignup: phoneAllowed && signupMethod === 'phone' && targetId === 'cpa',
           };
         },
       };
@@ -368,11 +382,14 @@ const window = {
 let latestState = {
   activeFlowId: 'site-a',
   accountContributionEnabled: false,
-  panelMode: 'cpa',
+  targetId: 'cpa',
 };
 const inputPhoneVerificationEnabled = { checked: true };
 const inputPlusModeEnabled = { checked: false };
+function getSelectedFlowId() { return latestState.activeFlowId; }
 function getSelectedPanelMode() { return 'cpa'; }
+function getSelectedTargetId() { return 'cpa'; }
+function getSelectedTargetIdForState() { return 'cpa'; }
 function getSelectedSignupMethod() { return 'phone'; }
 function isCpaPhoneSignupPromptDismissed() { return false; }
 ${bundle}
@@ -696,7 +713,6 @@ function setFreePhoneReuseControlsLocked(locked) {
     || !Boolean(inputPhoneVerificationEnabled.checked && phoneVerificationSectionExpanded);
 }
 function isAutoRunLockedPhase() { return false; }
-function isAutoRunScheduledPhase() { return false; }
 
 ${extractFunction('normalizeSignupMethod')}
 ${extractFunction('normalizeHeroSmsReuseEnabledValue')}
@@ -962,8 +978,6 @@ const inputTempEmailReceiveMailbox = { value: '' };
 const inputTempEmailUseRandomSubdomain = { checked: false };
 const inputAutoSkipFailures = { checked: false };
 const inputAutoSkipFailuresThreadIntervalMinutes = { value: '0' };
-const inputAutoDelayEnabled = { checked: false };
-const inputAutoDelayMinutes = { value: '30' };
 const inputAutoStepDelaySeconds = { value: '' };
 const inputPhoneVerificationEnabled = { checked: true };
 const inputFreePhoneReuseEnabled = { checked: true };
@@ -1055,10 +1069,10 @@ function normalizeCloudflareTempEmailBaseUrlValue(value) { return String(value |
 function normalizeCloudflareTempEmailReceiveMailboxValue(value) { return String(value || '').trim(); }
 function normalizeAccountRunHistoryHelperBaseUrlValue(value) { return String(value || '').trim(); }
 function normalizeAutoRunThreadIntervalMinutes(value) { return Number(value) || 0; }
-function normalizeAutoDelayMinutes(value) { return Number(value) || 30; }
 function normalizeAutoStepDelaySeconds(value) { return value === '' ? null : Number(value); }
 function normalizeVerificationResendCount(value, fallback) { return Number(value) || fallback; }
 function normalizePlusAccountAccessStrategy(value = '') { return String(value || '').trim().toLowerCase() === PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION ? PLUS_ACCOUNT_ACCESS_STRATEGY_SUB2API_CODEX_SESSION : PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH; }
+function resolvePlusAccountAccessStrategyForTarget(value = '') { return normalizePlusAccountAccessStrategy(value); }
 ${extractFunction('normalizePhoneSmsProvider')}
 ${extractFunction('normalizePhoneSmsProviderValue')}
 ${extractFunction('normalizeFiveSimCountryCode')}

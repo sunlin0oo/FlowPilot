@@ -1,14 +1,17 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const { readSourceRegistryBundle } = require('./helpers/script-bundles.js');
+
+const registrySource = readSourceRegistryBundle();
 
 test('background imports tab runtime module', () => {
   const source = fs.readFileSync('background.js', 'utf8');
-  assert.match(source, /background\/tab-runtime\.js/);
+  assert.match(source, /core\/flow-kernel\/tab-runtime\.js/);
 });
 
 test('tab runtime module exposes a factory', () => {
-  const source = fs.readFileSync('background/tab-runtime.js', 'utf8');
+  const source = fs.readFileSync('core/flow-kernel/tab-runtime.js', 'utf8');
   const globalScope = {};
 
   const api = new Function('self', `${source}; return self.MultiPageBackgroundTabRuntime;`)(globalScope);
@@ -16,9 +19,8 @@ test('tab runtime module exposes a factory', () => {
   assert.equal(typeof api?.createTabRuntime, 'function');
 });
 
-test('tab runtime accepts canonical openai-auth readiness for queued signup-page commands', async () => {
-  const runtimeSource = fs.readFileSync('background/tab-runtime.js', 'utf8');
-  const registrySource = fs.readFileSync('shared/source-registry.js', 'utf8');
+test('tab runtime accepts canonical openai-auth readiness for queued openai-auth commands', async () => {
+  const runtimeSource = fs.readFileSync('core/flow-kernel/tab-runtime.js', 'utf8');
   const runtimeApi = new Function('self', `${runtimeSource}; return self.MultiPageBackgroundTabRuntime;`)({});
   const registryApi = new Function('self', `${registrySource}; return self.MultiPageSourceRegistry;`)({});
   const sourceRegistry = registryApi.createSourceRegistry();
@@ -26,10 +28,10 @@ test('tab runtime accepts canonical openai-auth readiness for queued signup-page
   const sentMessages = [];
   let currentState = {
     tabRegistry: {
-      'signup-page': { tabId: 91, ready: true },
+      'openai-auth': { tabId: 91, ready: true },
     },
     sourceLastUrls: {
-      'signup-page': 'https://auth.openai.com/authorize',
+      'openai-auth': 'https://auth.openai.com/authorize',
     },
   };
 
@@ -73,21 +75,21 @@ test('tab runtime accepts canonical openai-auth readiness for queued signup-page
     sourceLastUrls: {},
   };
 
-  const queued = runtime.queueCommand('signup-page', { type: 'STEP2_TEST' }, 1000);
+  const queued = runtime.queueCommand('openai-auth', { type: 'STEP2_TEST' }, 1000);
   runtime.flushCommand('openai-auth', 55);
   await assert.doesNotReject(queued);
   assert.deepEqual(sentMessages, [{ tabId: 55, message: { type: 'STEP2_TEST' } }]);
 
-  await runtime.ensureContentScriptReadyOnTab('signup-page', 77, {
+  await runtime.ensureContentScriptReadyOnTab('openai-auth', 77, {
     timeoutMs: 100,
   });
 
   assert.deepEqual(currentState.tabRegistry['openai-auth'], { tabId: 77, ready: true, windowId: 1 });
-  assert.equal(Object.prototype.hasOwnProperty.call(currentState.tabRegistry, 'signup-page'), false);
+  assert.deepEqual(Object.keys(currentState.tabRegistry), ['openai-auth']);
 });
 
 test('tab runtime caps per-attempt response timeout to the remaining resilient timeout budget', () => {
-  const source = fs.readFileSync('background/tab-runtime.js', 'utf8');
+  const source = fs.readFileSync('core/flow-kernel/tab-runtime.js', 'utf8');
   const globalScope = {};
   const api = new Function('self', `${source}; return self.MultiPageBackgroundTabRuntime;`)(globalScope);
 
@@ -122,7 +124,7 @@ test('tab runtime caps per-attempt response timeout to the remaining resilient t
 });
 
 test('tab runtime gives step 5 profile submit enough response time for slow page transitions', () => {
-  const source = fs.readFileSync('background/tab-runtime.js', 'utf8');
+  const source = fs.readFileSync('core/flow-kernel/tab-runtime.js', 'utf8');
   const globalScope = {};
   const api = new Function('self', `${source}; return self.MultiPageBackgroundTabRuntime;`)(globalScope);
 
@@ -153,7 +155,7 @@ test('tab runtime gives step 5 profile submit enough response time for slow page
 });
 
 test('tab runtime replays retryable transport recovery hook and surfaces a localized timeout error', async () => {
-  const source = fs.readFileSync('background/tab-runtime.js', 'utf8');
+  const source = fs.readFileSync('core/flow-kernel/tab-runtime.js', 'utf8');
   const globalScope = {};
   const api = new Function('self', `${source}; return self.MultiPageBackgroundTabRuntime;`)(globalScope);
 
@@ -207,7 +209,7 @@ test('tab runtime replays retryable transport recovery hook and surfaces a local
 });
 
 test('tab runtime waitForTabComplete waits until tab status becomes complete', async () => {
-  const source = fs.readFileSync('background/tab-runtime.js', 'utf8');
+  const source = fs.readFileSync('core/flow-kernel/tab-runtime.js', 'utf8');
   const globalScope = {};
   const api = new Function('self', `${source}; return self.MultiPageBackgroundTabRuntime;`)(globalScope);
 
@@ -250,7 +252,7 @@ test('tab runtime waitForTabComplete waits until tab status becomes complete', a
 });
 
 test('tab runtime waitForTabComplete aborts promptly when stop is requested', async () => {
-  const source = fs.readFileSync('background/tab-runtime.js', 'utf8');
+  const source = fs.readFileSync('core/flow-kernel/tab-runtime.js', 'utf8');
   const globalScope = {};
   const api = new Function('self', `${source}; return self.MultiPageBackgroundTabRuntime;`)(globalScope);
 
@@ -290,7 +292,7 @@ test('tab runtime waitForTabComplete aborts promptly when stop is requested', as
 });
 
 test('tab runtime waitForTabStableComplete waits through a late navigation after an initial complete state', async () => {
-  const source = fs.readFileSync('background/tab-runtime.js', 'utf8');
+  const source = fs.readFileSync('core/flow-kernel/tab-runtime.js', 'utf8');
   const globalScope = {};
   const api = new Function('self', `${source}; return self.MultiPageBackgroundTabRuntime;`)(globalScope);
 
@@ -345,7 +347,7 @@ test('tab runtime waitForTabStableComplete waits through a late navigation after
 });
 
 test('tab runtime opens new automation tabs in the locked window', async () => {
-  const source = fs.readFileSync('background/tab-runtime.js', 'utf8');
+  const source = fs.readFileSync('core/flow-kernel/tab-runtime.js', 'utf8');
   const globalScope = {};
   const api = new Function('self', `${source}; return self.MultiPageBackgroundTabRuntime;`)(globalScope);
   const created = [];
@@ -377,14 +379,14 @@ test('tab runtime opens new automation tabs in the locked window', async () => {
     throwIfStopped: () => {},
   });
 
-  await runtime.reuseOrCreateTab('signup-page', 'https://example.com');
+  await runtime.reuseOrCreateTab('openai-auth', 'https://example.com');
 
   assert.equal(created.length, 1);
   assert.equal(created[0].windowId, 100);
 });
 
 test('tab runtime force-new opens replacement before removing the active stale source tab', async () => {
-  const source = fs.readFileSync('background/tab-runtime.js', 'utf8');
+  const source = fs.readFileSync('core/flow-kernel/tab-runtime.js', 'utf8');
   const globalScope = {};
   const api = new Function('self', `${source}; return self.MultiPageBackgroundTabRuntime;`)(globalScope);
   const events = [];
@@ -413,18 +415,18 @@ test('tab runtime force-new opens replacement before removing the active stale s
     getSourceLabel: (sourceName) => sourceName || 'unknown',
     getState: async () => ({
       automationWindowId: 100,
-      sourceLastUrls: { 'signup-page': 'https://chatgpt.com/' },
+      sourceLastUrls: { 'openai-auth': 'https://chatgpt.com/' },
       tabRegistry: {},
     }),
     matchesSourceUrlFamily: (sourceName, candidateUrl) => (
-      sourceName === 'signup-page'
+      sourceName === 'openai-auth'
       && /chatgpt\.com|auth\.openai\.com/.test(String(candidateUrl || ''))
     ),
     setState: async () => {},
     throwIfStopped: () => {},
   });
 
-  const tabId = await runtime.reuseOrCreateTab('signup-page', 'https://auth.openai.com/authorize', {
+  const tabId = await runtime.reuseOrCreateTab('openai-auth', 'https://auth.openai.com/authorize', {
     forceNew: true,
   });
 
@@ -439,7 +441,7 @@ test('tab runtime force-new opens replacement before removing the active stale s
 });
 
 test('tab runtime scopes tab queries to the locked automation window', async () => {
-  const source = fs.readFileSync('background/tab-runtime.js', 'utf8');
+  const source = fs.readFileSync('core/flow-kernel/tab-runtime.js', 'utf8');
   const globalScope = {};
   const api = new Function('self', `${source}; return self.MultiPageBackgroundTabRuntime;`)(globalScope);
   const queries = [];
@@ -472,7 +474,7 @@ test('tab runtime scopes tab queries to the locked automation window', async () 
 });
 
 test('tab runtime does not create tabs outside an unavailable locked window', async () => {
-  const source = fs.readFileSync('background/tab-runtime.js', 'utf8');
+  const source = fs.readFileSync('core/flow-kernel/tab-runtime.js', 'utf8');
   const globalScope = {};
   const api = new Function('self', `${source}; return self.MultiPageBackgroundTabRuntime;`)(globalScope);
   const created = [];
@@ -512,7 +514,7 @@ test('tab runtime does not create tabs outside an unavailable locked window', as
 });
 
 test('tab runtime does not query all windows when the locked window is unavailable', async () => {
-  const source = fs.readFileSync('background/tab-runtime.js', 'utf8');
+  const source = fs.readFileSync('core/flow-kernel/tab-runtime.js', 'utf8');
   const globalScope = {};
   const api = new Function('self', `${source}; return self.MultiPageBackgroundTabRuntime;`)(globalScope);
   const queries = [];

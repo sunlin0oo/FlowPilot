@@ -131,7 +131,7 @@ function createSub2ApiPanelContext(fetchCalls = []) {
   };
 
   vm.createContext(context);
-  vm.runInContext(fs.readFileSync('content/sub2api-panel.js', 'utf8'), context);
+  vm.runInContext(fs.readFileSync('flows/openai/content/sub2api-panel.js', 'utf8'), context);
   return context;
 }
 

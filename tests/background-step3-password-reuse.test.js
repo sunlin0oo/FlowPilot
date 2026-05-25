@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
-const source = fs.readFileSync('background/steps/fill-password.js', 'utf8');
+const source = fs.readFileSync('flows/openai/background/steps/fill-password.js', 'utf8');
 const globalScope = {};
 const api = new Function('self', `${source}; return self.MultiPageBackgroundStep3;`)(globalScope);
 
@@ -26,7 +26,7 @@ test('step 3 reuses existing generated password when rerunning the same email fl
       events.passwordStates.push(password);
     },
     setState: async () => {},
-    SIGNUP_PAGE_INJECT_FILES: [],
+    OPENAI_AUTH_INJECT_FILES: [],
   });
 
   await executor.executeStep3({
@@ -80,7 +80,7 @@ test('step 3 supports phone-only signup identity when password page is present',
     setState: async (updates) => {
       events.stateUpdates.push(updates);
     },
-    SIGNUP_PAGE_INJECT_FILES: [],
+    OPENAI_AUTH_INJECT_FILES: [],
   });
 
   await executor.executeStep3({
@@ -149,7 +149,7 @@ test('step 3 phone signup intent does not fall back to a stale email identity', 
     setState: async (updates) => {
       events.stateUpdates.push(updates);
     },
-    SIGNUP_PAGE_INJECT_FILES: [],
+    OPENAI_AUTH_INJECT_FILES: [],
   });
 
   await assert.rejects(
@@ -188,7 +188,7 @@ test('step 3 respects resolved email fallback when phone signup is unavailable',
     },
     setPasswordState: async () => {},
     setState: async () => {},
-    SIGNUP_PAGE_INJECT_FILES: [],
+    OPENAI_AUTH_INJECT_FILES: [],
   });
 
   await executor.executeStep3({

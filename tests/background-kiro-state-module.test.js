@@ -3,109 +3,128 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
 function loadKiroStateApi() {
-  const source = fs.readFileSync('background/kiro/state.js', 'utf8');
+  const source = fs.readFileSync('flows/kiro/background/state.js', 'utf8');
   const globalScope = {};
   return new Function('self', `${source}; return self.MultiPageBackgroundKiroState;`)(globalScope);
 }
 
-test('background imports kiro state module and routes Kiro runtime through dedicated helpers', () => {
+function getKiroRuntime(state = {}) {
+  return state?.runtimeState?.flowState?.kiro || {};
+}
+
+test('background imports kiro state module for Kiro runtime projection and reset helpers', () => {
   const source = fs.readFileSync('background.js', 'utf8');
-  assert.match(source, /background\/kiro\/state\.js/);
+  assert.match(source, /flows\/kiro\/background\/state\.js/);
   assert.match(source, /const kiroStateHelpers = self\.MultiPageBackgroundKiroState/);
   assert.match(source, /kiroStateHelpers\?\.buildStateView/);
-  assert.match(source, /kiroStateHelpers\?\.buildSessionStatePatch/);
   assert.match(source, /kiroStateHelpers\?\.buildDownstreamResetPatch/);
   assert.match(source, /kiroStateHelpers\?\.applyNodeCompletionPayload/);
+  assert.doesNotMatch(source, /migrateLegacyKiroRuntimeState/);
+  assert.equal(/kiroStateHelpers\?\.buildSessionStatePatch/.test(source), false);
+  assert.equal(/kiroRuntime:\s*kiroStateHelpers\?\.buildDefaultRuntimeState/.test(source), false);
 });
 
-test('kiro state module exposes canonical nested kiroRuntime view', () => {
+test('kiro state module exposes canonical nested runtimeState view', () => {
   const api = loadKiroStateApi();
-  const view = api.buildStateView({
-    kiroTargetId: 'kiro-rs',
-    kiroRuntime: {
-      session: {
-        currentStage: 'desktop-authorize',
-        registerTabId: 88,
-        pageState: 'name_entry',
-        pageUrl: 'https://view.awsapps.com/start',
-      },
-      register: {
-        email: 'aws-user@example.com',
-        fullName: 'Ada Lovelace',
-        loginUrl: 'https://app.kiro.dev/signin',
-        status: 'waiting_name',
-      },
-      webAuth: {
-        status: 'signin_started',
-        hasAccessToken: false,
-        hasSessionToken: false,
-      },
-      desktopAuth: {
-        clientId: 'client-001',
-        clientSecret: 'secret-001',
-        refreshToken: 'refresh-001',
-        status: 'authorized',
-      },
-      upload: {
-        targetId: 'kiro-rs',
-        status: 'ready_to_upload',
-        credentialId: 321,
-      },
+  const runtimeState = api.buildRuntimeStatePatch({}, {
+    session: {
+      currentStage: 'desktop-authorize',
+      registerTabId: 88,
+      pageState: 'name_entry',
+      pageUrl: 'https://view.awsapps.com/start',
     },
+    register: {
+      email: 'aws-user@example.com',
+      fullName: 'Ada Lovelace',
+      loginUrl: 'https://app.kiro.dev/signin',
+      status: 'waiting_name',
+    },
+    webAuth: {
+      status: 'signin_started',
+      hasAccessToken: false,
+      hasSessionToken: false,
+    },
+    desktopAuth: {
+      clientId: 'client-001',
+      clientSecret: 'secret-001',
+      refreshToken: 'refresh-001',
+      status: 'authorized',
+    },
+    upload: {
+      targetId: 'kiro-rs',
+      status: 'ready_to_upload',
+      credentialId: 321,
+    },
+  }).runtimeState;
+  const view = api.buildStateView({
+    targetId: 'kiro-rs',
+    runtimeState,
   });
 
-  assert.equal(view.kiroTargetId, 'kiro-rs');
-  assert.equal(view.kiroRuntime.session.currentStage, 'desktop-authorize');
-  assert.equal(view.kiroRuntime.session.registerTabId, 88);
-  assert.equal(view.kiroRuntime.register.email, 'aws-user@example.com');
-  assert.equal(view.kiroRuntime.register.loginUrl, 'https://app.kiro.dev/signin');
-  assert.equal(view.kiroRuntime.webAuth.status, 'signin_started');
-  assert.equal(view.kiroRuntime.desktopAuth.clientId, 'client-001');
-  assert.equal(view.kiroRuntime.desktopAuth.refreshToken, 'refresh-001');
-  assert.equal(view.kiroRuntime.upload.status, 'ready_to_upload');
-  assert.equal(view.kiroRuntime.upload.credentialId, 321);
+  assert.equal(view.targetId, 'kiro-rs');
+  assert.equal(Object.prototype.hasOwnProperty.call(view, 'kiroRuntime'), false);
+  assert.equal(getKiroRuntime(view).session.currentStage, 'desktop-authorize');
+  assert.equal(getKiroRuntime(view).session.registerTabId, 88);
+  assert.equal(getKiroRuntime(view).register.email, 'aws-user@example.com');
+  assert.equal(getKiroRuntime(view).register.loginUrl, 'https://app.kiro.dev/signin');
+  assert.equal(getKiroRuntime(view).webAuth.status, 'signin_started');
+  assert.equal(getKiroRuntime(view).desktopAuth.clientId, 'client-001');
+  assert.equal(getKiroRuntime(view).desktopAuth.refreshToken, 'refresh-001');
+  assert.equal(getKiroRuntime(view).upload.status, 'ready_to_upload');
+  assert.equal(getKiroRuntime(view).upload.credentialId, 321);
+  assert.equal(view.runtimeState.flowState.kiro.session.currentStage, 'desktop-authorize');
+  assert.equal(view.runtimeState.flowState.kiro.register.email, 'aws-user@example.com');
+  assert.equal(view.runtimeState.flowState.kiro.upload.credentialId, 321);
 });
 
 test('kiro state session patch accepts canonical nested runtime updates', () => {
   const api = loadKiroStateApi();
   const patch = api.buildSessionStatePatch({
-    kiroRuntime: api.buildDefaultRuntimeState(),
+    runtimeState: api.buildRuntimeStatePatch({}, api.buildDefaultRuntimeState()).runtimeState,
   }, {
-    kiroRuntime: {
-      session: {
-        currentStage: 'register',
-        pageState: 'register_otp_page',
-        pageUrl: 'https://signin.aws/register',
-      },
-      register: {
-        email: 'aws-user@example.com',
-        fullName: 'Ada Lovelace',
-        verificationRequestedAt: 1700000000000,
-      },
-      desktopAuth: {
-        status: 'waiting_callback',
-      },
-      upload: {
-        status: 'waiting_register',
+    runtimeState: {
+      flowState: {
+        kiro: {
+          session: {
+            currentStage: 'register',
+            pageState: 'register_otp_page',
+            pageUrl: 'https://signin.aws/register',
+          },
+          register: {
+            email: 'aws-user@example.com',
+            fullName: 'Ada Lovelace',
+            verificationRequestedAt: 1700000000000,
+          },
+          desktopAuth: {
+            status: 'waiting_callback',
+          },
+          upload: {
+            status: 'waiting_register',
+          },
+        },
       },
     },
   });
 
-  assert.equal(patch.kiroRuntime.session.currentStage, 'register');
-  assert.equal(patch.kiroRuntime.session.pageState, 'register_otp_page');
-  assert.equal(patch.kiroRuntime.session.pageUrl, 'https://signin.aws/register');
-  assert.equal(patch.kiroRuntime.register.email, 'aws-user@example.com');
-  assert.equal(patch.kiroRuntime.register.fullName, 'Ada Lovelace');
-  assert.equal(patch.kiroRuntime.register.verificationRequestedAt, 1700000000000);
-  assert.equal(patch.kiroRuntime.desktopAuth.status, 'waiting_callback');
-  assert.equal(patch.kiroRuntime.upload.status, 'waiting_register');
+  assert.equal(Object.prototype.hasOwnProperty.call(patch, 'kiroRuntime'), false);
+  assert.equal(getKiroRuntime(patch).session.currentStage, 'register');
+  assert.equal(getKiroRuntime(patch).session.pageState, 'register_otp_page');
+  assert.equal(getKiroRuntime(patch).session.pageUrl, 'https://signin.aws/register');
+  assert.equal(getKiroRuntime(patch).register.email, 'aws-user@example.com');
+  assert.equal(getKiroRuntime(patch).register.fullName, 'Ada Lovelace');
+  assert.equal(getKiroRuntime(patch).register.verificationRequestedAt, 1700000000000);
+  assert.equal(getKiroRuntime(patch).desktopAuth.status, 'waiting_callback');
+  assert.equal(getKiroRuntime(patch).upload.status, 'waiting_register');
+  assert.equal(patch.runtimeState.flowState.kiro.session.currentStage, 'register');
+  assert.equal(patch.runtimeState.flowState.kiro.register.email, 'aws-user@example.com');
+  assert.equal(patch.runtimeState.flowState.kiro.desktopAuth.status, 'waiting_callback');
 });
 
 test('kiro state reset helpers clear downstream runtime and fresh keep-state preserves only target selection', () => {
   const api = loadKiroStateApi();
   const currentState = {
-    kiroTargetId: 'kiro-rs',
-    kiroRuntime: {
+    targetId: 'kiro-rs',
+    runtimeState: api.buildRuntimeStatePatch({}, {
       session: {
         currentStage: 'upload',
         registerTabId: 88,
@@ -126,21 +145,28 @@ test('kiro state reset helpers clear downstream runtime and fresh keep-state pre
         status: 'uploaded',
         credentialId: 321,
       },
-    },
+    }).runtimeState,
   };
 
   const resetPatch = api.buildDownstreamResetPatch('kiro-submit-email', currentState);
-  assert.equal(resetPatch.kiroRuntime.session.currentStage, 'register');
-  assert.equal(resetPatch.kiroRuntime.register.email, '');
-  assert.equal(resetPatch.kiroRuntime.register.fullName, '');
-  assert.equal(resetPatch.kiroRuntime.desktopAuth.refreshToken, '');
-  assert.equal(resetPatch.kiroRuntime.upload.status, '');
-  assert.equal(resetPatch.kiroRuntime.upload.credentialId, null);
+  assert.equal(Object.prototype.hasOwnProperty.call(resetPatch, 'kiroRuntime'), false);
+  assert.equal(getKiroRuntime(resetPatch).session.currentStage, 'register');
+  assert.equal(getKiroRuntime(resetPatch).register.email, '');
+  assert.equal(getKiroRuntime(resetPatch).register.fullName, '');
+  assert.equal(getKiroRuntime(resetPatch).desktopAuth.refreshToken, '');
+  assert.equal(getKiroRuntime(resetPatch).upload.status, '');
+  assert.equal(getKiroRuntime(resetPatch).upload.credentialId, null);
+  assert.equal(resetPatch.runtimeState.flowState.kiro.register.email, '');
+  assert.equal(resetPatch.runtimeState.flowState.kiro.desktopAuth.refreshToken, '');
 
   const keepState = api.buildFreshKeepState(currentState);
-  assert.equal(keepState.kiroTargetId, 'kiro-rs');
-  assert.equal(keepState.kiroRuntime.register.email, '');
-  assert.equal(keepState.kiroRuntime.desktopAuth.refreshToken, '');
-  assert.equal(keepState.kiroRuntime.upload.status, '');
-  assert.equal(keepState.kiroRuntime.upload.targetId, 'kiro-rs');
+  assert.equal(keepState.targetId, 'kiro-rs');
+  assert.equal(Object.prototype.hasOwnProperty.call(keepState, 'kiroRuntime'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(keepState.runtimeState, 'nodeStatuses'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(keepState.runtimeState, 'currentNodeId'), false);
+  assert.equal(getKiroRuntime(keepState).register.email, '');
+  assert.equal(getKiroRuntime(keepState).desktopAuth.refreshToken, '');
+  assert.equal(getKiroRuntime(keepState).upload.status, '');
+  assert.equal(getKiroRuntime(keepState).upload.targetId, 'kiro-rs');
+  assert.equal(keepState.runtimeState.flowState.kiro.upload.targetId, 'kiro-rs');
 });

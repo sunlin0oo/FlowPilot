@@ -2,7 +2,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
-const source = fs.readFileSync('background/steps/fetch-signup-code.js', 'utf8');
+const source = fs.readFileSync('flows/openai/background/steps/fetch-signup-code.js', 'utf8');
 const globalScope = {};
 const api = new Function('self', `${source}; return self.MultiPageBackgroundStep4;`)(globalScope);
 
@@ -427,7 +427,7 @@ test('step 4 prepare retries transport by recovering retry page without replayin
       }
       sendToContentScriptCalls += 1;
       if (sendToContentScriptCalls === 1) {
-        throw new Error('Content script on signup-page did not respond in 30s. Try refreshing the tab and retry.');
+        throw new Error('Content script on openai-auth did not respond in 30s. Try refreshing the tab and retry.');
       }
       return { ready: true };
     },

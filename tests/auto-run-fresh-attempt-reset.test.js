@@ -130,8 +130,6 @@ let currentState = {
   customPassword: '',
   autoRunSkipFailures: false,
   autoRunFallbackThreadIntervalMinutes: 0,
-  autoRunDelayEnabled: false,
-  autoRunDelayMinutes: 30,
   autoStepDelaySeconds: null,
   signupMethod: 'phone',
   resolvedSignupMethod: 'phone',
@@ -204,8 +202,6 @@ async function resetState() {
     customPassword: prev.customPassword,
     autoRunSkipFailures: prev.autoRunSkipFailures,
     autoRunFallbackThreadIntervalMinutes: prev.autoRunFallbackThreadIntervalMinutes,
-    autoRunDelayEnabled: prev.autoRunDelayEnabled,
-    autoRunDelayMinutes: prev.autoRunDelayMinutes,
     autoStepDelaySeconds: prev.autoStepDelaySeconds,
     signupMethod: prev.signupMethod,
     resolvedSignupMethod: null,
@@ -311,10 +307,10 @@ async function runAutoSequenceFromStep() {
       10: 'completed',
     }),
     tabRegistry: {
-      'signup-page': { tabId: 88, ready: true },
+      'openai-auth': { tabId: 88, ready: true },
     },
     sourceLastUrls: {
-      'signup-page': 'https://auth.openai.com/authorize',
+      'openai-auth': 'https://auth.openai.com/authorize',
     },
   };
 }

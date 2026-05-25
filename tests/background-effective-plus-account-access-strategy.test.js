@@ -120,20 +120,20 @@ function isPlusModeState(state = {}) {
   return Boolean(state?.plusModeEnabled);
 }
 function resolveCurrentFlowCapabilities(state = {}, options = {}) {
-  const normalizedPanelMode = String(options.panelMode || '').trim().toLowerCase();
+  const normalizedTargetId = String(options.targetId || '').trim().toLowerCase();
   const requestedStrategy = normalizePlusAccountAccessStrategy(state.plusAccountAccessStrategy);
-  const effectiveStrategy = normalizedPanelMode === 'sub2api'
+  const effectiveStrategy = normalizedTargetId === 'sub2api'
     ? (requestedStrategy === 'sub2api_codex_session' ? 'sub2api_codex_session' : 'oauth')
-    : (normalizedPanelMode === 'cpa'
+    : (normalizedTargetId === 'cpa'
       ? (requestedStrategy === 'cpa_codex_session' ? 'cpa_codex_session' : 'oauth')
       : 'oauth');
   return {
-    effectivePanelMode: options.panelMode,
+    effectiveTargetId: options.targetId,
     effectivePlusAccountAccessStrategy: effectiveStrategy,
     effectiveSignupMethod: 'email',
     stepDefinitionOptions: {
       activeFlowId: 'openai',
-      panelMode: options.panelMode,
+      targetId: options.targetId,
       plusModeEnabled: Boolean(state.plusModeEnabled),
       plusPaymentMethod: normalizePlusPaymentMethod(state.plusPaymentMethod),
       plusAccountAccessStrategy: effectiveStrategy,
@@ -158,7 +158,7 @@ test('background step resolution keeps SUB2API session tail only when the effect
   const state = {
     activeFlowId: 'openai',
     flowId: 'openai',
-    panelMode: 'sub2api',
+    targetId: 'sub2api',
     plusModeEnabled: true,
     plusPaymentMethod: 'paypal',
     plusAccountAccessStrategy: 'sub2api_codex_session',
@@ -184,7 +184,7 @@ test('background step resolution keeps CPA session tail when the effective Plus 
   const state = {
     activeFlowId: 'openai',
     flowId: 'openai',
-    panelMode: 'cpa',
+    targetId: 'cpa',
     plusModeEnabled: true,
     plusPaymentMethod: 'paypal',
     plusAccountAccessStrategy: 'cpa_codex_session',
@@ -210,7 +210,7 @@ test('background step resolution falls back to OAuth tail when the requested ses
   const state = {
     activeFlowId: 'openai',
     flowId: 'openai',
-    panelMode: 'cpa',
+    targetId: 'cpa',
     plusModeEnabled: true,
     plusPaymentMethod: 'paypal',
     plusAccountAccessStrategy: 'sub2api_codex_session',

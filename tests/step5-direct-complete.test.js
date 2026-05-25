@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
-const source = fs.readFileSync('content/signup-page.js', 'utf8');
+const source = fs.readFileSync('flows/openai/content/openai-auth.js', 'utf8');
 
 function extractFunction(name) {
   const markers = [`async function ${name}(`, `function ${name}(`];
@@ -61,6 +61,7 @@ function getStep5OutcomeBundle() {
     extractFunction('waitForStep5SubmitButton'),
     extractFunction('isStep5SubmitButtonClickable'),
     extractFunction('isStep5ProfileStillVisible'),
+    extractFunction('isStep5CompletionChatgptUrl'),
     extractFunction('getStep5PostSubmitSuccessState'),
     extractFunction('installStep5NavigationCompletionReporter'),
     extractFunction('waitForStep5SubmitOutcome'),
@@ -1057,6 +1058,7 @@ function isOAuthConsentPage() { return false; }
 function isAddPhonePageReady() { return false; }
 function isStep5ProfileStillVisible() { return false; }
 
+${extractFunction('isStep5CompletionChatgptUrl')}
 ${extractFunction('getStep5PostSubmitSuccessState')}
 
 return {
@@ -1067,4 +1069,109 @@ return {
 `)();
 
   assert.equal(api.run(), null);
+});
+
+test('step 5 completion requires https chatgpt.com and rejects auth-success-like pages', () => {
+  const api = new Function(`
+const location = {
+  href: 'https://auth.openai.com/sign-in-with-chatgpt/codex/consent',
+};
+
+function getStep5AuthRetryPageState() { return null; }
+function isStep5ProfileStillVisible() { return false; }
+
+${extractFunction('isStep5CompletionChatgptUrl')}
+${extractFunction('getStep5PostSubmitSuccessState')}
+
+return {
+  run(url) {
+    location.href = url;
+    return getStep5PostSubmitSuccessState();
+  },
+  isCompletion(url) {
+    return isStep5CompletionChatgptUrl(url);
+  },
+};
+`)();
+
+  assert.deepStrictEqual(api.run('https://chatgpt.com/'), {
+    state: 'logged_in_home',
+    url: 'https://chatgpt.com/',
+  });
+  assert.deepStrictEqual(api.run('https://www.chatgpt.com/c/abc'), {
+    state: 'logged_in_home',
+    url: 'https://www.chatgpt.com/c/abc',
+  });
+  assert.equal(api.run('https://auth.openai.com/sign-in-with-chatgpt/codex/consent'), null);
+  assert.equal(api.run('https://auth.openai.com/add-phone'), null);
+  assert.equal(api.run('https://chat.openai.com/'), null);
+  assert.equal(api.run('http://chatgpt.com/'), null);
+  assert.equal(api.isCompletion('https://chatgpt.com/add-phone'), false);
+});
+
+test('step 5 navigation reporter hands off to background on beforeunload', () => {
+  const api = new Function(`
+const events = [];
+const listeners = new Map();
+const location = {
+  href: 'https://auth.openai.com/about-you',
+};
+const window = {
+  addEventListener(type, handler) {
+    listeners.set(type, handler);
+  },
+  removeEventListener(type) {
+    listeners.delete(type);
+  },
+};
+
+function log(message, level = 'info') {
+  events.push({ type: 'log', message, level });
+}
+function getStep5SubmitState() {
+  return {
+    url: location.href,
+    retryPage: true,
+    retryEnabled: true,
+    successState: '',
+    profileVisible: true,
+    unknownAuthPage: false,
+    maxCheckAttemptsBlocked: false,
+    userAlreadyExistsBlocked: false,
+    errorText: '',
+  };
+}
+
+${extractFunction('logStep5SubmitDebug')}
+${extractFunction('installStep5NavigationCompletionReporter')}
+
+return {
+  run() {
+    const cleanup = installStep5NavigationCompletionReporter((payload) => {
+      events.push({ type: 'complete', payload });
+    });
+    const beforeUnload = listeners.get('beforeunload');
+    if (beforeUnload) {
+      beforeUnload({ type: 'beforeunload' });
+    }
+    cleanup();
+    return { events };
+  },
+};
+`)();
+
+  const result = api.run();
+  assert.deepStrictEqual(
+    result.events.filter((entry) => entry.type === 'complete'),
+    [
+      {
+        type: 'complete',
+        payload: {
+          navigationStarted: true,
+          navigationEventType: 'beforeunload',
+        },
+      },
+    ]
+  );
+  assert.equal(result.events.some((entry) => entry.type === 'log' && /检测到页面开始导航/.test(entry.message)), true);
 });

@@ -48,6 +48,33 @@ function extractFunction(name) {
   return source.slice(start, end);
 }
 
+const OAUTH_TIMEOUT_BUDGET_TEST_REGISTRY = `
+const DEFAULT_ACTIVE_FLOW_ID = 'openai';
+const self = {
+  MultiPageFlowRegistry: {
+    normalizeFlowId(value, fallback = 'openai') {
+      const normalized = String(value || '').trim().toLowerCase();
+      return ['openai', 'kiro', 'grok'].includes(normalized) ? normalized : fallback;
+    },
+    normalizeTargetId(flowId, value, fallback = 'cpa') {
+      const normalized = String(value || '').trim().toLowerCase();
+      if (flowId === 'openai' && ['cpa', 'sub2api', 'codex2api'].includes(normalized)) return normalized;
+      if (flowId === 'kiro') return 'kiro-rs';
+      if (flowId === 'grok') return 'webchat2api';
+      return fallback;
+    },
+    getDefaultTargetId(flowId) {
+      return flowId === 'openai' ? 'cpa' : '';
+    },
+    getTargetCapabilities(flowId, targetId) {
+      return flowId === 'openai' && targetId === 'cpa'
+        ? { usesOauthTimeoutBudget: true }
+        : { usesOauthTimeoutBudget: false };
+    },
+  },
+};
+`;
+
 test('background auth chain set does not include Plus session import nodes', () => {
   const authChainStart = source.indexOf('const AUTH_CHAIN_NODE_IDS = new Set([');
   const authChainEnd = source.indexOf(']);', authChainStart);
@@ -56,6 +83,85 @@ test('background auth chain set does not include Plus session import nodes', () 
   assert.ok(authChainStart >= 0, 'expected AUTH_CHAIN_NODE_IDS block to exist');
   assert.doesNotMatch(authChainBlock, /sub2api-session-import/);
   assert.doesNotMatch(authChainBlock, /cpa-session-import/);
+});
+
+test('step 8 recovery rebuilds primary phone login identity before rerunning oauth-login', async () => {
+  const events = {
+    executePayloads: [],
+    logs: [],
+    statuses: [],
+  };
+  let state = {
+    signupMethod: 'phone',
+    resolvedSignupMethod: 'phone',
+    phoneVerificationEnabled: true,
+    email: 'bound.step8@example.com',
+    forceLoginIdentifierType: 'email',
+    forceEmailLogin: true,
+    accountIdentifierType: 'email',
+    accountIdentifier: 'bound.step8@example.com',
+    signupPhoneNumber: '+447780579093',
+    signupPhoneCompletedActivation: {
+      activationId: 'signup-done',
+      phoneNumber: '+447780579093',
+    },
+  };
+
+  const api = new Function('events', 'state', `
+const SIGNUP_METHOD_PHONE = 'phone';
+const FINAL_OAUTH_CHAIN_START_STEP = 7;
+function getNodeIdByStepForState(step) {
+  return Number(step) === 7 ? 'oauth-login' : '';
+}
+function getErrorMessage(error) {
+  return error?.message || String(error || '');
+}
+function isStopError() {
+  return false;
+}
+function isTerminalSecurityBlockedError() {
+  return false;
+}
+async function getState() {
+  return { ...state };
+}
+async function addLog(message, level, options) {
+  events.logs.push({ message, level, options });
+}
+async function setNodeStatus(nodeId, status) {
+  events.statuses.push({ nodeId, status });
+}
+async function appendManualAccountRunRecordIfNeeded() {}
+async function sleepWithStop() {}
+function throwIfStopped() {}
+const step7Executor = {
+  async executeStep7(payload) {
+    events.executePayloads.push(payload);
+  },
+};
+${extractFunction('normalizeAuthRecoveryIdentifierType')}
+${extractFunction('isPhoneSignupAuthRecoveryState')}
+${extractFunction('getPhoneSignupAuthRecoveryIdentity')}
+${extractFunction('isBoundEmailReloginAuthRecoveryNode')}
+${extractFunction('buildAuthLoginRecoveryState')}
+${extractFunction('rerunStep7ForStep8Recovery')}
+return { rerunStep7ForStep8Recovery };
+`)(events, state);
+
+  await api.rerunStep7ForStep8Recovery({
+    logMessage: 'retry primary login',
+    logStep: 8,
+  });
+
+  assert.equal(events.executePayloads.length, 1);
+  assert.equal(events.executePayloads[0].nodeId, 'oauth-login');
+  assert.equal(events.executePayloads[0].visibleStep, 7);
+  assert.equal(events.executePayloads[0].authLoginPhase, 'primary-login');
+  assert.equal(events.executePayloads[0].forceLoginIdentifierType, 'phone');
+  assert.equal(events.executePayloads[0].forceEmailLogin, false);
+  assert.equal(events.executePayloads[0].accountIdentifierType, 'phone');
+  assert.equal(events.executePayloads[0].accountIdentifier, '+447780579093');
+  assert.equal(events.executePayloads[0].signupPhoneNumber, '+447780579093');
 });
 
 const NODE_EXECUTE_COMPAT_HELPERS = `
@@ -352,6 +458,9 @@ test('oauth timeout budget ignores stale deadlines from an old oauth url', async
   const api = new Function(`
 const LOG_PREFIX = '[test]';
 const OAUTH_FLOW_TIMEOUT_MS = 5 * 60 * 1000;
+${OAUTH_TIMEOUT_BUDGET_TEST_REGISTRY}
+${extractFunction('resolveOAuthTimeoutBudgetScope')}
+${extractFunction('shouldUseOAuthTimeoutBudget')}
 ${extractFunction('normalizeOAuthFlowDeadlineAt')}
 ${extractFunction('normalizeOAuthFlowSourceUrl')}
 ${extractFunction('getOAuthFlowRemainingMs')}
@@ -365,6 +474,8 @@ return {
     step: 8,
     actionLabel: '登录验证码流程',
     state: {
+      activeFlowId: 'openai',
+      targetId: 'cpa',
       oauthUrl: 'https://oauth.example/current',
       oauthFlowDeadlineAt: Date.now() + 1200,
       oauthFlowDeadlineSourceUrl: 'https://oauth.example/old',
@@ -378,7 +489,10 @@ test('oauth timeout budget clamps local timeout when enabled by default', async 
   const api = new Function(`
 const LOG_PREFIX = '[test]';
 const OAUTH_FLOW_TIMEOUT_MS = 5 * 60 * 1000;
+${OAUTH_TIMEOUT_BUDGET_TEST_REGISTRY}
 ${extractFunction('buildOAuthFlowTimeoutError')}
+${extractFunction('resolveOAuthTimeoutBudgetScope')}
+${extractFunction('shouldUseOAuthTimeoutBudget')}
 ${extractFunction('normalizeOAuthFlowDeadlineAt')}
 ${extractFunction('normalizeOAuthFlowSourceUrl')}
 ${extractFunction('getOAuthFlowRemainingMs')}
@@ -392,6 +506,8 @@ return {
     step: 8,
     actionLabel: '登录验证码流程',
     state: {
+      activeFlowId: 'openai',
+      targetId: 'cpa',
       oauthUrl: 'https://oauth.example/current',
       oauthFlowDeadlineAt: Date.now() + 1200,
       oauthFlowDeadlineSourceUrl: 'https://oauth.example/current',
@@ -402,11 +518,14 @@ return {
   assert(timeoutMs >= 1000);
 });
 
-test('oauth timeout budget disabled mode ignores active deadlines', async () => {
+test('oauth timeout budget ignores active deadlines outside openai cpa target', async () => {
   const api = new Function(`
 const LOG_PREFIX = '[test]';
 const OAUTH_FLOW_TIMEOUT_MS = 5 * 60 * 1000;
+${OAUTH_TIMEOUT_BUDGET_TEST_REGISTRY}
 ${extractFunction('buildOAuthFlowTimeoutError')}
+${extractFunction('resolveOAuthTimeoutBudgetScope')}
+${extractFunction('shouldUseOAuthTimeoutBudget')}
 ${extractFunction('normalizeOAuthFlowDeadlineAt')}
 ${extractFunction('normalizeOAuthFlowSourceUrl')}
 ${extractFunction('getOAuthFlowRemainingMs')}
@@ -420,7 +539,8 @@ return {
     step: 9,
     actionLabel: 'OAuth localhost 回调',
     state: {
-      oauthFlowTimeoutEnabled: false,
+      activeFlowId: 'openai',
+      targetId: 'sub2api',
       oauthUrl: 'https://oauth.example/current',
       oauthFlowDeadlineAt: Date.now() - 1000,
       oauthFlowDeadlineSourceUrl: 'https://oauth.example/current',
@@ -430,16 +550,18 @@ return {
   assert.equal(timeoutMs, 15000);
 });
 
-test('startOAuthFlowTimeoutWindow clears stale deadline when timeout is disabled', async () => {
+test('startOAuthFlowTimeoutWindow clears stale deadline outside openai cpa target', async () => {
   const events = {
     stateUpdates: [],
     logs: [],
   };
-  const api = new Function('events', `
+const api = new Function('events', `
 const OAUTH_FLOW_TIMEOUT_MS = 5 * 60 * 1000;
+${OAUTH_TIMEOUT_BUDGET_TEST_REGISTRY}
 async function getState() {
   return {
-    oauthFlowTimeoutEnabled: false,
+    activeFlowId: 'openai',
+    targetId: 'sub2api',
     oauthFlowDeadlineAt: Date.now() - 1000,
     oauthFlowDeadlineSourceUrl: 'https://oauth.example/old',
   };
@@ -450,6 +572,8 @@ async function setState(update) {
 async function addLog(message, level) {
   events.logs.push({ message, level });
 }
+${extractFunction('resolveOAuthTimeoutBudgetScope')}
+${extractFunction('shouldUseOAuthTimeoutBudget')}
 ${extractFunction('normalizeOAuthFlowSourceUrl')}
 ${extractFunction('startOAuthFlowTimeoutWindow')}
 return {
@@ -467,7 +591,7 @@ return {
     oauthFlowDeadlineAt: null,
     oauthFlowDeadlineSourceUrl: null,
   }]);
-  assert.match(events.logs[0].message, /授权后链总超时已关闭/);
+  assert.deepStrictEqual(events.logs, []);
 });
 
 test('oauth localhost timeout recovery resumes from bound-email relogin tail when present', async () => {

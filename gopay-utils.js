@@ -3,6 +3,7 @@
 })(typeof self !== 'undefined' ? self : globalThis, function createGoPayUtils() {
   const PLUS_PAYMENT_METHOD_PAYPAL = 'paypal';
   const PLUS_PAYMENT_METHOD_PAYPAL_HOSTED = 'paypal-hosted';
+  const PLUS_PAYMENT_METHOD_NONE = 'none';
   const PLUS_PAYMENT_METHOD_GOPAY = 'gopay';
   const PLUS_PAYMENT_METHOD_GPC_HELPER = 'gpc-helper';
   const DEFAULT_GPC_HELPER_API_URL = 'https://gpc.qlhazycoder.top';
@@ -12,6 +13,9 @@
 
   function normalizePlusPaymentMethod(value = '') {
     const normalized = String(value || '').trim().toLowerCase();
+    if (normalized === PLUS_PAYMENT_METHOD_NONE || normalized === 'no-payment' || normalized === 'skip-payment') {
+      return PLUS_PAYMENT_METHOD_NONE;
+    }
     if (normalized === PLUS_PAYMENT_METHOD_PAYPAL_HOSTED || normalized === 'paypal_direct' || normalized === 'paypal-direct') {
       return PLUS_PAYMENT_METHOD_PAYPAL_HOSTED;
     }
@@ -419,6 +423,7 @@
     GPC_HELPER_PHONE_MODE_MANUAL,
     PLUS_PAYMENT_METHOD_GPC_HELPER,
     PLUS_PAYMENT_METHOD_GOPAY,
+    PLUS_PAYMENT_METHOD_NONE,
     PLUS_PAYMENT_METHOD_PAYPAL,
     PLUS_PAYMENT_METHOD_PAYPAL_HOSTED,
     buildGpcCardBalanceUrl,

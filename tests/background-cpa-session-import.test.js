@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const test = require('node:test');
 
 function loadCpaSessionImportModule() {
-  const source = fs.readFileSync('background/steps/cpa-session-import.js', 'utf8');
+  const source = fs.readFileSync('flows/openai/background/steps/cpa-session-import.js', 'utf8');
   return new Function('self', `${source}; return self.MultiPageBackgroundCpaSessionImport;`)({});
 }
 
@@ -78,7 +78,7 @@ test('CPA session import step reads current ChatGPT session and completes node',
   assert.deepStrictEqual(ensureCalls[0].options.inject, [
     'content/utils.js',
     'content/operation-delay.js',
-    'content/plus-checkout.js',
+    'flows/openai/content/plus-checkout.js',
   ]);
   assert.deepStrictEqual(sentMessages, [{
     tabId: 91,

@@ -27,7 +27,7 @@ function createRouter(overrides = {}) {
     executedSteps: [],
     accountRecords: [],
   };
-  const nodeByStep = {
+  const nodeByStep = overrides.nodeByStep || {
     1: 'open-chatgpt',
     2: 'submit-signup-email',
     3: 'fill-password',
@@ -42,6 +42,7 @@ function createRouter(overrides = {}) {
     12: 'confirm-oauth',
     13: 'platform-verify',
   };
+  const stepByNode = overrides.stepByNode || null;
   const normalStepByNode = {
     'open-chatgpt': 1,
     'submit-signup-email': 2,
@@ -67,6 +68,12 @@ function createRouter(overrides = {}) {
   };
   const getStepForNode = (nodeId) => {
     const state = normalizeState(overrides.state || {});
+    if (typeof overrides.getStepIdByNodeIdForState === 'function') {
+      return overrides.getStepIdByNodeIdForState(nodeId, state) || 0;
+    }
+    if (stepByNode && Object.prototype.hasOwnProperty.call(stepByNode, nodeId)) {
+      return stepByNode[nodeId] || 0;
+    }
     return (state.plusModeEnabled ? plusStepByNode : normalStepByNode)[nodeId] || 0;
   };
   const normalizeState = (state = {}) => {
@@ -96,7 +103,6 @@ function createRouter(overrides = {}) {
     broadcastDataUpdate: (updates) => {
       events.broadcasts.push(updates);
     },
-    cancelScheduledAutoRun: async () => {},
     checkIcloudSession: async () => {},
     clearAutoRunTimerAlarm: async () => {},
     clearLuckmailRuntimeState: async () => {},
@@ -111,12 +117,12 @@ function createRouter(overrides = {}) {
     deleteIcloudAlias: async () => {},
     deleteUsedIcloudAliases: async () => {},
     disableUsedLuckmailPurchases: async () => {},
-    doesNodeUseCompletionSignal: () => false,
+    doesNodeUseCompletionSignal: overrides.doesNodeUseCompletionSignal || (() => false),
     ensureManualInteractionAllowed: async () => ({}),
     executeNode: async (nodeId) => {
       events.executedSteps.push(getStepForNode(nodeId) || nodeId);
     },
-    executeNodeViaCompletionSignal: async () => {},
+    executeNodeViaCompletionSignal: overrides.executeNodeViaCompletionSignal || (async () => ({})),
     exportSettingsBundle: async () => ({}),
     fetchGeneratedEmail: async () => '',
     finalizePhoneActivationAfterSuccessfulFlow: overrides.finalizePhoneActivationAfterSuccessfulFlow || (async (state) => {
@@ -125,6 +131,7 @@ function createRouter(overrides = {}) {
     finalizeStep3Completion: overrides.finalizeStep3Completion || (async (payload) => {
       events.finalizePayloads.push(payload);
     }),
+    finalizeStep5Completion: overrides.finalizeStep5Completion,
     finalizeIcloudAliasAfterSuccessfulFlow: overrides.finalizeIcloudAliasAfterSuccessfulFlow || (async () => {}),
     findHotmailAccount: async () => null,
     flushCommand: async () => {},
@@ -132,8 +139,10 @@ function createRouter(overrides = {}) {
     getPendingAutoRunTimerPlan: () => null,
     getSourceLabel: () => '',
     getState: async () => normalizeState(overrides.state || { nodeStatuses: { 'fill-password': 'pending' } }),
-    getNodeIdsForState: () => ['open-chatgpt', 'submit-signup-email', 'fill-password', 'fetch-signup-code', 'fill-profile', 'wait-registration-success', 'oauth-login', 'fetch-login-code', 'confirm-oauth', 'platform-verify'],
-    getStepIdByNodeIdForState: (nodeId, state = {}) => (state.plusModeEnabled ? plusStepByNode : normalStepByNode)[nodeId] || 0,
+    getNodeIdsForState: overrides.getNodeIdsForState || (() => ['open-chatgpt', 'submit-signup-email', 'fill-password', 'fetch-signup-code', 'fill-profile', 'wait-registration-success', 'oauth-login', 'fetch-login-code', 'confirm-oauth', 'platform-verify']),
+    getStepIdByNodeIdForState: overrides.getStepIdByNodeIdForState || ((nodeId, state = {}) => (stepByNode && Object.prototype.hasOwnProperty.call(stepByNode, nodeId))
+      ? stepByNode[nodeId] || 0
+      : (state.plusModeEnabled ? plusStepByNode : normalStepByNode)[nodeId] || 0),
     getStepDefinitionForState: overrides.getStepDefinitionForState,
     getStepIdsForState: overrides.getStepIdsForState,
     getLastStepIdForState: overrides.getLastStepIdForState,
@@ -161,7 +170,6 @@ function createRouter(overrides = {}) {
     listLuckmailPurchasesForManagement: async () => [],
     normalizeHotmailAccounts: (items) => items,
     normalizeRunCount: (value) => value,
-    AUTO_RUN_TIMER_KIND_SCHEDULED_START: 'scheduled',
     notifyNodeComplete: (nodeId, payload) => {
       events.notifyCompletions.push({ step: getStepForNode(nodeId), nodeId, payload });
     },
@@ -173,7 +181,6 @@ function createRouter(overrides = {}) {
     requestStop: async () => {},
     resetState: async () => {},
     resumeAutoRun: async () => {},
-    scheduleAutoRun: async () => {},
     selectLuckmailPurchase: async () => {},
     setCurrentHotmailAccount: async () => {},
     setEmailState: async (email) => {
@@ -426,7 +433,7 @@ test('message router finalizes step 3 before marking it completed', async () => 
   const response = await router.handleMessage({
     type: 'NODE_COMPLETE',
     nodeId: 'fill-password',
-    source: 'signup-page',
+    source: 'openai-auth',
     payload: {
       nodeId: 'fill-password',
       email: 'user@example.com',
@@ -548,7 +555,7 @@ test('message router marks step 3 failed when post-submit finalize fails', async
   const response = await router.handleMessage({
     type: 'NODE_COMPLETE',
     nodeId: 'fill-password',
-    source: 'signup-page',
+    source: 'openai-auth',
     payload: {
       nodeId: 'fill-password',
       email: 'user@example.com',
@@ -581,7 +588,7 @@ test('message router does not duplicate step 3 mismatch failure log after finali
   const response = await router.handleMessage({
     type: 'NODE_ERROR',
     nodeId: 'fill-password',
-    source: 'signup-page',
+    source: 'openai-auth',
     payload: { nodeId: 'fill-password' },
     error: mismatchError,
   }, {});
@@ -604,7 +611,7 @@ test('message router stops the flow and surfaces cloudflare security block error
   const response = await router.handleMessage({
     type: 'NODE_ERROR',
     nodeId: 'oauth-login',
-    source: 'signup-page',
+    source: 'openai-auth',
     payload: { nodeId: 'oauth-login' },
     error: 'CF_SECURITY_BLOCKED::您已触发Cloudflare 安全防护系统',
   }, {});
@@ -623,24 +630,75 @@ test('message router stops the flow and surfaces cloudflare security block error
   });
 });
 
-test('message router blocks manual step 4 execution when signup page tab is missing', async () => {
+test('message router delegates OpenAI manual step 4 to the OpenAI node executor', async () => {
   const { router, events } = createRouter({
     getTabId: async () => null,
     isTabAlive: async () => false,
   });
 
-  await assert.rejects(
-    () => router.handleMessage({
-      type: 'EXECUTE_NODE',
-      source: 'sidepanel',
-      nodeId: 'fetch-signup-code',
-      payload: { nodeId: 'fetch-signup-code' },
-    }, {}),
-    /手动执行步骤 4 前，请先执行步骤 1 或步骤 2/
-  );
+  await router.handleMessage({
+    type: 'EXECUTE_NODE',
+    source: 'sidepanel',
+    nodeId: 'fetch-signup-code',
+    payload: { nodeId: 'fetch-signup-code' },
+  }, {});
 
-  assert.deepStrictEqual(events.invalidations, []);
-  assert.deepStrictEqual(events.executedSteps, []);
+  assert.deepStrictEqual(events.invalidations, [
+    { step: 4, options: { logLabel: '节点 fetch-signup-code 重新执行' } },
+  ]);
+  assert.deepStrictEqual(events.executedSteps, [4]);
+});
+
+test('message router delegates Kiro manual step 4 without OpenAI auth-tab prerequisites', async () => {
+  const kiroNodeByStep = {
+    1: 'kiro-open-register-page',
+    2: 'kiro-submit-email',
+    3: 'kiro-submit-name',
+    4: 'kiro-submit-verification-code',
+    5: 'kiro-submit-password',
+    6: 'kiro-complete-register-consent',
+    7: 'kiro-start-desktop-authorize',
+    8: 'kiro-complete-desktop-authorize',
+    9: 'kiro-upload-credential',
+  };
+  const kiroStepByNode = Object.fromEntries(
+    Object.entries(kiroNodeByStep).map(([step, nodeId]) => [nodeId, Number(step)])
+  );
+  const { router, events } = createRouter({
+    state: {
+      activeFlowId: 'kiro',
+      flowId: 'kiro',
+      nodeStatuses: {
+        'kiro-open-register-page': 'completed',
+        'kiro-submit-email': 'completed',
+        'kiro-submit-name': 'completed',
+        'kiro-submit-verification-code': 'failed',
+      },
+    },
+    nodeByStep: kiroNodeByStep,
+    stepByNode: kiroStepByNode,
+    getNodeIdsForState: () => Object.values(kiroNodeByStep),
+    getTabId: async (sourceId) => {
+      assert.notEqual(sourceId, 'openai-auth');
+      return null;
+    },
+    isTabAlive: async (sourceId) => {
+      assert.notEqual(sourceId, 'openai-auth');
+      return false;
+    },
+  });
+
+  await router.handleMessage({
+    type: 'EXECUTE_NODE',
+    source: 'sidepanel',
+    nodeId: 'kiro-submit-verification-code',
+    payload: { nodeId: 'kiro-submit-verification-code' },
+  }, {});
+
+  assert.deepStrictEqual(events.invalidations, [
+    { step: 4, options: { logLabel: '节点 kiro-submit-verification-code 重新执行' } },
+  ]);
+  assert.deepStrictEqual(events.executedSteps, [4]);
 });
 
 test('message router resolves GPC OTP manual confirmation without completing step early', async () => {
@@ -751,4 +809,84 @@ test('message router ignores stale step 2 completion while auto-run is already o
   assert.deepStrictEqual(events.notifyCompletions, []);
   assert.deepStrictEqual(events.emailStates, []);
   assert.equal(events.logs.some(({ message }) => /忽略过期的节点 submit-signup-email 完成消息/.test(message)), true);
+});
+
+test('message router defers fill-profile completion status until background validation', async () => {
+  const { router, events } = createRouter({
+    state: {
+      currentNodeId: 'fill-profile',
+      nodeStatuses: {
+        'fill-profile': 'running',
+        'wait-registration-success': 'pending',
+      },
+    },
+  });
+
+  const response = await router.handleMessage({
+    type: 'NODE_COMPLETE',
+    nodeId: 'fill-profile',
+    payload: {
+      nodeId: 'fill-profile',
+      outcome: 'navigation_started',
+      url: 'https://auth.openai.com/about-you',
+      navigationStarted: true,
+    },
+  }, {});
+
+  assert.deepStrictEqual(response, { ok: true });
+  assert.deepStrictEqual(events.stepStatuses, []);
+  assert.deepStrictEqual(events.nodeStatuses, []);
+  assert.deepStrictEqual(events.notifyCompletions, [
+    {
+      step: 5,
+      nodeId: 'fill-profile',
+      payload: {
+        nodeId: 'fill-profile',
+        outcome: 'navigation_started',
+        url: 'https://auth.openai.com/about-you',
+        navigationStarted: true,
+        step: 5,
+      },
+    },
+  ]);
+  assert.equal(events.logs.some(({ message }) => /等待后台最终复核后再标记完成/.test(message)), true);
+});
+
+test('message router finalizes manual fill-profile execution through background validation', async () => {
+  const finalizePayloads = [];
+  const { router } = createRouter({
+    state: {
+      currentNodeId: 'fill-profile',
+      nodeStatuses: {
+        'fill-profile': 'pending',
+      },
+    },
+    executeNodeViaCompletionSignal: async (nodeId) => ({
+      nodeId,
+      outcome: 'logged_in_home',
+      url: 'https://chatgpt.com/',
+    }),
+    doesNodeUseCompletionSignal: (nodeId) => nodeId === 'fill-profile',
+    finalizeStep5Completion: async (payload) => {
+      finalizePayloads.push(payload);
+    },
+  });
+
+  const response = await router.handleMessage({
+    type: 'EXECUTE_NODE',
+    source: 'sidepanel',
+    nodeId: 'fill-profile',
+    payload: {
+      nodeId: 'fill-profile',
+    },
+  }, {});
+
+  assert.deepStrictEqual(response, { ok: true });
+  assert.deepStrictEqual(finalizePayloads, [
+    {
+      nodeId: 'fill-profile',
+      outcome: 'logged_in_home',
+      url: 'https://chatgpt.com/',
+    },
+  ]);
 });

@@ -4,11 +4,11 @@ const fs = require('node:fs');
 
 test('background imports logging/status module', () => {
   const source = fs.readFileSync('background.js', 'utf8');
-  assert.match(source, /background\/logging-status\.js/);
+  assert.match(source, /core\/flow-kernel\/logging-status\.js/);
 });
 
 test('logging/status module exposes a factory', () => {
-  const source = fs.readFileSync('background/logging-status.js', 'utf8');
+  const source = fs.readFileSync('core/flow-kernel/logging-status.js', 'utf8');
   const globalScope = {};
 
   const api = new Function('self', `${source}; return self.MultiPageBackgroundLoggingStatus;`)(globalScope);
@@ -17,7 +17,7 @@ test('logging/status module exposes a factory', () => {
 });
 
 test('logging/status add-phone detection ignores step 2 phone-entry switch failures', () => {
-  const source = fs.readFileSync('background/logging-status.js', 'utf8');
+  const source = fs.readFileSync('core/flow-kernel/logging-status.js', 'utf8');
   const globalScope = {};
   const api = new Function('self', `${source}; return self.MultiPageBackgroundLoggingStatus;`)(globalScope);
 
