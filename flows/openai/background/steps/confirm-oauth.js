@@ -67,11 +67,6 @@
       const visibleStep = getVisibleStep(state, 9);
       let activeState = state;
 
-      if (!activeState.oauthUrl) {
-        const authLoginStep = getAuthLoginStepForState(activeState, visibleStep);
-        throw new Error(`缺少登录用 OAuth 链接，请先完成步骤 ${authLoginStep}。`);
-      }
-
       await addStepLog(visibleStep, '正在监听 localhost 回调地址...');
 
       let callbackTimeoutMs = LOCALHOST_CALLBACK_LOCAL_TIMEOUT_MS;
@@ -239,6 +234,10 @@
               await chrome.tabs.update(signupTabId, { active: true });
               await addStepLog(visibleStep, '已切回认证页，正在准备调试器点击...');
             } else {
+              if (!activeState.oauthUrl) {
+                const authLoginStep = getAuthLoginStepForState(activeState, visibleStep);
+                throw new Error(`缺少登录用 OAuth 链接，请先完成步骤 ${authLoginStep}。`);
+              }
               signupTabId = await reuseOrCreateTab('openai-auth', activeState.oauthUrl);
               await addStepLog(visibleStep, '已重新打开认证页，正在准备调试器点击...');
             }

@@ -732,32 +732,6 @@ function inspectSignupEntryState() {
     };
   }
 
-  const postVerificationState = typeof getStep4PostVerificationState === 'function'
-    ? getStep4PostVerificationState()
-    : null;
-  if (postVerificationState?.state === 'step5') {
-    return {
-      state: 'profile_page',
-      url: postVerificationState.url || location.href,
-    };
-  }
-
-  if (postVerificationState?.state === 'logged_in_home') {
-    return {
-      state: 'logged_in_home',
-      skipProfileStep: true,
-      url: postVerificationState.url || location.href,
-    };
-  }
-
-  if (typeof isVerificationPageStillVisible === 'function' && isVerificationPageStillVisible()) {
-    return {
-      state: 'verification_page',
-      verificationTarget: typeof getVerificationCodeTarget === 'function' ? getVerificationCodeTarget() : null,
-      url: location.href,
-    };
-  }
-
   const passwordInput = getSignupPasswordInput();
   if (isSignupPasswordPage() && passwordInput) {
     return {
@@ -787,6 +761,32 @@ function inspectSignupEntryState() {
       state: 'phone_entry',
       phoneInput,
       switchToEmailTrigger: findSignupUseEmailTrigger(),
+      url: location.href,
+    };
+  }
+
+  const postVerificationState = typeof getStep4PostVerificationState === 'function'
+    ? getStep4PostVerificationState()
+    : null;
+  if (postVerificationState?.state === 'step5') {
+    return {
+      state: 'profile_page',
+      url: postVerificationState.url || location.href,
+    };
+  }
+
+  if (postVerificationState?.state === 'logged_in_home') {
+    return {
+      state: 'logged_in_home',
+      skipProfileStep: true,
+      url: postVerificationState.url || location.href,
+    };
+  }
+
+  if (typeof isVerificationPageStillVisible === 'function' && isVerificationPageStillVisible()) {
+    return {
+      state: 'verification_page',
+      verificationTarget: typeof getVerificationCodeTarget === 'function' ? getVerificationCodeTarget() : null,
       url: location.href,
     };
   }

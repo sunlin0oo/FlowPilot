@@ -1,0 +1,402 @@
+{
+  "schemaVersion": 1,
+  "exportedAt": "2026-05-25T03:51:54.113Z",
+  "extensionVersion": "2.5",
+  "settings": {
+    "targetId": "cpa",
+    "activeFlowId": "openai",
+    "kiroRsUrl": "",
+    "kiroRsKey": "",
+    "grokWebchat2ApiUrl": "",
+    "grokWebchat2ApiAdminKey": "",
+    "vpsUrl": "http://localhost:8317/management.html#/oauth",
+    "vpsPassword": "123456",
+    "localCpaStep9Mode": "bypass",
+    "sub2apiUrl": "",
+    "sub2apiEmail": "",
+    "sub2apiPassword": "",
+    "sub2apiGroupName": "codex",
+    "sub2apiGroupNames": [
+      "codex",
+      "openai-plus"
+    ],
+    "sub2apiAccountPriority": 1,
+    "sub2apiDefaultProxyName": "",
+    "ipProxyEnabled": false,
+    "ipProxyService": "711proxy",
+    "ipProxyMode": "account",
+    "ipProxyApiUrl": "",
+    "ipProxyServiceProfiles": {
+      "711proxy": {
+        "mode": "account",
+        "apiUrl": "",
+        "accountList": "",
+        "accountSessionPrefix": "",
+        "accountLifeMinutes": "",
+        "poolTargetCount": "20",
+        "autoSyncEnabled": false,
+        "autoSyncIntervalMinutes": 15,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": "",
+        "region": ""
+      },
+      "lumiproxy": {
+        "mode": "account",
+        "apiUrl": "",
+        "accountList": "",
+        "accountSessionPrefix": "",
+        "accountLifeMinutes": "",
+        "poolTargetCount": "20",
+        "autoSyncEnabled": false,
+        "autoSyncIntervalMinutes": 15,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": "",
+        "region": ""
+      },
+      "iproyal": {
+        "mode": "account",
+        "apiUrl": "",
+        "accountList": "",
+        "accountSessionPrefix": "",
+        "accountLifeMinutes": "",
+        "poolTargetCount": "20",
+        "autoSyncEnabled": false,
+        "autoSyncIntervalMinutes": 15,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": "",
+        "region": ""
+      },
+      "omegaproxy": {
+        "mode": "account",
+        "apiUrl": "",
+        "accountList": "",
+        "accountSessionPrefix": "",
+        "accountLifeMinutes": "",
+        "poolTargetCount": "20",
+        "autoSyncEnabled": false,
+        "autoSyncIntervalMinutes": 15,
+        "host": "",
+        "port": "",
+        "protocol": "http",
+        "username": "",
+        "password": "",
+        "region": ""
+      }
+    },
+    "ipProxyAccountList": "",
+    "ipProxyAccountSessionPrefix": "",
+    "ipProxyAccountLifeMinutes": "",
+    "ipProxyPoolTargetCount": "20",
+    "ipProxyAutoSyncEnabled": false,
+    "ipProxyAutoSyncIntervalMinutes": 15,
+    "ipProxyHost": "",
+    "ipProxyPort": "",
+    "ipProxyProtocol": "http",
+    "ipProxyUsername": "",
+    "ipProxyPassword": "",
+    "ipProxyRegion": "",
+    "codex2apiUrl": "http://localhost:8080/admin/accounts",
+    "codex2apiAdminKey": "",
+    "customPassword": "%E2vw*j&Pgv5bg",
+    "plusModeEnabled": false,
+    "plusPaymentMethod": "paypal-hosted",
+    "plusAccountAccessStrategy": "oauth",
+    "hostedCheckoutVerificationUrl": "",
+    "hostedCheckoutPhoneNumber": "",
+    "plusHostedCheckoutOauthDelaySeconds": 3,
+    "paypalEmail": "",
+    "paypalPassword": "",
+    "currentPayPalAccountId": "",
+    "gopayCountryCode": "+86",
+    "gopayPhone": "",
+    "gopayOtp": "",
+    "gopayPin": "",
+    "gopayHelperApiUrl": "https://gpc.qlhazycoder.top",
+    "gopayHelperApiKey": "",
+    "gopayHelperCardKey": "",
+    "gopayHelperPhoneMode": "manual",
+    "gopayHelperPhoneNumber": "",
+    "gopayHelperCountryCode": "+86",
+    "gopayHelperPin": "",
+    "gopayHelperOtpChannel": "whatsapp",
+    "gopayHelperLocalSmsHelperEnabled": false,
+    "gopayHelperLocalSmsHelperUrl": "http://127.0.0.1:18767",
+    "gopayHelperLocalSmsTimeoutSeconds": 90,
+    "gopayHelperLocalSmsPollIntervalSeconds": 2,
+    "gopayHelperReferenceId": "",
+    "gopayHelperGoPayGuid": "",
+    "gopayHelperRedirectUrl": "",
+    "gopayHelperNextAction": "",
+    "gopayHelperFlowId": "",
+    "gopayHelperChallengeId": "",
+    "gopayHelperStartPayload": null,
+    "gopayHelperTaskId": "",
+    "gopayHelperTaskStatus": "",
+    "gopayHelperStatusText": "",
+    "gopayHelperRemoteStage": "",
+    "gopayHelperApiWaitingFor": "",
+    "gopayHelperApiInputDeadlineAt": "",
+    "gopayHelperApiInputWaitSeconds": 0,
+    "gopayHelperLastInputError": "",
+    "gopayHelperOtpInvalidCount": 0,
+    "gopayHelperFailureStage": "",
+    "gopayHelperFailureDetail": "",
+    "gopayHelperTaskPayload": null,
+    "gopayHelperTaskProgressSignature": "",
+    "gopayHelperTaskProgressAt": 0,
+    "gopayHelperTaskProgressTaskId": "",
+    "gopayHelperBalance": "",
+    "gopayHelperBalancePayload": null,
+    "gopayHelperBalanceUpdatedAt": 0,
+    "gopayHelperBalanceError": "",
+    "gopayHelperRemainingUses": 0,
+    "gopayHelperAutoModeEnabled": false,
+    "gopayHelperApiKeyStatus": "",
+    "autoRunSkipFailures": false,
+    "autoRunFallbackThreadIntervalMinutes": 0,
+    "operationDelayEnabled": true,
+    "autoStepDelaySeconds": null,
+    "step6CookieCleanupEnabled": false,
+    "stepExecutionRangeByFlow": {
+      "openai": {
+        "enabled": false,
+        "fromStep": 7,
+        "toStep": 11
+      },
+      "kiro": {
+        "enabled": false,
+        "fromStep": 1,
+        "toStep": 9
+      },
+      "grok": {
+        "enabled": false,
+        "fromStep": 1,
+        "toStep": 6
+      }
+    },
+    "phoneVerificationEnabled": true,
+    "phoneSignupReloginAfterBindEmailEnabled": false,
+    "phoneSmsReuseEnabled": true,
+    "freePhoneReuseEnabled": true,
+    "freePhoneReuseAutoEnabled": true,
+    "signupMethod": "email",
+    "phoneSmsProvider": "hero-sms",
+    "phoneSmsProviderOrder": [],
+    "verificationResendCount": 4,
+    "phoneVerificationReplacementLimit": 3,
+    "phoneCodeWaitSeconds": 60,
+    "phoneCodeTimeoutWindows": 2,
+    "phoneCodePollIntervalSeconds": 5,
+    "phoneCodePollMaxRounds": 4,
+    "mailProvider": "cloudflare-temp-email",
+    "mail2925Mode": "provide",
+    "mail2925UseAccountPool": false,
+    "emailGenerator": "duck",
+    "customMailProviderPool": [],
+    "customEmailPool": [],
+    "customEmailPoolEntries": [],
+    "autoDeleteUsedIcloudAlias": false,
+    "icloudHostPreference": "auto",
+    "icloudTargetMailboxType": "icloud-inbox",
+    "icloudForwardMailProvider": "qq",
+    "icloudFetchMode": "reuse_existing",
+    "accountRunHistoryTextEnabled": true,
+    "accountRunHistoryHelperBaseUrl": "http://127.0.0.1:17373",
+    "gmailBaseEmail": "",
+    "mail2925BaseEmail": "",
+    "currentMail2925AccountId": "",
+    "emailPrefix": "",
+    "inbucketHost": "",
+    "inbucketMailbox": "",
+    "hotmailServiceMode": "local",
+    "hotmailRemoteBaseUrl": "",
+    "hotmailLocalBaseUrl": "http://127.0.0.1:17373",
+    "luckmailApiKey": "",
+    "luckmailBaseUrl": "https://mails.luckyous.com",
+    "luckmailEmailType": "ms_graph",
+    "luckmailDomain": "",
+    "luckmailUsedPurchases": {},
+    "luckmailPreserveTagId": 0,
+    "luckmailPreserveTagName": "保留",
+    "cloudflareDomain": "",
+    "cloudflareDomains": [],
+    "cloudflareTempEmailBaseUrl": "https://666666666.xyz",
+    "cloudflareTempEmailAdminAuth": "6666666666",
+    "cloudflareTempEmailCustomAuth": "",
+    "cloudflareTempEmailLookupMode": "receive-mailbox",
+    "cloudflareTempEmailReceiveMailbox": "6666666666@6.xyz",
+    "cloudflareTempEmailUseRandomSubdomain": false,
+    "cloudflareTempEmailDomain": "",
+    "cloudflareTempEmailDomains": [],
+    "cloudMailBaseUrl": "",
+    "cloudMailAdminEmail": "",
+    "cloudMailAdminPassword": "",
+    "cloudMailToken": "",
+    "cloudMailReceiveMailbox": "",
+    "cloudMailDomain": "",
+    "cloudMailDomains": [],
+    "yydsMailApiKey": "",
+    "yydsMailBaseUrl": "https://maliapi.215.im/v1",
+    "hotmailAccounts": [],
+    "mail2925Accounts": [],
+    "paypalAccounts": [],
+    "heroSmsApiKey": "66666666666666666666666666666",
+    "heroSmsReuseEnabled": true,
+    "heroSmsAcquirePriority": "country",
+    "heroSmsMinPrice": "",
+    "heroSmsMaxPrice": "",
+    "heroSmsPreferredPrice": "",
+    "heroSmsCountryId": 52,
+    "heroSmsCountryLabel": "泰国 (Thailand)",
+    "heroSmsCountryFallback": [],
+    "fiveSimApiKey": "",
+    "fiveSimProduct": "openai",
+    "fiveSimCountryId": "vietnam",
+    "fiveSimCountryLabel": "越南 (Vietnam)",
+    "fiveSimCountryFallback": [],
+    "fiveSimCountryOrder": [
+      "vietnam"
+    ],
+    "fiveSimMinPrice": "",
+    "fiveSimMaxPrice": "",
+    "fiveSimOperator": "any",
+    "nexSmsApiKey": "",
+    "nexSmsCountryOrder": [
+      1
+    ],
+    "nexSmsServiceCode": "ot",
+    "phonePreferredActivation": null,
+    "settingsSchemaVersion": 4,
+    "settingsState": {
+      "schemaVersion": 4,
+      "activeFlowId": "openai",
+      "services": {
+        "email": {
+          "provider": "cloudflare-temp-email"
+        },
+        "proxy": {
+          "enabled": false,
+          "provider": "711proxy",
+          "mode": "account"
+        },
+        "account": {
+          "customPassword": "%E2vw*j&Pgv5bg"
+        }
+      },
+      "flows": {
+        "openai": {
+          "selectedTargetId": "cpa",
+          "targets": {
+            "cpa": {
+              "vpsUrl": "http://localhost:8317/management.html#/oauth",
+              "vpsPassword": "123456",
+              "localCpaStep9Mode": "bypass"
+            },
+            "sub2api": {
+              "sub2apiUrl": "",
+              "sub2apiEmail": "",
+              "sub2apiPassword": "",
+              "sub2apiGroupName": "codex",
+              "sub2apiGroupNames": [
+                "codex",
+                "openai-plus"
+              ],
+              "sub2apiAccountPriority": 1,
+              "sub2apiDefaultProxyName": ""
+            },
+            "codex2api": {
+              "codex2apiUrl": "http://localhost:8080/admin/accounts",
+              "codex2apiAdminKey": ""
+            }
+          },
+          "autoRun": {
+            "stepExecutionRange": {
+              "enabled": false,
+              "fromStep": 7,
+              "toStep": 11
+            }
+          },
+          "signup": {
+            "signupMethod": "email",
+            "phoneVerificationEnabled": true,
+            "phoneSignupReloginAfterBindEmailEnabled": false
+          },
+          "plus": {
+            "plusModeEnabled": false,
+            "plusPaymentMethod": "paypal-hosted",
+            "plusAccountAccessStrategy": "oauth",
+            "hostedCheckoutVerificationUrl": "",
+            "hostedCheckoutPhoneNumber": "",
+            "plusHostedCheckoutOauthDelaySeconds": 3
+          },
+          "integrationTargetId": "cpa",
+          "integrationTargets": {
+            "codex2api": {
+              "codex2apiAdminKey": "",
+              "codex2apiUrl": "http://localhost:8080/admin/accounts"
+            },
+            "cpa": {
+              "localCpaStep9Mode": "bypass",
+              "vpsPassword": "123456",
+              "vpsUrl": "http://localhost:8317/management.html#/oauth"
+            },
+            "sub2api": {
+              "sub2apiAccountPriority": 1,
+              "sub2apiDefaultProxyName": "",
+              "sub2apiEmail": "",
+              "sub2apiGroupName": "codex",
+              "sub2apiGroupNames": [
+                "codex",
+                "openai-plus"
+              ],
+              "sub2apiPassword": "",
+              "sub2apiUrl": ""
+            }
+          }
+        },
+        "kiro": {
+          "selectedTargetId": "kiro-rs",
+          "targets": {
+            "kiro-rs": {
+              "baseUrl": "",
+              "apiKey": ""
+            }
+          },
+          "autoRun": {
+            "stepExecutionRange": {
+              "enabled": false,
+              "fromStep": 1,
+              "toStep": 9
+            }
+          },
+          "targetId": "kiro-rs"
+        },
+        "grok": {
+          "selectedTargetId": "webchat2api",
+          "targets": {
+            "webchat2api": {
+              "baseUrl": "",
+              "apiKey": ""
+            }
+          },
+          "autoRun": {
+            "stepExecutionRange": {
+              "enabled": false,
+              "fromStep": 1,
+              "toStep": 6
+            }
+          }
+        }
+      }
+    }
+  }
+}
